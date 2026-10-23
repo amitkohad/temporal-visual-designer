@@ -29,3 +29,5 @@ The offline authoring validator adds structured branch/join checks, reusable-wor
 Server form validation now provides permission-filtered previews, conditional business rules and revision-checked partial submissions through a trusted gateway port. See [implementation scope](specs/001-nexus-flow-designer/implementation-form-validation.md); the React renderer and live task/start adapters remain planned.
 
 Activity intake now validates bounded Python source bundles and stores private immutable candidates with scoped publisher authorization. See [implementation scope](specs/001-nexus-flow-designer/implementation-activity-intake.md). Palette publication and Python worker execution remain planned.
+
+The activity catalog backend now supports explicit immutable publication, scoped palette search, deprecation/withdrawal, retained exports and protected catalog purge. See [implementation scope](specs/001-nexus-flow-designer/implementation-activity-catalog.md); Admin UI, isolated execution and automatic release/run retention integration remain planned.

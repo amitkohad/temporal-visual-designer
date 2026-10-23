@@ -23,9 +23,9 @@ Foundation implementation was authorized on 2026-10-23. See [implementation-foun
   - [ ] NF-T005b Complete HTTP/download/stream acceptance required by F01-T004; UI/provider integration has separate feature gates.
 - [x] NF-T006 [P] Deliver feature 02 isolated suite with identity fake. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/02-project-versioning/`.
 - [ ] NF-T007 [P] Deliver feature 03 isolated UI suite with project/catalog fixtures. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/03-designer-forms/`.
-- [ ] NF-T008 [P] Deliver feature 04 catalog/import suite with isolated build runner fake. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/04-activity-catalog/`.
+- [x] NF-T008 [P] Deliver feature 04 catalog/import suite with isolated compatibility/capability fakes. The approved preassembled source format (ADR 0007) performs no builds or installation during intake; executable worker acceptance remains F04-T007. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/04-activity-catalog/`.
   - [x] NF-T008a Validated Python source-bundle intake and independent security/recovery suite are delivered (F04-T001a/T002/T005a).
-  - [ ] NF-T008b Complete catalog publication/lifecycle/export and isolated worker acceptance.
+  - [x] NF-T008b Catalog publication/lifecycle/export acceptance is complete (F04-T003/T005). Isolated execution remains explicitly open under F04-T007; it is not inferred from metadata/capability fakes.
 - [ ] NF-T009 [P] Deliver feature 05 runtime acceptance. Prerequisites: NF-T003, NF-T004 for full implementation. Owner paths: `nexusflow/modules/05-durable-runtime/`.
 - [ ] NF-T010 [P] Deliver feature 06 task suite with directory/runtime/form fixtures. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/06-human-tasks/`.
 - [ ] NF-T011 [P] Deliver feature 07 debugger suite with event fixtures. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/07-designer-debugger/`.

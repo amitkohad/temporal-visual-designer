@@ -83,3 +83,7 @@ FormVisibilityRule contains schema_version, field_id and a native JSON Schema `w
 ## Activity source-bundle intake subset (0.1)
 
 ActivityManifest contains schema_version, common descriptor, Python runtime metadata and exact source-file hashes/sizes. PythonRuntime declares language, python_version, entrypoint and locked vendored dependencies; mutable aliases and undeclared payload files are invalid. The artifact digest covers metadata and file hashes, excluding its own declared value. See `activity_catalog/types.py`, `digests.py` and [ADR 0007](../../docs/decisions/0007-activity-bundle-intake.md). Export with `uv run nexusflow-bundle-schema`. Metadata validation does not publish a descriptor or establish executable worker compatibility; dispatch/sandbox contracts remain open.
+
+## Catalog lifecycle subset (0.1)
+
+CatalogEntry is an immutable metadata snapshot with scope, exact ActivityRef, manifest_json, state, generation and publisher/update provenance. Lifecycle is published/deprecated/withdrawn; deletion retains a permanent version reservation. RuntimeCapabilities is a required publication-policy port; existing publication retries cannot resurrect a withdrawn entry. Internal usage holds protect retained exports and logical purge. See `activity_catalog/catalog_types.py` and [ADR 0008](../../docs/decisions/0008-activity-catalog.md). The bundle schema exporter also writes activity-catalog-entry.schema.json. Worker dispatch and automatic consumer retention remain open.

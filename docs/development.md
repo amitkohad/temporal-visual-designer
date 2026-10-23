@@ -37,3 +37,5 @@ Server form validation: `uv run pytest nexusflow/tests/designer_forms/test_form_
 Activity intake acceptance: `uv run pytest nexusflow/tests/activity_catalog`. Export the source manifest schema with `uv run nexusflow-bundle-schema`. See [ADR 0007](decisions/0007-activity-bundle-intake.md) for bundle assembly, limits and private candidate semantics. No Python code is imported or executed by intake. Publication and isolated execution are separate work.
 
 When implementation is confirmed, update its spec checkbox with evidence in the same change. Keep incomplete parent acceptance visible through checked completed subtasks and explicit unchecked remaining work; UI/provider tasks do not reopen separately completed backend tasks.
+
+Catalog acceptance: `uv run pytest nexusflow/tests/activity_catalog`. `nexusflow-bundle-schema` exports both the manifest and catalog-entry schema. `apps.catalog_adapters.ScopedCatalog` supplies actual descriptors/pinned resolution to authoring/project services. See [ADR 0008](decisions/0008-activity-catalog.md) for mandatory capability checks, internal hold ownership and remaining production integrations.

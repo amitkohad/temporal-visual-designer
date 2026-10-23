@@ -12,6 +12,7 @@ from nexusflow.modules.identity_environments.types import (
 ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
     "business_author": frozenset(
         {
+            "activity.read",
             "project.read",
             "project.write",
             "package.export",
