@@ -7,7 +7,7 @@ Foundation implementation was authorized on 2026-10-23. See [implementation-foun
 - [ ] NF-T001 Approve C01–C10 in `contracts.md`, common fixture corpus and ownership map; map NF-001–012 to feature FRs. Prerequisites: requirements review. Owner: contract lead. Acceptance: no unresolved shared shape or ownership conflict; SC-05.
 - [ ] NF-T002 Resolve stack, Entra tenancy, expression engine, Python build format, retention and sizing decision gates in `research.md`; select dependency versions and test commands. Prerequisite: NF-T001. Owner: architecture lead. Acceptance: dependent adapters have executable decisions, remaining uncertainties have explicit gates.
 - [ ] NF-T003 Establish future `nexusflow/contracts/`, test fixture interfaces, root manifests and per-feature module boundaries. Prerequisite: NF-T002 and later implementation authorization. Owner: integration lead. Acceptance: provider/consumer conformance harness and isolated fixture loading work. No feature agent edits these files.
-- [ ] NF-T004 Run runtime feasibility proof from feature 05 before full runtime-dependent integration. Prerequisite: NF-T003. Owner: runtime lead. Acceptance: replay/restart, durable approval delivery/pause, old/new release coexistence pass.
+- [x] NF-T004 Run runtime feasibility proof from feature 05 before full runtime-dependent integration. Prerequisite: NF-T003. Owner: runtime lead. Acceptance: replay/restart, durable approval delivery/pause, old/new release coexistence pass.
 
 ## Parallel work allocation
 
@@ -43,3 +43,5 @@ Example: after 03 contract setup, run its API/state lane, canvas/form UI lane, a
 - [ ] NF-T020 Freeze UX-T006 handoff in design-handoff.md following user review. Prerequisite: NF-T019. Acceptance: exact approved frame/component references and unresolved limitations recorded. All UI implementation lanes require NF-T020 as an additional prerequisite. Existing backend/test-contract work keeps its original prerequisites. NF-T015/016 must verify NF-013/SC-07 as well as earlier requirements.
 
 Canvas-direction approval recorded 2026-10-23 for frame 5:14. NF-T018–020 remain unchecked because design-system freeze, interaction/state coverage and verification are incomplete. Their review prerequisites must reuse this approval for the canvas rather than request it again; remaining screens and material revisions still require review. Acceptance coverage includes UX-013/014 and UX-A08.
+
+NF-T004 evidence is in [implementation-runtime-proof.md](implementation-runtime-proof.md). Full feature 05 and UI tasks remain open; the proof does not complete every runtime acceptance scenario.

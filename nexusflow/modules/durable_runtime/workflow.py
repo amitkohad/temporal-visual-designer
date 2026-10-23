@@ -1,0 +1,170 @@
+"""A versioned, sandboxed Temporal proof interpreter with durable control updates."""
+
+import asyncio
+from datetime import timedelta
+
+from temporalio import workflow
+from temporalio.common import RetryPolicy
+from temporalio.exceptions import ApplicationError
+
+from nexusflow.modules.durable_runtime.types import (
+    ActivityCall,
+    ApprovalCommand,
+    CommandReceipt,
+    DebugCommand,
+    ExecutionPlan,
+    ExecutionResult,
+    Snapshot,
+)
+
+
+@workflow.defn(name="NexusFlowProofV1")
+class ProofWorkflow:
+    def __init__(self) -> None:
+        self.plan: ExecutionPlan | None = None
+        self.node_id = ""
+        self.state = "starting"
+        self.revision = 0
+        self.completed: list[str] = []
+        self.approved: bool | None = None
+        self.permit = ""
+        self.stepping = True
+        self.receipts: dict[str, tuple[ApprovalCommand | DebugCommand, CommandReceipt]] = {}
+
+    @workflow.run
+    async def run(self, plan: ExecutionPlan) -> ExecutionResult:
+        if plan.binding.runtime_version != "proof.v1" or not 2 <= len(plan.steps) <= 100:
+            raise ApplicationError("Unsupported execution plan", non_retryable=True)
+        if plan.debug and plan.binding.environment_id != "dev":
+            raise ApplicationError("Debug is restricted to Dev", non_retryable=True)
+        self.plan = plan
+        outputs: dict[str, str] = {}
+        try:
+            for step in plan.steps:
+                self.node_id = step.node_id
+                if step.kind not in {"start", "end", "activity", "approval", "wait"}:
+                    raise ApplicationError("Unsupported step", non_retryable=True)
+                if (
+                    plan.debug
+                    and step.kind not in {"start", "end"}
+                    and (self.stepping or step.node_id in plan.breakpoints)
+                ):
+                    self.state = "paused"
+                    await workflow.wait_condition(lambda: self.permit == self.node_id)
+                    self.permit = ""
+                self.state = "running"
+                if step.kind == "activity":
+                    call = ActivityCall(
+                        binding=plan.binding,
+                        node_id=step.node_id,
+                        operation_id=f"{workflow.info().workflow_id}:{step.node_id}",
+                        activity_id=step.activity_id,
+                        activity_version=step.activity_version,
+                        artifact_digest=step.artifact_digest,
+                        input_json=step.input_json,
+                        workflow_input_json=plan.input_json,
+                    )
+                    output = await workflow.execute_activity(
+                        "nexusflow.proof.dispatch",
+                        call,
+                        result_type=str,
+                        activity_id=step.node_id,
+                        start_to_close_timeout=timedelta(seconds=step.timeout_seconds),
+                        retry_policy=RetryPolicy(maximum_attempts=step.maximum_attempts),
+                    )
+                    if len(output.encode()) > 65536:
+                        raise ApplicationError(
+                            "Activity output exceeds proof limit", non_retryable=True
+                        )
+                    outputs[step.node_id] = output
+                    if sum(len(value.encode()) for value in outputs.values()) > 131072:
+                        raise ApplicationError(
+                            "Combined outputs exceed proof limit", non_retryable=True
+                        )
+                elif step.kind == "approval":
+                    self.approved = None
+                    self.state = "waiting_approval"
+                    await workflow.wait_condition(lambda: self.approved is not None)
+                    if not self.approved:
+                        raise ApplicationError(
+                            "Approval rejected", type="ApprovalRejected", non_retryable=True
+                        )
+                elif step.kind == "wait":
+                    self.state = "waiting_timer"
+                    await workflow.sleep(timedelta(seconds=step.delay_seconds))
+                self.completed.append(step.node_id)
+            self.state = "completed"
+            return ExecutionResult(
+                plan.binding, plan.definition_digest, tuple(self.completed), outputs
+            )
+        except asyncio.CancelledError:
+            self.state = "cancelled"
+            raise
+        except Exception:
+            self.state = "failed"
+            raise
+
+    def _duplicate(self, command: ApprovalCommand | DebugCommand) -> CommandReceipt | None:
+        previous = self.receipts.get(command.command_id)
+        if previous is not None:
+            if previous[0] != command:
+                raise ApplicationError("Command ID reused with different content", type="Conflict")
+            return previous[1]
+        if not command.command_id or len(self.receipts) >= 1000:
+            raise ApplicationError(
+                "Command limit exceeded or empty command ID", type="InvalidArgument"
+            )
+        if command.expected_revision != self.revision:
+            raise ApplicationError("Stale command revision", type="Conflict")
+        return None
+
+    def _accept(self, command: ApprovalCommand | DebugCommand) -> CommandReceipt:
+        self.revision += 1
+        receipt = CommandReceipt(command.command_id, self.revision)
+        self.receipts[command.command_id] = (command, receipt)
+        return receipt
+
+    @workflow.update
+    def approve(self, command: ApprovalCommand) -> CommandReceipt:
+        previous = self._duplicate(command)
+        if previous is not None:
+            return previous
+        if (
+            self.state != "waiting_approval"
+            or command.node_id != self.node_id
+            or self.approved is not None
+        ):
+            raise ApplicationError("Approval does not match the waiting step", type="Conflict")
+        self.approved = command.approved
+        return self._accept(command)
+
+    @workflow.update
+    def control(self, command: DebugCommand) -> CommandReceipt:
+        previous = self._duplicate(command)
+        if previous is not None:
+            return previous
+        if (
+            self.plan is None
+            or not self.plan.debug
+            or self.state != "paused"
+            or command.node_id != self.node_id
+        ):
+            raise ApplicationError("Debug command requires a paused Dev step", type="Conflict")
+        if command.action not in {"step_over", "continue"} or self.permit:
+            raise ApplicationError("Invalid or conflicting debug command", type="Conflict")
+        self.stepping = command.action == "step_over"
+        self.permit = command.node_id
+        return self._accept(command)
+
+    @workflow.query
+    def snapshot(self) -> Snapshot:
+        plan = self.plan
+        return Snapshot(
+            release_id=plan.binding.release_id if plan else "",
+            definition_digest=plan.definition_digest if plan else "",
+            runtime_version=plan.binding.runtime_version if plan else "",
+            node_id=self.node_id,
+            state=self.state,
+            revision=self.revision,
+            completed_nodes=tuple(self.completed),
+        )
