@@ -52,6 +52,17 @@ def compile_plan(
         raise PlanError("Proof supports at most 100 nodes and one start")
     if definition.error_routes:
         raise PlanError("Error routes are not supported by this proof")
+    # The authoring binding contract is not executable by proof.v1. Never pass
+    # reserved syntax through as a literal activity argument.
+    pending_values: list[JsonValue] = [node.input_mapping for node in definition.nodes]
+    while pending_values:
+        value = pending_values.pop()
+        if isinstance(value, dict):
+            if "$binding" in value:
+                raise PlanError("Variable bindings are not supported by this proof")
+            pending_values.extend(value.values())
+        elif isinstance(value, list):
+            pending_values.extend(value)
 
     # External schema references must never introduce network I/O during preflight.
     def has_reference(value: JsonValue) -> bool:

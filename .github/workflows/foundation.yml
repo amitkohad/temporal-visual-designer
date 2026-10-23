@@ -27,6 +27,7 @@ jobs:
       - run: uv run pytest
       - run: uv run nexusflow-export-schemas
       - run: uv run nexusflow-project-schema
+      - run: uv run nexusflow-binding-schema
       - run: uv build
 
   runtime-proof:

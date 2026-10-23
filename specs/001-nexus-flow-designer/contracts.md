@@ -71,3 +71,7 @@ Each contract needs positive, invalid-input, authorization, retry and compatibil
 ## Executable foundation subset
 
 The initial Python models in nexusflow/contracts implement schema version 0.1 for request-context, error, activity-descriptor, workflow, project and step-event. JSON Schema export is 2020-12. Use validate_contract for structural plus foundation graph checks; exports alone cannot enforce graph semantics. Scope/RequestContext contain explicit organization/environment scope and are transport contracts, not trusted authentication. The initial project contract covers workflow/activity dependency composition, not the final deployable project package or forms. Unimplemented sections of this document remain future contracts. React consumes exported schemas; Python is the authoritative model source. See ADR 0001 and docs/development.md for exact boundaries.
+
+## Authoring binding subset (0.1)
+
+The offline authoring increment reserves a complete activity input field envelope `{"$binding":{"schema_version":"0.1","source":"input","path":"/employee"}}`; step sources add `node_id`. See `nexusflow/modules/designer_forms/types.py` and [ADR 0005](../../docs/decisions/0005-authoring-validation.md) for source availability and conservative type proof. This contract supports variable selection only; the general expression language remains pending. Proof runtime version `proof.v1` rejects bindings, so authoring validation alone does not establish executability. Portable binding schema export is `uv run nexusflow-binding-schema`.

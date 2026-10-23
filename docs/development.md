@@ -29,3 +29,5 @@ Default uv run pytest excludes the integration marker. Run uv run pytest -m inte
 Identity acceptance: `uv run pytest nexusflow/tests/identity`. Synthetic RSA/JWKS/directory fixtures and temporary SQLite files require no Microsoft credentials or network. See ADR 0003 for trusted bootstrap and provider boundaries.
 
 Project versioning acceptance: `uv run pytest nexusflow/tests/project_versioning`. Export the feature schema with `uv run nexusflow-project-schema`. See [ADR 0004](decisions/0004-project-versioning.md) for local persistence, digest semantics and integration boundaries.
+
+Authoring validation acceptance: `uv run pytest nexusflow/tests/designer_forms`. Export variable-reference bindings with `uv run nexusflow-binding-schema`. `AuthoringValidator(catalog)` can replace the baseline publication validator in `ProjectService`. See [ADR 0005](decisions/0005-authoring-validation.md); this is an offline backend adapter, and the proof runtime rejects bindings until execution support exists.

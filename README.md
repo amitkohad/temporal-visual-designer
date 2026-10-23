@@ -23,3 +23,5 @@ Run the real proof with `uv run pytest -m integration nexusflow/tests/runtime`. 
 The identity/environment backend core now validates signed Entra tokens through injected key/directory providers, applies scoped persisted grants and maintains logical Dev/UAT/Prod routing. See [implementation scope](specs/001-nexus-flow-designer/implementation-identity-environments.md); live Microsoft adapters and React sign-in remain planned.
 
 The project versioning backend now supports scoped revision history, restore and immutable whole-project releases. See [implementation scope](specs/001-nexus-flow-designer/implementation-project-versioning.md); React project screens and production catalog/deployment adapters remain planned.
+
+The offline authoring validator adds structured branch/join checks, reusable-workflow recursion checks and descriptor-backed input mapping validation. See [implementation scope](specs/001-nexus-flow-designer/implementation-authoring-validation.md). Variable bindings are validated for authoring and rejected by the proof runtime until execution support is implemented.

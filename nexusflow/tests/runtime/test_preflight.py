@@ -220,3 +220,13 @@ def test_rejects_more_than_one_hundred_nodes(definition, binding, scope):
     ]
     with pytest.raises(PlanError, match="100 nodes"):
         compile_plan(json.dumps(definition), binding, scope)
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_proof_rejects_authoring_bindings_instead_of_executing_as_literal(
+    definition, binding, scope, nested
+):
+    value = {"$binding": {"schema_version": "0.1", "source": "input", "path": "/purchase"}}
+    definition["nodes"][2]["input_mapping"] = {"payload": [value] if nested else value}
+    with pytest.raises(PlanError, match="Variable bindings"):
+        compile_plan(json.dumps(definition), binding, scope)
