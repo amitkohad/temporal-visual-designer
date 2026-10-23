@@ -22,3 +22,5 @@ Use deterministic signed test-token corpus for invalid lifetime/issuer/audience/
 ## Dependencies and risks
 
 Isolated suite has no other feature provider dependency. Integration consumers must use C01 across every API. Entra single/multiple-directory mode and cache-revocation SLA need decisions; do not hardcode email-based tenancy. Integration cannot be declared complete with fake authorization enabled. Scope mutations and provisioning need transactions/reconciliation but no cloud deployment code in this module.
+
+Implementation uses Python package nexusflow.modules.identity_environments, SQLite local metadata, signed PyJWT validation and injected provider ports. See [ADR 0003](../../../../docs/decisions/0003-identity-environments.md) for scope, security and production follow-ups. No React UI is implemented in this increment.

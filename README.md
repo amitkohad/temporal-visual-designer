@@ -19,3 +19,5 @@ Python 3.12 or 3.13 and uv are required. No Azure, Entra, database or Temporal s
 See [development commands](docs/development.md), the [Python/React architecture decision](docs/decisions/0001-foundation.md), and [implementation specifications](specs/001-nexus-flow-designer/README.md).
 
 Run the real proof with `uv run pytest -m integration nexusflow/tests/runtime`. See [runtime proof](specs/001-nexus-flow-designer/implementation-runtime-proof.md).
+
+The identity/environment backend core now validates signed Entra tokens through injected key/directory providers, applies scoped persisted grants and maintains logical Dev/UAT/Prod routing. See [implementation scope](specs/001-nexus-flow-designer/implementation-identity-environments.md); live Microsoft adapters and React sign-in remain planned.
