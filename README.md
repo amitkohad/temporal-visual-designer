@@ -14,6 +14,8 @@ uv run nexusflow-export-schemas
 uv build
 ```
 
-Python 3.12 or 3.13 and uv are required. No Azure, Entra, database or Temporal service is needed for these tests. The foundation provides strict contract validation, portable schemas and isolated test helpers. It does not yet run workflows or provide a web UI.
+Python 3.12 or 3.13 and uv are required. No Azure, Entra, database or Temporal service is needed for these tests. The foundation provides strict contract validation, portable schemas and isolated test helpers. A limited Python Temporal proof now executes linear workflows with durable approvals, timers and debug pauses. The full runtime and React UI remain in development.
 
 See [development commands](docs/development.md), the [Python/React architecture decision](docs/decisions/0001-foundation.md), and [implementation specifications](specs/001-nexus-flow-designer/README.md).
+
+Run the real proof with `uv run pytest -m integration nexusflow/tests/runtime`. See [runtime proof](specs/001-nexus-flow-designer/implementation-runtime-proof.md).

@@ -17,3 +17,5 @@ Own only `nexusflow/modules/05-durable-runtime/` and `nexusflow/modules/05-durab
 ## Verification
 
 Use virtual clock and explicit synchronization, not sleeps. Cover RT-A1–A7, failure injection between commit/ack, duplicate/out-of-order messages, continuation and artifact unavailability. Temporal-specific tests use an isolated test environment. Application tests use the commands and integration conventions approved during stack setup. Run applicable future module checks and the application lint command selected during stack setup after code changes, documenting unrelated failures. No performance claim without reproducible sizing/load fixtures.
+
+NF-T004 is implemented under nexusflow/modules/durable_runtime; see [proof evidence](../../implementation-runtime-proof.md). Broader RT-T01–05 remain open. User authorization supersedes the original planning-only wording for this increment.

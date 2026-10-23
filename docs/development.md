@@ -17,6 +17,11 @@ The lockfile pins resolved versions. Schema export writes deterministic, version
 
 `uv run nexusflow-check workflow <file.json>` returns JSON issues and exits 0 for valid contracts, 1 for invalid content, and 2 for file/usage errors. It never runs a workflow. Error reports contain field locations and codes, not input payloads. Workflow schemas, expression handling and graph semantics are a foundation subset; complete graph/dataflow/parallel-join checks arrive in the Designer/runtime features.
 
-Tests use local synthetic data and require no Azure credentials, Entra, SMTP, Temporal or network. Keep fakes under nexusflow/tests, use fresh state per test and synchronization instead of sleeps. Frozen Pydantic fields prevent reassignment, but nested dictionaries are not deeply immutable; boundary adapters must copy snapshots. Test security failures and recovery relevant to each change. Do not infer production identity/isolation guarantees from fake-store tests.
+Default tests use local synthetic data and require no Azure credentials, Entra, SMTP, Temporal process or network. Keep fakes under nexusflow/tests, use fresh state per test and synchronization instead of sleeps. Frozen Pydantic fields prevent reassignment, but nested dictionaries are not deeply immutable; boundary adapters must copy snapshots. Test security failures and recovery relevant to each change. Do not infer production identity/isolation guarantees from fake-store tests.
 
-Before implementation of a feature adapter, resolve its specific decisions in research.md. Runtime feasibility is next; unresolved scale/retention/identity deployment inputs block their affected production features rather than every local contract test.
+Before implementation of a feature adapter, resolve its specific decisions in research.md. The runtime feasibility proof is implemented; unresolved scale/retention/identity deployment inputs block their affected production features rather than every local contract test.
+
+
+## Real Temporal integration
+
+Default uv run pytest excludes the integration marker. Run uv run pytest -m integration nexusflow/tests/runtime for sandbox/restart/replay tests. They start a disposable loopback server using NEXUSFLOW_TEMPORAL_CLI or temporal on PATH. Without either, the SDK downloads a dev server and needs network access. Local CLI 1.9.1 is verified and pinned in CI. Startup errors fail the suite. No cloud credentials or deployed cluster are used. See [ADR 0002](decisions/0002-runtime-proof.md).
