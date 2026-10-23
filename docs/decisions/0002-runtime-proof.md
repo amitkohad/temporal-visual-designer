@@ -1,0 +1,17 @@
+# ADR 0002: Versioned Temporal feasibility proof
+
+Date: 2026-10-23. Status: implemented proof, not a production interpreter.
+
+NF-T004 follows the published Python foundation. Temporal Python SDK 1.34.0 is locked in uv.lock. Use SDK sandboxed workflows, plain frozen dataclasses for deterministic transport, and JSON Schema/Pydantic only in host-side preflight. The sandbox imports no application contracts, cloud providers or test fakes. All effects cross the named activity nexusflow.proof.dispatch; activity implementations are supplied by workers, not imported from packages during execution.
+
+The proof compiler supports one connected, bounded linear sequence of start, pinned activity, human approval wait, timer and end. Branching/joins, error routes, loops, expressions and other node kinds fail preflight rather than being partially interpreted. Input mapping is literal JSON, not expression evaluation. Definition digests use sorted compact JSON from validated definitions; binding, input and activity references are frozen before dispatch. The plan explicitly records release/configuration/runtime versions. The caller must supply trusted authorized scope and an approved binding; this is not an authentication or artifact-trust service.
+
+Debug is restricted to the proof's dev environment ID. Breakpoints precede steps. Step-over grants one current invocation; continue advances until another breakpoint. Durable approval/debug Updates carry command IDs and expected revisions. Repeating the same command returns its recorded receipt, including after restart; changed-content reuse and stale commands fail. Acceptance is recorded in Temporal history. The future human-task service still needs its own transaction/outbox and authorization boundary.
+
+ProofWorkflow is registered as NexusFlowProofV1 with runtime version proof.v1. Future incompatible interpreter changes require a new compatible execution strategy and replay tests; do not edit V1 semantics underneath existing histories. Different project releases run concurrently on V1 with distinct pinned artifact versions. This proves release binding, not production activation, rollback routing or cross-interpreter compatibility.
+
+Limits: 100 nodes, 64 KiB workflow input, 128 KiB canonical definition, 64 KiB per activity result, 128 KiB combined results, 1000 accepted control commands. Retry/timeout policies are pinned. Stable operation identity is workflow-ID plus node-ID; production starts must prohibit inappropriate workflow-ID reuse, and providers must still implement idempotency. No exactly-once external-effects guarantee is made. Continue-as-new, long-history management and recovery of task-service state are deferred.
+
+Tests use SDK-managed local Temporal CLI 1.9.1 (Server 1.32.0 on the verified workstation), in-memory persistence, no UI and loopback networking. Server lifetime is isolated to the test fixture; it never connects to Azure or the deployed cluster. Query predicates coordinate tests without fixed sleeps. Restart means stopping/recreating Workers against the still-running local server; server backup/restore is not tested. Each completed history is replayed through the real SDK Replayer. CI uses a separate explicit integration job; default tests require no Temporal process.
+
+Sources: https://github.com/temporalio/sdk-python, https://docs.temporal.io/develop/python/best-practices/testing-suite, https://github.com/temporalio/setup-temporal. The installed SDK signatures were inspected before implementing the local test harness.

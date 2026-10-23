@@ -1,6 +1,6 @@
 # Durable workflow runtime
 
-Status: specification only. Shared vocabulary and envelopes: [contracts](../../contracts.md).
+Status: NF-T004 linear feasibility proof implemented; complete feature requirements remain planned. Shared vocabulary and envelopes: [contracts](../../contracts.md).
 
 ## Scope
 
@@ -33,3 +33,5 @@ Runtime-owned records: ExecutionBinding (logical/run IDs, organization, environm
 ## Success criteria
 
 All RT-A scenarios pass with deterministic clock, fake activity dispatcher and fake release resolver without other Nexus Flow Designer services. A separate Temporal test-environment suite must replay captured histories without nondeterminism, cover worker restart and continuation, and demonstrate two concurrent release versions. Unauthorized scenarios yield zero dispatched effects. Numeric throughput/SLO targets remain a sizing decision, not an invented guarantee.
+
+Evidence: [runtime proof](../../implementation-runtime-proof.md). Importable Python code lives in nexusflow.modules.durable_runtime; numbered spec directories identify ownership.

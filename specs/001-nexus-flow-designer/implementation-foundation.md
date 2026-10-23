@@ -24,6 +24,6 @@ NF-T001/NF-T002 have a documented foundation subset in ADR 0001; broader identit
 - [x] NF-T003c Independent fixtures, scoped fake conformance and import-boundary tests.
 - [x] NF-T003d Build/package checks and CI definition.
 - [ ] GitHub-hosted CI evidence after push.
-- [ ] Runtime feasibility proof (NF-T004): compatible Python Temporal SDK, replay/restart, durable human response and debug gate, concurrent pinned releases.
+- [x] Runtime feasibility proof (NF-T004), completed in implementation-runtime-proof.md: compatible Python Temporal SDK, replay/restart, durable human response and debug gate, concurrent pinned releases.
 
 This increment does not implement production authorization, complete compiler validation, forms/packages/deployments, API server, workflow execution, database persistence or React UI. JSON schemas are structural; validate_contract adds the documented semantic subset. The approved Figma canvas remains the UI reference for later work.

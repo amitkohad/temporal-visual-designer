@@ -27,3 +27,18 @@ jobs:
       - run: uv run pytest
       - run: uv run nexusflow-export-schemas
       - run: uv build
+
+  runtime-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.7.7"
+          python-version: "3.12"
+      - uses: temporalio/setup-temporal@v0
+        with:
+          version: v1.9.1
+      - run: uv sync --locked
+      - run: uv run pytest -m integration nexusflow/tests/runtime
