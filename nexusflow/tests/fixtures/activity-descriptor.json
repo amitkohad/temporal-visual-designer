@@ -1,0 +1,39 @@
+{
+  "descriptor_schema_version": "0.1",
+  "activity_ref": {
+    "activity_id": "send-notification",
+    "version": "1.0.0",
+    "artifact_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "display_name": "Send notification",
+  "category": "notifications",
+  "description": "Send a configured notification",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "message": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "message"
+    ]
+  },
+  "output_schema": {
+    "type": "object"
+  },
+  "configuration_schema": {
+    "type": "object"
+  },
+  "connection_requirements": [
+    "notifications"
+  ],
+  "execution_policy": {
+    "timeout_seconds": 30,
+    "maximum_attempts": 3
+  },
+  "runtime_requirements": [
+    "python-3.12"
+  ],
+  "documentation": "Uses the notifications connection."
+}

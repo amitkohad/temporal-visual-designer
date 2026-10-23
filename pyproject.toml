@@ -1,0 +1,47 @@
+[project]
+name = "nexus-flow-designer"
+version = "0.1.0"
+description = "Python contract foundation for Nexus Flow Designer"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "jsonschema>=4.23,<5",
+    "pydantic>=2.11,<3",
+]
+
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["nexusflow"]
+exclude = ["nexusflow/tests"]
+
+[project.scripts]
+nexusflow-check = "nexusflow.apps.cli:main"
+nexusflow-export-schemas = "nexusflow.contracts.export:main"
+
+[tool.pytest.ini_options]
+testpaths = ["nexusflow/tests"]
+addopts = "-ra --strict-markers"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["nexusflow/contracts", "nexusflow/apps"]
+
+[dependency-groups]
+dev = [
+    "hatchling>=1.27,<2",
+    "mypy>=1.15,<2",
+    "pytest>=8,<10",
+    "ruff>=0.11,<1",
+    "types-jsonschema>=4.23,<5",
+]

@@ -20,3 +20,7 @@ For one feature: load C01–C10 fixtures applicable to it, use deterministic loc
 8. Exercise duplicate commands, task/deadline races, import interruption, conflicting activation, missing artifacts, revoked access and cross-tenant downloads.
 
 Application test commands and tool versions will be recorded after stack selection. Select application test commands and integration-suite conventions after the stack decision. Run the application lint command selected during stack setup after future code changes. This specification-only change requires document/link/task consistency checks, not server tests or cloud access.
+
+## Implemented foundation commands
+
+The foundation is now implemented; use [development.md](../../docs/development.md) for uv sync, lint, format, type checks, pytest, schema export and build. [implementation-foundation.md](implementation-foundation.md) records verified scope. Future feature scenarios above are not yet implemented. Python is the backend/runtime stack; React is the browser UI stack.

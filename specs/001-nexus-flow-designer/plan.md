@@ -1,6 +1,6 @@
 # Implementation plan
 
-Status: proposed; execution requires a later user instruction. No code, generated schemas, dependency installs or cloud resources belong to this change.
+Status: Python foundation implementation authorized on 2026-10-23; see implementation-foundation.md for scope and verification. Remaining features are planned. Cloud provisioning is outside this implementation increment.
 
 ## Technical approach
 
@@ -60,3 +60,7 @@ Future implementation must establish and follow an application testing guide. Ap
 ## Figma design gate
 
 Use Figma MCP for editable designs, component/library inspection, screenshot review and implementation handoff. Follow UX-T001–006 in [ux-design.md](ux-design.md). The design lead owns shared tokens/components; separate screen owners can design concurrently after foundation freeze. UI implementation requires UX-T006 in addition to existing feature prerequisites. Backend/contracts are not blocked by screen approval when separately authorized. The selected graph/form libraries must support the approved interactions and accessibility criteria; visual convenience cannot bypass semantic/runtime contracts.
+
+## Foundation implementation update
+
+The user authorized implementation and selected Python backend/runtime and React browser UI on 2026-10-23. ADR 0001 records the executable-contract subset and tooling. Browser UI remains subject to its Figma gates; this foundation introduces no UI code. Scope-specific foundations may progress without falsely closing production identity, runtime, retention or sizing decisions. Actual module imports use snake_case names per nexusflow/modules/README.md.

@@ -2,7 +2,7 @@
 
 Version: 1.0.0 | Adopted: 2026-10-23 | Scope: Nexus Flow Designer application specifications.
 
-1. Specify user outcomes, acceptance tests, contracts, plans, and traceable tasks before implementation. This change authorizes documentation only.
+1. Specify user outcomes, acceptance tests, contracts, plans, and traceable tasks before implementation. The user authorized the first foundation implementation on 2026-10-23; record implemented scope and evidence separately from planned features.
 2. Temporal is the durable execution foundation. Keep application development outside Temporal server internals unless a separately reviewed requirement proves necessary.
 3. Treat organizations and Dev/UAT/Prod environments as authorization and data boundaries. Authenticate through Azure Entra ID; enforce permissions server-side.
 4. Publish immutable whole-project releases. Pin definitions, activities, forms, and runtime compatibility for each execution. Activation and rollback affect new starts only.
