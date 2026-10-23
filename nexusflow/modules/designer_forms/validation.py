@@ -1,6 +1,7 @@
 """Composition entry point for offline publication authoring checks."""
 
 from nexusflow.contracts.validation import ValidationIssue
+from nexusflow.modules.designer_forms.form_definition import validate_form_definition
 from nexusflow.modules.designer_forms.graph import validate_graph
 from nexusflow.modules.designer_forms.mappings import validate_mappings
 from nexusflow.modules.designer_forms.types import DescriptorCatalog
@@ -17,4 +18,9 @@ class AuthoringValidator:
         # Malformed graph/resource references cannot safely enter deeper analyses.
         if baseline:
             return baseline
-        return validate_graph(content) + validate_mappings(content, self.catalog)
+        form_issues = tuple(
+            ValidationIssue(f"/forms/{index}{issue.path}", issue.code, issue.message)
+            for index, form in enumerate(content.forms)
+            for issue in validate_form_definition(form)
+        )
+        return form_issues + validate_graph(content) + validate_mappings(content, self.catalog)

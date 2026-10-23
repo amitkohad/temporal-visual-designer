@@ -23,6 +23,7 @@ nexusflow-check = "nexusflow.apps.cli:main"
 nexusflow-export-schemas = "nexusflow.contracts.export:main"
 nexusflow-project-schema = "nexusflow.modules.project_versioning.export:main"
 nexusflow-binding-schema = "nexusflow.modules.designer_forms.export:main"
+nexusflow-form-schemas = "nexusflow.modules.designer_forms.form_export:main"
 
 [tool.pytest.ini_options]
 testpaths = ["nexusflow/tests"]
