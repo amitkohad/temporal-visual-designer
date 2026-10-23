@@ -1,6 +1,6 @@
 # Nexus Flow Designer specification set
 
-Created: 2026-10-23. Status: proposed specifications for a new application developed from scratch in this repository; implementation not authorized.
+Created: 2026-10-23. Status: implementation in progress. Python backend foundations and local acceptance suites are delivered; React UI, production adapters and full integration remain open. See task checkboxes and implementation records for verified scope.
 
 This set follows the GitHub Spec Kit specification → plan → tasks structure. It is authored documentation, not a claim that the Specify CLI, agent commands, or generated scaffolding are installed. Process reference: https://github.com/github/spec-kit.
 
@@ -29,7 +29,7 @@ This set follows the GitHub Spec Kit specification → plan → tasks structure.
 | 09 | [Package promotion](features/09-package-promotion/spec.md) | Fake registry, permissions, and routing |
 | 10 | [Operations and portability](features/10-operations-portability/spec.md) | Synthetic telemetry and provider adapters |
 
-Paths under `nexusflow/` in plans are proposed future application locations; none is created by this specifications change. Feature numbers are identifiers, not a required serial implementation order.
+Numbered paths under `nexusflow/` in plans identify ownership; implemented Python packages use snake_case module names as recorded in `nexusflow/modules/README.md`. Feature numbers are identifiers, not a required serial implementation order.
 
 Repository: https://github.com/amitkohad/temporal-visual-designer. This repository is the development home for Nexus Flow Designer. Temporal provides the external durable execution engine.
 

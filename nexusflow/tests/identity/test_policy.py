@@ -66,6 +66,7 @@ def denied(policy, principal, scope, permission):
 @pytest.mark.parametrize(
     "permission",
     [
+        "activity.read",
         "project.read",
         "project.write",
         "package.export",
@@ -95,6 +96,7 @@ def test_context_is_constructed_from_server_grants():
         scope=scope,
         actor=principal.actor,
         resolved_permissions=(
+            "activity.read",
             "debug.execute",
             "environment.read",
             "package.activate",
@@ -160,6 +162,7 @@ def test_group_grants_and_membership_revocation_are_checked_each_call():
 @pytest.mark.parametrize(
     "permission",
     [
+        "activity.read",
         "project.read",
         "task.read",
         "run.read",
