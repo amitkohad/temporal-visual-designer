@@ -27,3 +27,5 @@ The project versioning backend now supports scoped revision history, restore and
 The offline authoring validator adds structured branch/join checks, reusable-workflow recursion checks and descriptor-backed input mapping validation. See [implementation scope](specs/001-nexus-flow-designer/implementation-authoring-validation.md). Variable bindings are validated for authoring and rejected by the proof runtime until execution support is implemented.
 
 Server form validation now provides permission-filtered previews, conditional business rules and revision-checked partial submissions through a trusted gateway port. See [implementation scope](specs/001-nexus-flow-designer/implementation-form-validation.md); the React renderer and live task/start adapters remain planned.
+
+Activity intake now validates bounded Python source bundles and stores private immutable candidates with scoped publisher authorization. See [implementation scope](specs/001-nexus-flow-designer/implementation-activity-intake.md). Palette publication and Python worker execution remain planned.

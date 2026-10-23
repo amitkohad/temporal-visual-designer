@@ -17,13 +17,13 @@ Date: 2026-10-23. Branch: codex/003-foundation-contracts. Scope: first implement
 
 ## Task accounting and boundaries
 
-NF-T001/NF-T002 have a documented foundation subset in ADR 0001; broader identity topology, expression execution, runtime SDK, activity sandbox, retention and sizing decisions remain open at their affected feature gates. NF-T003's local package/harness/build boundary is implemented, while full cross-feature API/code generation and UI design-system scaffolding remain later work. Do not close the broader setup gates or claim all C01–C10 are executable.
+NF-T001/NF-T002 have a documented foundation subset in ADR 0001; broader identity topology, expression execution, runtime SDK, activity sandbox, retention and sizing decisions remain open at their affected feature gates. NF-T003 is complete: its local package/harness/build boundary, provider/consumer conformance and isolated fixture loading are implemented. Full actual-provider composition remains NF-T015; UI design-system work remains NF-T018–020. Do not close the broader setup gates or claim all C01–C10 are executable.
 
 - [x] NF-T003a Python package, reproducible dependencies and development checks.
 - [x] NF-T003b Foundation contract subset, JSON export and located validation errors.
 - [x] NF-T003c Independent fixtures, scoped fake conformance and import-boundary tests.
 - [x] NF-T003d Build/package checks and CI definition.
-- [ ] GitHub-hosted CI evidence after push.
+- [x] GitHub-hosted CI evidence: Python foundation workflow run 21 succeeded on commit `94e4cbd` (form increment), verified during this audit: [Actions run 39932771333](https://github.com/amitkohad/temporal-visual-designer/actions/runs/39932771333). This is evidence for the current cumulative foundation, not an assertion that the original unpushed commit was tested remotely.
 - [x] Runtime feasibility proof (NF-T004), completed in implementation-runtime-proof.md: compatible Python Temporal SDK, replay/restart, durable human response and debug gate, concurrent pinned releases.
 
 This increment does not implement production authorization, complete compiler validation, forms/packages/deployments, API server, workflow execution, database persistence or React UI. JSON schemas are structural; validate_contract adds the documented semantic subset. The approved Figma canvas remains the UI reference for later work.

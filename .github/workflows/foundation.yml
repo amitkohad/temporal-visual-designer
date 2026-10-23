@@ -29,6 +29,7 @@ jobs:
       - run: uv run nexusflow-project-schema
       - run: uv run nexusflow-binding-schema
       - run: uv run nexusflow-form-schemas
+      - run: uv run nexusflow-bundle-schema
       - run: uv build
 
   runtime-proof:

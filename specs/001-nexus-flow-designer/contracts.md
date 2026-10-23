@@ -79,3 +79,7 @@ The offline authoring increment reserves a complete activity input field envelop
 ## Form validation subset (0.1)
 
 FormVisibilityRule contains schema_version, field_id and a native JSON Schema `when` predicate. FormValidationRule contains schema_version and `data_schema`; predicates and business rules are evaluated offline with no general expression engine. See `designer_forms/form_types.py` and [ADR 0006](../../docs/decisions/0006-form-validation.md). FormGateway supplies trusted per-resource readable/editable fields and current revision, and rechecks authorization/revision at commit. The preview contract never carries unreadable/writeOnly values. Export these feature contracts with `uv run nexusflow-form-schemas`; live task/start APIs remain separate work.
+
+## Activity source-bundle intake subset (0.1)
+
+ActivityManifest contains schema_version, common descriptor, Python runtime metadata and exact source-file hashes/sizes. PythonRuntime declares language, python_version, entrypoint and locked vendored dependencies; mutable aliases and undeclared payload files are invalid. The artifact digest covers metadata and file hashes, excluding its own declared value. See `activity_catalog/types.py`, `digests.py` and [ADR 0007](../../docs/decisions/0007-activity-bundle-intake.md). Export with `uv run nexusflow-bundle-schema`. Metadata validation does not publish a descriptor or establish executable worker compatibility; dispatch/sandbox contracts remain open.
