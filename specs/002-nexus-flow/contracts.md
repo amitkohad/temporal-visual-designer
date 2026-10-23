@@ -1,0 +1,69 @@
+# Shared contracts, version 0.1 — proposed for review
+
+This document is the single contract authority. Root/integration owner alone edits it. Feature agents propose changes; no consumer silently changes a shared shape. Freeze approved contracts at task NF-T001 before parallel implementation. These are normative semantic contracts, not generated schemas or implemented APIs.
+
+## C01 — Identity and scope
+
+RequestContext: request_id, organization_id, environment_id where applicable, actor {issuer, subject, directory_tenant_id}, resolved_permissions, correlation_id. Never trust tenant or role claims from a browser without server verification and local membership resolution. Entra identity keys include issuer/directory tenant plus subject; email is not an identity key. Validate signature, issuer, audience, lifetime and organization binding. Directory-tenant mode is a decision gate; do not infer an organization from email domain.
+
+Every resource lookup includes organization_id; environment-owned resources include environment_id. Service-to-service access has a scoped workload identity. Entra groups use stable object IDs; group-overage resolution is server-side, with bounded caching and denied authorization when required membership cannot be resolved. Errors distinguish unauthenticated, forbidden, not found, conflict, invalid input, incompatible dependency, and unavailable without exposing another organization's resources.
+
+Default roles: business author (Dev author/debug, Dev/UAT package import/activate), task participant (eligible task actions), activity publisher (Admin import/publish executable activities), organization administrator (membership/connections), production support (Prod import/activate/rollback). Membership alone grants none of the other roles. Explicit scoped grants may combine roles. All permissions checked on API calls, downloads and event subscriptions.
+
+## C02 — Project revision and executable definition
+
+Project: project_id, organization_id, name. Revision: revision_id, project_id, parent_revision_id, author, created_at, content_digest, definitions, layout. Mutable draft saves require expected_revision; stale writes return conflict without overwriting. Restore creates a new revision. Layout never changes execution semantics.
+
+WorkflowDefinition: schema_version, workflow_id, input_schema, output_schema, start_definitions, nodes, edges, error_routes. Node: stable node_id, kind, activity_ref where applicable, input_mapping, output_schema_ref, policy, named_ports. Edges reference node IDs and named ports. Conditions use a versioned restricted expression contract, no arbitrary code/eval or implicit I/O. Explicit bounded iteration is allowed; arbitrary cyclic graphs are rejected. Compiler validation covers joins, reachability, types, output references, terminal paths and cancellation.
+
+FormDefinition: form_id, schema_version, data_schema, layout, visibility_rules, validation_rules, field_permissions, attachment_policy. Server enforces validation and field permissions independently of client visibility. Expression engine/language selection is pending; contract semantics and golden fixtures precede implementation.
+
+## C03 — Activity descriptor and executable bundle
+
+ActivityRef: activity_id, version, artifact_digest. Descriptor: descriptor_schema_version, display_name, category, description, input_schema, output_schema, configuration_schema, connection_requirements, execution_policy, runtime_requirements, documentation. Versions are immutable. Python bundle declares entrypoint, Python compatibility, locked dependency artifacts, artifact digests, required capabilities and provenance. No install hooks or package code execute in the import API process. Validation/build/run occur in isolated jobs with bounded resource and network policy. Source-only uploads require a controlled build before publication; executable release artifacts are immutable.
+
+Catalog publication scope and availability are explicit; default organization-local. Project packaging captures exact descriptors and executable content/dependencies for destination validation. An imported project cannot publish arbitrary executable code under a business-author role; required activity digests must be approved by an activity publisher in the destination. This distinction preserves whole-project portability without granting execution trust automatically.
+
+## C04 — Project package
+
+Manifest: package_schema_version, project_id, release_id, organization_id, created_at, source_revision_id, workflow_refs, form_refs, activity_refs, configuration_schema, connection_declarations, runtime_compatibility, content_index, package_digest. Each content_index item has normalized relative path, media type, size and digest. Packaging digest canonicalization excludes its own digest/signature field; define exact encoding before implementation.
+
+Whole project archive contains immutable definitions, forms, activity descriptors/artifacts or included content-addressed dependency artifacts, optional tests/docs. No credentials, execution payloads, environment addresses or approval data. Initial policy permits promotion only within the same organization. Cross-organization transfer is a future explicit authorization policy.
+
+Import validates scope, supported schemas, total/expanded size, entry count, path traversal, symlinks, duplicate normalized paths, checksums, dependencies, executable trust and runtime compatibility. Validation is non-activating and has no connector side effects. Interrupted imports expose no partial release; repeat identical imports are idempotent. Dependency/compatibility failures return a report. Limits are configuration with test fixtures for each boundary.
+
+## C05 — Deployment and start routing
+
+Deployment: deployment_id, organization_id, environment_id, project_id, release_id, package_digest, binding_revision_id, expected_active_generation, status, actor, timestamp, optional_evidence. BindingRevision: immutable mapping of connection/config declarations to environment-local resources with secret references, never secret values. Secret rotation is audited; pin binding identity/version policy without embedding or indefinitely retaining secret material.
+
+Activation transaction compare-and-swaps a single project active pointer {release_id, binding_revision_id, generation}. All included workflows resolve through this pointer; never update pointers per workflow. Concurrent activations return one winner and a conflict. Start and activation races resolve one coherent generation; a start pins release/runtime/activity digests before enqueue. Use an outbox/idempotent delivery mechanism where database and Temporal cannot share a transaction. Retries preserve the selected release. Removed workflows reject new starts after activation; existing runs continue.
+
+Schedules and webhook registrations belong to deployment routing: activation reconciles them idempotently and disables superseded registrations without duplicate starts. Define a safe activation/reconciliation state machine before enabling external starts. A package is not reported ready until its required workers and trigger configuration are available. Rollback uses the same validation/CAS path. Garbage collection cannot remove dependencies referenced by retained releases or live executions.
+
+Evidence: optional change_request_number, notes, approval_attachment_refs; empty evidence allowed in Prod. Audit always records actor, scope, requested/previous/next release, checksum, outcome, time and correlation. Evidence upload has authorization, size/type handling, malware quarantine and retention; file extensions are not a trust boundary.
+
+## C06 — Run and step events
+
+StartRequest: scope, project_id, workflow_id, start_source, optional release_ref for authorized Dev test, input, idempotency_key, mode (normal/debug), test_configuration_ref. Idempotency identity is organization/environment/project/workflow/start_source/key; store input digest alongside it, not as part of uniqueness, so changed-input reuse returns conflict. Run: run_id, release_id, binding_revision_id, runtime_version, mode, state, started_at. Test runs also pin a frozen draft snapshot if not published.
+
+StepEvent: event_id, run_id, sequence, node_id, invocation_id, loop_iteration/branch_path, attempt, kind, timestamp, redacted_payload_refs. Sequence resumes subscriptions without gaps/duplicates affecting UI state; events are projections, Temporal history is execution authority. Result payload schema validation occurs at boundaries. At-least-once external effects require idempotency support or explicit documented duplicate risk; do not claim external exactly-once execution.
+
+## C07 — Human tasks
+
+Task: task_id, run_id, node_invocation_id, scope, form_ref, resolved_assignment, approval_rule, status, deadline, revision. Eligible Entra users/groups and approval membership resolve at task creation and are audited; reassignment/delegation are explicit versioned changes. Fresh authorization is checked at action time; unavailable directory resolution must not grant access.
+
+DecisionCommand: task_id, expected_revision, idempotency_key, action, form_response, comment, attachment_refs, actor. Actions include claim, approve, reject, request_information, submit_information, delegate, reassign. Rules cover any-one, all, sequential stages and conditional routing. Quorum is deferred unless explicitly selected. Terminal task transition is serialized; duplicate commands return original result and cannot advance twice. An outbox delivers accepted completion to runtime until acknowledged. Reminder/escalation timers have stable IDs and cancel on terminal completion. Race rules: a terminal decision committed first wins against deadline completion; later submissions receive current terminal state. Approver and task-assignee semantics must be tested separately.
+
+## C08 — Debugger
+
+Debug commands: pause, continue, step_over, cancel, with run_id, expected_debug_revision and idempotency_key. Breakpoint: node_id, before-step. Dev-only permission required. Step-over permits one selected ready node invocation through its boundary; running external effects continue. Parallel branches expose per-invocation states and use stable invocation IDs; a permit cannot accidentally release another loop iteration. Inspect returns authorized redacted snapshots. Pauses use durable signals/state, not suspended worker threads. No arbitrary Python stepping, variable mutation or live definition edits.
+
+## C09 — Connections and connector invocation
+
+Connection: connection_id, scope, connector_type/version, nonsecret_configuration, secret_reference, allowed_destinations, revision. ConnectorInvocation: run/step identity, activity_ref, binding_revision_id, mapped_input, stable operation_id, timeout/cancellation policy. Resolve credentials only in authorized workers. Enforce egress/SSRF protections at every redirect and resolved destination, including metadata/private addresses according to configured allowlists. Logs, errors, debugger and exported fixtures redact secrets. HTTP status retry classification is explicit; email/notifications document uncertain delivery and duplicate behavior.
+
+## C10 — Operational boundaries
+
+Telemetry carries organization/environment/project/release/run correlation without payloads or secrets. High-cardinality run IDs belong in logs/traces, not unbounded metrics labels. Quotas cover starts, active effects, waiting tasks, artifact storage and import execution. Placement adapter maps scope to Temporal namespace/task queues/worker pools; no UI can supply arbitrary destinations. Storage, secrets, identity and artifact adapters expose portable interfaces; Azure implementation is initial target, not proof of another provider implementation.
+
+Each contract needs positive, invalid-input, authorization, retry and compatibility fixtures. Providers and consumers run the same conformance corpus. Changes require versioning, migration notes, and affected feature approval.
