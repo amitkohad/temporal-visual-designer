@@ -1,0 +1,18 @@
+{
+  "schema_version": "0.1",
+  "request_id": "req-001",
+  "correlation_id": "corr-001",
+  "scope": {
+    "organization_id": "acme",
+    "environment_id": "dev"
+  },
+  "actor": {
+    "issuer": "https://login.microsoftonline.com/example/v2.0",
+    "subject": "user-001",
+    "directory_tenant_id": "directory-001"
+  },
+  "resolved_permissions": [
+    "project.read",
+    "project.write"
+  ]
+}

@@ -1,6 +1,6 @@
 # Program tasks and parallel-agent execution
 
-All tasks are planned and unchecked. Implementation is not authorized. Feature task lists are subordinate to these gates; do not execute code tasks merely because they exist.
+Foundation implementation was authorized on 2026-10-23. See [implementation-foundation.md](implementation-foundation.md) for completed NF-T003 subtasks and verification. Broader program tasks remain unchecked until their full acceptance is met. Feature tasks remain subordinate to scope-specific contract and decision gates.
 
 ## Root-owned sequential setup
 

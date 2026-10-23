@@ -1,0 +1,93 @@
+{
+  "schema_version": "0.1",
+  "workflow_id": "purchase-requisition",
+  "input_schema": {
+    "type": "object"
+  },
+  "output_schema": {
+    "type": "object"
+  },
+  "start_definitions": [
+    {
+      "start_id": "submit",
+      "node_id": "start",
+      "kind": "form"
+    }
+  ],
+  "nodes": [
+    {
+      "node_id": "start",
+      "kind": "start",
+      "named_ports": {
+        "inputs": [],
+        "outputs": [
+          "out"
+        ]
+      },
+      "input_mapping": {}
+    },
+    {
+      "node_id": "approval",
+      "kind": "approval",
+      "named_ports": {
+        "inputs": [
+          "in"
+        ],
+        "outputs": [
+          "out"
+        ]
+      },
+      "input_mapping": {}
+    },
+    {
+      "node_id": "notify",
+      "kind": "activity",
+      "named_ports": {
+        "inputs": [
+          "in"
+        ],
+        "outputs": [
+          "out"
+        ]
+      },
+      "input_mapping": {},
+      "activity_ref": {
+        "activity_id": "send-notification",
+        "version": "1.0.0",
+        "artifact_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "node_id": "finish",
+      "kind": "end",
+      "named_ports": {
+        "inputs": [
+          "in"
+        ],
+        "outputs": []
+      },
+      "input_mapping": {}
+    }
+  ],
+  "edges": [
+    {
+      "source_node_id": "start",
+      "source_port": "out",
+      "target_node_id": "approval",
+      "target_port": "in"
+    },
+    {
+      "source_node_id": "approval",
+      "source_port": "out",
+      "target_node_id": "notify",
+      "target_port": "in"
+    },
+    {
+      "source_node_id": "notify",
+      "source_port": "out",
+      "target_node_id": "finish",
+      "target_port": "in"
+    }
+  ],
+  "error_routes": []
+}

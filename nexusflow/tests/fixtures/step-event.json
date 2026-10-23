@@ -1,0 +1,20 @@
+{
+  "schema_version": "0.1",
+  "event_id": "event-001",
+  "scope": {
+    "organization_id": "acme",
+    "environment_id": "dev"
+  },
+  "run_id": "run-001",
+  "sequence": 1,
+  "node_id": "approval",
+  "invocation_id": "invocation-001",
+  "branch_path": [],
+  "loop_iteration": 0,
+  "attempt": 1,
+  "kind": "waiting",
+  "timestamp": "2026-10-23T06:00:00Z",
+  "redacted_payload_refs": [
+    "payload-001"
+  ]
+}

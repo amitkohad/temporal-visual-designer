@@ -30,3 +30,7 @@ Nexus Flow Designer is the product; Temporal is the engine. Standalone business-
 ## Process reference
 
 GitHub Spec Kit: https://github.com/github/spec-kit (consulted 2026-10-23). Adopt its specification/plan/tasks separation and contract-first traceability. CLI installation and agent integration are not part of this documentation-only request. The project begins with authored specification artifacts and a project constitution. Implementation and toolchain setup will follow specification approval.
+
+## Implementation decisions — 2026-10-23
+
+User-selected stack: Python backend/contracts/Temporal workers and React browser UI. Foundation tooling is uv, Pydantic 2, JSON Schema 2020-12, jsonschema, pytest, Ruff, mypy and Hatchling; resolved versions are in uv.lock. See [ADR 0001](../../docs/decisions/0001-foundation.md). C01/C02/C03/C06 foundation shapes are implemented; the broader contract set and adapter-specific decisions remain open. Scope includes isolated checks and composition boundaries, not UI or real orchestration.
