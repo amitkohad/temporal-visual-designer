@@ -25,3 +25,5 @@ Before implementation of a feature adapter, resolve its specific decisions in re
 ## Real Temporal integration
 
 Default uv run pytest excludes the integration marker. Run uv run pytest -m integration nexusflow/tests/runtime for sandbox/restart/replay tests. They start a disposable loopback server using NEXUSFLOW_TEMPORAL_CLI or temporal on PATH. Without either, the SDK downloads a dev server and needs network access. Local CLI 1.9.1 is verified and pinned in CI. Startup errors fail the suite. No cloud credentials or deployed cluster are used. See [ADR 0002](decisions/0002-runtime-proof.md).
+
+Identity acceptance: `uv run pytest nexusflow/tests/identity`. Synthetic RSA/JWKS/directory fixtures and temporary SQLite files require no Microsoft credentials or network. See ADR 0003 for trusted bootstrap and provider boundaries.

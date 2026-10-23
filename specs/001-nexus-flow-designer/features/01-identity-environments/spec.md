@@ -1,6 +1,6 @@
 # Feature 01: Identity and organization environments
 
-Priority: P1 | Status: proposed | Contracts: [C01/C10](../../contracts.md).
+Priority: P1 | Status: backend core implemented; UI and live-provider integration pending | Contracts: [C01/C10](../../contracts.md).
 
 ## User stories and independent tests
 
@@ -31,3 +31,5 @@ US02 (P1): As a platform administrator, I provision logical Dev/UAT/Prod environ
 ## Success and exclusions
 
 All seven cases pass against local fakes and identity adapter conformance fixtures. Every resource access surface has a negative scope test. Real Entra consent/tenant configuration is a later integration test and pending tenancy decision; no infrastructure is provisioned by this feature. Manager hierarchy discovery and automatic cross-tenant federation are not assumed.
+
+Implementation details and acceptance boundaries: [identity implementation](../../implementation-identity-environments.md).

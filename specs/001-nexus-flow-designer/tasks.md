@@ -45,3 +45,5 @@ Example: after 03 contract setup, run its API/state lane, canvas/form UI lane, a
 Canvas-direction approval recorded 2026-10-23 for frame 5:14. NF-T018–020 remain unchecked because design-system freeze, interaction/state coverage and verification are incomplete. Their review prerequisites must reuse this approval for the canvas rather than request it again; remaining screens and material revisions still require review. Acceptance coverage includes UX-013/014 and UX-A08.
 
 NF-T004 evidence is in [implementation-runtime-proof.md](implementation-runtime-proof.md). Full feature 05 and UI tasks remain open; the proof does not complete every runtime acceptance scenario.
+
+Feature 01 backend core and isolated acceptance are implemented; NF-T005 remains open for the wider feature scope. See [implementation-identity-environments.md](implementation-identity-environments.md).

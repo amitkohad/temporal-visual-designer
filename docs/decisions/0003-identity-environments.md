@@ -1,0 +1,21 @@
+# ADR 0003: Entra identity core and scoped environment metadata
+
+Date: 2026-10-23. Status: implemented backend increment of feature 01.
+
+Start from verified main c19d096, which includes foundation and runtime-proof merges. Existing checks passed before creating codex/005-identity-environments. Three sub-agent lanes owned tokens, SQLite metadata and independent policy acceptance; root owned frozen provider contracts, service composition, integration tests and documentation. Shared files were integrated serially. A separate read-only review found differing unknown-organization/invalid-token errors; gateway responses were normalized and regression tested.
+
+Use PyJWT with cryptography, locked in uv.lock, for Entra v2 RS256 access-token validation. Require the configured tenant issuer, audience, lifetime claims, oid/sub, v2 version, explicit allowed client and delegated scope. Workload access additionally requires application token type and NexusFlow.Worker role plus separate server membership and worker grants. Token roles never confer Nexus Flow roles. Reject token-supplied signing-key/claim-source URLs. Principal.object_id is the stable Entra oid for local grants; Actor.subject preserves the actual signed sub.
+
+Each organization has an explicit directory binding. Different organizations may bind different customer directories; sharing a directory does not share organization membership. No email-domain inference, /common issuer acceptance or automatic customer onboarding is implemented. Empty allowed-client lists deny all corresponding clients.
+
+SigningKeys and GroupResolver are injected server-owned ports. This increment performs no live JWKS/Graph HTTP discovery. With a resolver configured, every user verification refreshes groups. Group-bearing/overage tokens without a resolver fail unavailable, and directory failure never falls back to signed stale groups. There is no membership/key cache in this module. Production adapters must implement trusted endpoints, credential handling, egress/timeouts, key rotation and tenant consent; these remain explicit follow-up work.
+
+AuthorizationPolicy checks registered directory, issuer, current organization membership, environment existence and exact scoped grants on every call. Business authors operate Dev/UAT; debug is Dev-only; production support controls Prod promotion; activity publishing is separate. Membership itself grants nothing. Workloads use only explicit workload worker grants and cannot inherit user/group permissions. These are coarse environment permissions; future task eligibility, project ACLs and actual HTTP/download/stream handlers must add resource checks at their boundaries.
+
+SQLiteIdentityRepository is a persistent local provider for this increment, not a production shared-database decision. BEGIN IMMEDIATE serializes read/CAS writes across connections. Grants retain revisions/tombstones, membership changes suppress orphan grants, and explicit re-admission restores unchanged stored grants. Provisioning atomically creates stable logical Dev/UAT/Prod records and trusted deterministic Temporal namespace/task-queue names. It does not provision namespaces, cloud infrastructure or worker pools. Future providers must pass the same conformance cases.
+
+Repository mutation methods are privileged bootstrap/internal operations, not authenticated admin APIs. Do not expose them directly to React. Every mutation commits an append-only application audit event in the same transaction, including actor/correlation, UTC time, environment and grant state where relevant. SQL administrators can alter SQLite files; tamper-evident audit storage and retention are future operational work. The initial schema is new; schema migrations must be designed before persistent production use.
+
+IdentityService accepts raw access tokens, not browser-supplied RequestContext/permissions. A bounded, thread-safe, configurable process-local limiter gates cryptographic/directory work. This is not distributed admission protection. No browser secret or external credential is stored.
+
+Sources: https://learn.microsoft.com/en-us/entra/identity-platform/access-tokens, https://learn.microsoft.com/en-us/entra/identity-platform/id-token-claims-reference, https://pyjwt.readthedocs.io/en/stable/api.html.

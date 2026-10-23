@@ -6,6 +6,7 @@ requires-python = ">=3.12,<3.14"
 dependencies = [
     "jsonschema>=4.23,<5",
     "pydantic>=2.11,<3",
+    "pyjwt[crypto]>=2.10,<3",
     "temporalio>=1.16,<2",
 ]
 
@@ -37,7 +38,7 @@ ignore = ["E501"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["nexusflow/contracts", "nexusflow/apps", "nexusflow/modules/durable_runtime"]
+files = ["nexusflow/contracts", "nexusflow/apps", "nexusflow/modules/durable_runtime", "nexusflow/modules/identity_environments"]
 
 [dependency-groups]
 dev = [

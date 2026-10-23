@@ -36,3 +36,5 @@ GitHub Spec Kit: https://github.com/github/spec-kit (consulted 2026-10-23). Adop
 User-selected stack: Python backend/contracts/Temporal workers and React browser UI. Foundation tooling is uv, Pydantic 2, JSON Schema 2020-12, jsonschema, pytest, Ruff, mypy and Hatchling; resolved versions are in uv.lock. See [ADR 0001](../../docs/decisions/0001-foundation.md). C01/C02/C03/C06 foundation shapes are implemented; the broader contract set and adapter-specific decisions remain open. Scope includes isolated checks and composition boundaries, not UI or real orchestration.
 
 Runtime proof uses Temporal Python SDK 1.34.0, immutable proof.v1 plans and sandbox/replay tests. See [ADR 0002](../../docs/decisions/0002-runtime-proof.md). Production interpreter and adapter decisions remain separate.
+
+Identity decisions: explicit per-organization directory binding, allowlisted user/workload clients, fresh injected group resolution, scoped server grants and local SQLite provider. No live tenant or production database topology is assumed. See [ADR 0003](../../docs/decisions/0003-identity-environments.md).
