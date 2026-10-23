@@ -22,3 +22,7 @@ Reference revision: F03-T004 additionally implements F03-FR11 and UX-013/014 aft
 ## Backend validation increment status
 
 The graph/mapping subset of T001/T002/T007 is implemented under the Python package `nexusflow/modules/designer_forms`; details and executable test commands are in [implementation-authoring-validation.md](../../implementation-authoring-validation.md). General expression/runtime semantics, forms, React UI, templates and full sibling integration remain open. The checkboxes above track complete tasks, not this backend subset.
+
+## Server form increment status
+
+The local backend portion of T003 is implemented in `designer_forms/form_definition.py` and `forms.py`, with independently runnable definition/submission/publication tests. [implementation-form-validation.md](../../implementation-form-validation.md) records actual paths and remaining UI/task/attachment/expression integration. Full task completion remains open.

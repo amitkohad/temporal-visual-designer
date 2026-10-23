@@ -75,3 +75,7 @@ The initial Python models in nexusflow/contracts implement schema version 0.1 fo
 ## Authoring binding subset (0.1)
 
 The offline authoring increment reserves a complete activity input field envelope `{"$binding":{"schema_version":"0.1","source":"input","path":"/employee"}}`; step sources add `node_id`. See `nexusflow/modules/designer_forms/types.py` and [ADR 0005](../../docs/decisions/0005-authoring-validation.md) for source availability and conservative type proof. This contract supports variable selection only; the general expression language remains pending. Proof runtime version `proof.v1` rejects bindings, so authoring validation alone does not establish executability. Portable binding schema export is `uv run nexusflow-binding-schema`.
+
+## Form validation subset (0.1)
+
+FormVisibilityRule contains schema_version, field_id and a native JSON Schema `when` predicate. FormValidationRule contains schema_version and `data_schema`; predicates and business rules are evaluated offline with no general expression engine. See `designer_forms/form_types.py` and [ADR 0006](../../docs/decisions/0006-form-validation.md). FormGateway supplies trusted per-resource readable/editable fields and current revision, and rechecks authorization/revision at commit. The preview contract never carries unreadable/writeOnly values. Export these feature contracts with `uv run nexusflow-form-schemas`; live task/start APIs remain separate work.

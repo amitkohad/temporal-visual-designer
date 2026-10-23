@@ -159,13 +159,28 @@ class BuiltinContentValidator:
                 )
             issues.extend(_scan(test.input, f"/tests/{index}/input"))
         for index, form in enumerate(content.forms):
-            for field in (
-                "layout",
-                "visibility_rules",
-                "validation_rules",
-                "field_permissions",
-                "attachment_policy",
-            ):
+            for field in ("layout", "attachment_policy"):
                 issues.extend(_scan(form.model_dump(mode="json")[field], f"/forms/{index}/{field}"))
+            # Versioned rule schemas declare fields; their property names are
+            # not embedded credentials. The authoring adapter validates syntax.
+            for field, schema_key, allowed in (
+                ("visibility_rules", "when", {"schema_version", "field_id", "when"}),
+                ("validation_rules", "data_schema", {"schema_version", "data_schema"}),
+            ):
+                for ri, rule in enumerate(getattr(form, field)):
+                    if (
+                        rule.get("schema_version") == "0.1"
+                        and set(rule) <= allowed
+                        and isinstance(rule.get(schema_key), dict)
+                    ):
+                        continue
+                    issues.extend(_scan(rule, f"/forms/{index}/{field}/{ri}"))
+            if not all(
+                isinstance(value, dict)
+                and set(value) == {"read_only"}
+                and isinstance(value["read_only"], bool)
+                for value in form.field_permissions.values()
+            ):
+                issues.extend(_scan(form.field_permissions, f"/forms/{index}/field_permissions"))
         issues.extend(_scan(content.layout, "/layout"))
         return tuple(issues)
