@@ -18,6 +18,7 @@ from nexusflow.modules.activity_catalog.types import (
     ActivityManifest,
     CatalogAuthorization,
     CatalogError,
+    IntakeLimits,
     IntakeRepository,
 )
 from nexusflow.modules.activity_catalog.validation import validate_bundle
@@ -37,11 +38,14 @@ class CatalogService:
         intake: IntakeRepository,
         authorization: CatalogAuthorization,
         capabilities: RuntimeCapabilities,
+        *,
+        limits: IntakeLimits | None = None,
     ) -> None:
         self.repository = repository
         self.intake = intake
         self.authorization = authorization
         self.capabilities = capabilities
+        self.limits = limits if limits is not None else IntakeLimits()
 
     def publish(self, scope: Scope, digest: str) -> CatalogEntry:
         actor = self.authorization.authorize(scope, "activity.publish")
@@ -54,7 +58,7 @@ class CatalogService:
             return existing
         imported = _storage(lambda: self.intake.get(scope, digest))
         archive = _storage(lambda: self.intake.archive(scope, digest))
-        validated = validate_bundle(archive)
+        validated = validate_bundle(archive, self.limits)
         try:
             manifest = ActivityManifest.model_validate_json(imported.manifest_json)
         except ValidationError:

@@ -1,20 +1,23 @@
 """Portable dependency export and transactional publication failure boundaries."""
 
 import json
+import random
 
 import pytest
 from jsonschema import Draft202012Validator
 
 from nexusflow.contracts.models import Scope
+from nexusflow.modules.activity_catalog.catalog import CatalogService
 from nexusflow.modules.activity_catalog.repository import SQLiteIntakeRepository
 from nexusflow.modules.activity_catalog.service import IntakeService
-from nexusflow.modules.activity_catalog.types import ActivityManifest, CatalogError
+from nexusflow.modules.activity_catalog.types import ActivityManifest, CatalogError, IntakeLimits
 from nexusflow.tests.activity_catalog.test_catalog_service import (
     SCOPE,
     Authorization,
     catalog,  # noqa: F401
     imported,  # noqa: F401
 )
+from nexusflow.tests.activity_catalog.test_intake import source_bundle
 from nexusflow.tests.activity_catalog.test_validation import archive
 
 
@@ -92,3 +95,25 @@ def test_catalog_schema_export_is_portable(tmp_path, monkeypatch):
     )
     Draft202012Validator.check_schema(schema)
     assert schema["properties"]["state"]["enum"] == ["published", "deprecated", "withdrawn"]
+
+
+def test_publication_honors_configured_limits_and_still_enforces_destination_policy(catalog):  # noqa: F811
+    service, importer, repository, authorization, capabilities = catalog
+    source = (
+        b"def run(value):\n    return value\n#" + random.Random(0).randbytes(550_000).hex().encode()
+    )
+    data, digest = source_bundle(source)
+    limits = IntakeLimits(maximum_file_bytes=2_000_000)
+    IntakeService(importer.repository, authorization, limits).import_bundle(SCOPE, data)
+    # A deliberately tighter destination policy must still reject the artifact.
+    with pytest.raises(CatalogError) as error:
+        service.publish(SCOPE, digest)
+    assert error.value.code == "limit_exceeded"
+    assert repository.by_digest(SCOPE, digest) is None
+    assert capabilities.calls == []
+    configured = CatalogService(
+        repository, importer.repository, authorization, capabilities, limits=limits
+    )
+    entry = configured.publish(SCOPE, digest)
+    assert entry.reference.artifact_digest == digest
+    assert configured.export(SCOPE, entry.reference).archive == data
