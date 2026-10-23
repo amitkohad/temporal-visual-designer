@@ -18,3 +18,7 @@ Future implementation only. Parallel tasks own disjoint paths; no shared barrel 
 F03-T004/F03-T005 require NF-T020 as well as F03-T001 and must implement F03-FR10/F03-A08. F03-T007 may author UX fixtures earlier, but integrated browser acceptance requires the approved designs and completed UI. F03-T008 additionally verifies F03-A08/UX-A01–03/A07. Figma design-only work is tracked separately by UX-T001–006 and is not blocked by the implementation gate above.
 
 Reference revision: F03-T004 additionally implements F03-FR11 and UX-013/014 after the design gate. F03-T007/F03-T008 verify F03-A09/UX-A08. Use spatial frame 5:14 in the handoff register, not the superseded stacked-card frame.
+
+## Backend validation increment status
+
+The graph/mapping subset of T001/T002/T007 is implemented under the Python package `nexusflow/modules/designer_forms`; details and executable test commands are in [implementation-authoring-validation.md](../../implementation-authoring-validation.md). General expression/runtime semantics, forms, React UI, templates and full sibling integration remain open. The checkboxes above track complete tasks, not this backend subset.

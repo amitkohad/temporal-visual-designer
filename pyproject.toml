@@ -22,6 +22,7 @@ exclude = ["nexusflow/tests"]
 nexusflow-check = "nexusflow.apps.cli:main"
 nexusflow-export-schemas = "nexusflow.contracts.export:main"
 nexusflow-project-schema = "nexusflow.modules.project_versioning.export:main"
+nexusflow-binding-schema = "nexusflow.modules.designer_forms.export:main"
 
 [tool.pytest.ini_options]
 testpaths = ["nexusflow/tests"]
@@ -39,7 +40,7 @@ ignore = ["E501"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["nexusflow/contracts", "nexusflow/apps", "nexusflow/modules/durable_runtime", "nexusflow/modules/identity_environments", "nexusflow/modules/project_versioning"]
+files = ["nexusflow/contracts", "nexusflow/apps", "nexusflow/modules/durable_runtime", "nexusflow/modules/identity_environments", "nexusflow/modules/project_versioning", "nexusflow/modules/designer_forms"]
 
 [dependency-groups]
 dev = [
