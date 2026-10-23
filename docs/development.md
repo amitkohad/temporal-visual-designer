@@ -39,3 +39,5 @@ Activity intake acceptance: `uv run pytest nexusflow/tests/activity_catalog`. Ex
 When implementation is confirmed, update its spec checkbox with evidence in the same change. Keep incomplete parent acceptance visible through checked completed subtasks and explicit unchecked remaining work; UI/provider tasks do not reopen separately completed backend tasks.
 
 Catalog acceptance: `uv run pytest nexusflow/tests/activity_catalog`. `nexusflow-bundle-schema` exports both the manifest and catalog-entry schema. `apps.catalog_adapters.ScopedCatalog` supplies actual descriptors/pinned resolution to authoring/project services. See [ADR 0008](decisions/0008-activity-catalog.md) for mandatory capability checks, internal hold ownership and remaining production integrations.
+
+Durable start acceptance: `uv run pytest nexusflow/tests/runtime/test_starts.py`. See [ADR 0009](decisions/0009-durable-starts.md) for immutable intents, retry delivery, required provider contracts and storage limitations. These isolated tests use real SQLite with fake authorization/release/dispatcher ports; they do not establish a deployed Temporal start gateway.
