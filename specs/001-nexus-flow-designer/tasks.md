@@ -33,6 +33,7 @@ Foundation implementation was authorized on 2026-10-23. See [implementation-foun
 - [ ] NF-T010 [P] Deliver feature 06 task suite with directory/runtime/form fixtures. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/06-human-tasks/`.
   - [x] NF-T010a Verify bounded any-one/all-approver core, fresh trusted authorization, immutable assignment snapshots, SQLite decision/outbox atomicity, command retries, concurrency and recovery against fake ports ([evidence](implementation-human-task-core.md)).
   - [x] NF-T010c Verify assigned-task pagination and authenticated task HTTP composition with scoped signed identities, object-ID eligibility, local SQLite persistence and safe failures ([evidence](implementation-human-task-api.md)).
+  - [x] NF-T010d Verify explicit admin pre-decision reassignment/group refresh, atomic snapshot/audit/receipts and signed HTTP permission enforcement ([evidence](implementation-task-reassignment.md)).
   - [ ] NF-T010b Complete forms/attachments, timers/escalation/notifications, sequential/conditional rules, task lifecycle, remaining inbox filters/UI and full HT-A1–A7 acceptance with actual adapters.
 - [ ] NF-T011 [P] Deliver feature 07 debugger suite with event fixtures. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/07-designer-debugger/`.
 - [ ] NF-T012 [P] Deliver feature 08 connector suite with local transports. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/08-connectors/`.

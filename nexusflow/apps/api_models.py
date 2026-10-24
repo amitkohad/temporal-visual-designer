@@ -24,6 +24,19 @@ class CreateProject(JsonRequest):
     content: dict[str, JsonValue]
 
 
+class ReassignTask(JsonRequest):
+    command_id: Identifier
+    expected_revision: Annotated[int, Field(ge=1)]
+    user_ids: Annotated[list[Identifier], Field(max_length=1000)] = Field(default_factory=list)
+    group_ids: Annotated[list[Identifier], Field(max_length=1000)] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def nonempty_assignment(self) -> "ReassignTask":
+        if not self.user_ids and not self.group_ids:
+            raise ValueError("At least one assignment is required")
+        return self
+
+
 class SaveProject(JsonRequest):
     expected_revision: Annotated[int, Field(ge=1, le=2**63 - 1)]
     summary: Annotated[str, Field(min_length=1, max_length=1000)]

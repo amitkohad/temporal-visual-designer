@@ -87,6 +87,22 @@ def test_debug_is_dev_only(environment):
     denied(policy, principal, scope, "debug.execute")
 
 
+@pytest.mark.parametrize("environment", ["dev", "uat", "prod"])
+@pytest.mark.parametrize(
+    "role",
+    ["organization_administrator", "business_author", "task_participant", "production_support"],
+)
+def test_reassignment_requires_scoped_organization_admin(environment, role):
+    policy, _, principal, scope = setup(role=role, environment=environment)
+    if role == "organization_administrator":
+        assert (
+            "task.reassign"
+            in authorize(policy, principal, scope, "task.reassign").resolved_permissions
+        )
+    else:
+        denied(policy, principal, scope, "task.reassign")
+
+
 def test_context_is_constructed_from_server_grants():
     policy, _, principal, scope = setup()
     result = authorize(policy, principal, scope, "debug.execute")

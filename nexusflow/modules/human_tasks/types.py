@@ -1,7 +1,7 @@
 """Strict contracts for durable any-one/all-approver decisions.
 
 Directory ports supply immutable actor IDs, never display names. Task creation
-snapshots eligible users; membership changes require a future explicit revision.
+snapshots eligible users; membership changes require an explicit reassignment.
 """
 
 from typing import Annotated, Literal, Protocol
@@ -46,6 +46,30 @@ class DecisionRequest(Contract):
     decision: Decision
 
 
+class ReassignmentRequest(Contract):
+    command_id: Identifier
+    expected_revision: Annotated[int, Field(ge=1)]
+    user_ids: PrincipalIds = ()
+    group_ids: PrincipalIds = ()
+
+    @model_validator(mode="after")
+    def has_assignment(self) -> "ReassignmentRequest":
+        if not self.user_ids and not self.group_ids:
+            raise ValueError("At least one user or group assignment is required")
+        return self
+
+
+class ReassignmentRecord(Contract):
+    command_id: Identifier
+    actor_id: Identifier
+    revision: Annotated[int, Field(ge=2)]
+    created_at: Timestamp
+    user_ids: PrincipalIds
+    group_ids: PrincipalIds
+    previous_eligible_ids: Annotated[tuple[Identifier, ...], Field(min_length=1, max_length=1000)]
+    eligible_approver_ids: Annotated[tuple[Identifier, ...], Field(min_length=1, max_length=1000)]
+
+
 class DecisionRecord(Contract):
     command_id: Identifier
     actor_id: Identifier
@@ -62,6 +86,7 @@ class TaskView(Contract):
     status: TaskStatus
     revision: Annotated[int, Field(ge=1)]
     decisions: tuple[DecisionRecord, ...] = ()
+    assignment_history: Annotated[tuple[ReassignmentRecord, ...], Field(max_length=100)] = ()
     created_at: Timestamp
 
 
@@ -74,10 +99,11 @@ class TaskEvent(Contract):
     event_id: Identifier
     task_id: Identifier
     scope: Scope
-    kind: Literal["created", "decided", "completion_delivered"]
+    kind: Literal["created", "decided", "reassigned", "completion_delivered"]
     actor_id: Identifier | None
     revision: Annotated[int, Field(ge=1)]
     created_at: Timestamp
+    assignment: ReassignmentRecord | None = None
 
 
 class Completion(Contract):
@@ -104,7 +130,7 @@ class AssignmentResolver(Protocol):
     def resolve(
         self, scope: Scope, user_ids: tuple[str, ...], group_ids: tuple[str, ...]
     ) -> tuple[str, ...]:
-        """Resolve trusted directory IDs within scope; failures must deny creation.
+        """Resolve trusted directory IDs within scope; failures must deny assignment.
 
         Unknown users/groups and unavailable directory service must raise, never
         return caller-supplied IDs as a fallback. The service deduplicates users.

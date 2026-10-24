@@ -1,0 +1,18 @@
+# ADR 0016: Explicit administrative task reassignment
+
+Status: accepted for bounded administrative reassignment; live directory, browser and runtime integration remain separate gates.
+
+Task assignment remains a resolved directory snapshot. A scoped administrator can explicitly replace the user/group declarations or refresh their resolved group membership while a task is pending and has no recorded decision. Reassignment is denied after the first vote, even when an all-approvers task remains pending. This boundary avoids changing the electorate after voting starts. Automatic membership refresh, delegation and post-vote reassignment remain separate work.
+
+A new `task.reassign` permission is granted through an organization administrator role. The service freshly authorizes every command; the HTTP boundary uses the verified Entra object ID, rather than a caller-supplied actor. Administrators need this scoped permission but do not need to belong to the current approver snapshot. Existing participant read and decision access continues to depend on current snapshot eligibility.
+
+`POST /tasks/{id}/reassignments` accepts a command ID, expected task revision and user/group declarations. The host must explicitly supply `ApiBackend.task_assignments`; omission returns a sanitized unavailable response. Directory resolution validates the complete replacement snapshot and fails closed on unknown identities or provider failure. An empty or oversized result cannot become a task assignment. Supplying the same declarations explicitly refreshes group membership; directory changes alone never mutate a task.
+
+The original task creation request remains immutable so retrying workflow task creation continues to compare against its original input. Assignment history records the replacement declarations, actor, revision and before/after eligible-user snapshots. Effective approvers drive inbox visibility and decision eligibility. The bounded history permits at most 100 assignment changes per task.
+
+SQLite serializes each change with expected-revision checks. The updated snapshot, audit event and command receipt commit atomically. Reassignment and decision commands share the task command-ID namespace, so reusing an ID across command kinds conflicts. Exact retries return the saved response after fresh authorization and do not resolve the directory again. A new command must observe the current revision, pending state and absence of decisions. Reassignment creates no completion outbox item; only a subsequent terminal decision can do that. Directory resolution currently runs inside the SQLite write transaction to keep the checked revision stable; production providers need bounded timeouts and separate contention/capacity verification.
+
+The local launcher does not enable this provider automatically. Fake directory ports and signed local-token tests can establish deterministic service and HTTP behavior, but do not prove live Entra group resolution, production directory availability or browser acceptance. React inbox interactions, live directory integration, forms, reminders and Temporal human-task integration remain open.
+
+HTTP transport model `ReassignTask` converts JSON arrays into the strict domain tuple fields. Existing task and event rows load with empty assignment history and a null assignment payload by default; existing decision command receipts remain readable through the shared receipt path. New rows are not guaranteed readable by older binaries, so downgrading this local persistence format is unsupported. This compatibility behavior does not establish a versioned production database migration.
+
