@@ -43,6 +43,7 @@ from nexusflow.modules.durable_runtime.starts import AsyncStartService, StartErr
 from nexusflow.modules.durable_runtime.types import Snapshot
 from nexusflow.modules.human_tasks.types import (
     DecisionRequest,
+    DelegationRequest,
     ReassignmentRequest,
     TaskError,
     TaskEvent,
@@ -277,6 +278,13 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
                 group_ids=tuple(payload.group_ids),
             )
             return service.reassign(context.scope, task_id, command)
+
+    @app.post(prefix + "/tasks/{task_id}/delegations")
+    def delegate_task(
+        task_id: Identifier, payload: DelegationRequest, context: SessionDependency
+    ) -> TaskView:
+        with backend.task_service(RequestTaskAuthorization(context.authorization)) as service:
+            return service.delegate(context.scope, task_id, payload)
 
     @app.get(prefix + "/projects")
     def projects(

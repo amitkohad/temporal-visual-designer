@@ -75,6 +75,23 @@ class DecisionRequest(Contract):
     decision: Decision
 
 
+class DelegationRequest(Contract):
+    command_id: Identifier
+    expected_revision: Annotated[int, Field(ge=1)]
+    delegate_id: Identifier
+
+
+class DelegationRecord(Contract):
+    command_id: Identifier
+    actor_id: Identifier
+    delegate_id: Identifier
+    stage_id: Identifier | None = None
+    revision: Annotated[int, Field(ge=2)]
+    created_at: Timestamp
+    previous_eligible_ids: Annotated[tuple[Identifier, ...], Field(min_length=1, max_length=1000)]
+    eligible_approver_ids: Annotated[tuple[Identifier, ...], Field(min_length=1, max_length=1000)]
+
+
 class ReassignmentRequest(Contract):
     command_id: Identifier
     expected_revision: Annotated[int, Field(ge=1)]
@@ -119,6 +136,7 @@ class TaskView(Contract):
     revision: Annotated[int, Field(ge=1)]
     decisions: tuple[DecisionRecord, ...] = ()
     assignment_history: Annotated[tuple[ReassignmentRecord, ...], Field(max_length=100)] = ()
+    delegation_history: Annotated[tuple[DelegationRecord, ...], Field(max_length=100)] = ()
     created_at: Timestamp
 
 
@@ -136,6 +154,7 @@ class TaskEvent(Contract):
         "decided",
         "stage_advanced",
         "reassigned",
+        "delegated",
         "form_bound",
         "form_updated",
         "completion_delivered",
@@ -151,6 +170,7 @@ class TaskEvent(Contract):
     notification_id: Identifier | None = None
     stage_id: Identifier | None = None
     previous_stage_id: Identifier | None = None
+    delegation: DelegationRecord | None = None
 
 
 class Completion(Contract):
