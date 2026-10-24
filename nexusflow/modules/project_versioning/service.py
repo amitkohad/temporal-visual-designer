@@ -16,6 +16,7 @@ from nexusflow.modules.project_versioning.types import (
     ContentValidator,
     ProjectAuthorization,
     ProjectContent,
+    ProjectRecord,
     ProjectRepository,
     Release,
     Revision,
@@ -24,6 +25,25 @@ from nexusflow.modules.project_versioning.types import (
 
 
 class ProjectService:
+    def validate(
+        self, scope: Scope, project_id: str, content_json: str
+    ) -> tuple[ValidationIssue, ...]:
+        self._authorize(scope, project_id, True)
+        return self.validator.validate(self._content(content_json))
+
+    def list_projects(
+        self, scope: Scope, limit: int = 50, offset: int = 0
+    ) -> tuple[ProjectRecord, ...]:
+        self.authorization.authorize(scope, "project.read", "projects")
+        if (
+            type(limit) is not int
+            or not 1 <= limit <= 100
+            or type(offset) is not int
+            or not 0 <= offset <= 10000
+        ):
+            raise VersioningError("invalid_request", "Invalid project pagination")
+        return self.repository.list_projects(scope, limit, offset)
+
     def __init__(
         self,
         repository: ProjectRepository,

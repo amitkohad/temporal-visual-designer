@@ -9,6 +9,7 @@ Backend core implementation started 2026-10-23; see ../../implementation-identit
 - [ ] F01-T003 [P] Implement environment selection and role administration in `nexusflow/modules/01-identity-environments/ui/` against frozen fixtures. Prerequisite: F01-T001. Owner: UI agent. Acceptance: F01-A01/04/06 and accessible permission feedback.
 - [ ] F01-T004 [P] Implement independent policy/token/directory fixtures and acceptance suites in `nexusflow/modules/01-identity-environments/tests/`. Prerequisite: F01-T001. Owner: test agent. Acceptance: F01-A01–07, includes cross-tenant streams/downloads and directory failure.
   - [x] F01-T004a Backend signed-token, policy, directory-failure/revocation and scoped persistence acceptance cases for F01-A01–07 (`nexusflow/tests/identity/`, 120 feature tests).
+  - [x] F01-T004c Verify initial HTTP route authentication, fresh grants, environment/project/execution isolation, denial before remote status lookup and safe error envelopes with real signed-token policy and SQLite providers (`tests/api/`; ADR 0012).
   - [ ] F01-T004b Cross-tenant HTTP/download/stream route acceptance once actual routes exist; retain the original endpoint coverage requirement.
 - [ ] F01-T005 Integrate the three lanes and real-provider adapter tests in `nexusflow/modules/01-identity-environments/integration/`; request composition changes from integration owner. Prerequisites: F01-T002–004 and real-Entra test configuration for provider smoke. Acceptance: all isolated cases pass, no fake identity in deployment mode, consumer conformance matrix passes.
 

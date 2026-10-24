@@ -18,6 +18,16 @@ from nexusflow.modules.project_versioning.types import (
 
 
 class SQLiteProjectRepository:
+    def list_projects(
+        self, scope: Scope, limit: int = 50, offset: int = 0
+    ) -> tuple[ProjectRecord, ...]:
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT project,name,head FROM projects WHERE org=? AND env=? ORDER BY project LIMIT ? OFFSET ?",
+                (scope.organization_id, scope.environment_id, limit, offset),
+            )
+            return tuple(ProjectRecord(scope, row[0], row[1], row[2]) for row in rows)
+
     def __init__(self, database: str | Path) -> None:
         self._lock = RLock()
         self._db = sqlite3.connect(str(database), check_same_thread=False)

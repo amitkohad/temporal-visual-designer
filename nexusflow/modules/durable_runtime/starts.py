@@ -70,6 +70,19 @@ class AsyncStartDispatcher(Protocol):
 
 
 class SQLiteStartRepository:
+    def execution(self, scope: Scope, project_id: str, execution_id: str) -> StartReceipt | None:
+        """Internal scoped lookup; callers must freshly authorize before use."""
+        with self._lock:
+            row = self._db.execute(
+                "SELECT plan,dispatched FROM runtime_starts WHERE org=? AND env=? AND project=? AND execution=?",
+                (scope.organization_id, scope.environment_id, project_id, execution_id),
+            ).fetchone()
+        if row is None:
+            return None
+        return StartReceipt(
+            execution_id, TypeAdapter(ExecutionPlan).validate_json(row[0]), bool(row[1])
+        )
+
     def __init__(self, database: str | Path) -> None:
         self._lock = RLock()
         self._db = sqlite3.connect(str(database), check_same_thread=False)

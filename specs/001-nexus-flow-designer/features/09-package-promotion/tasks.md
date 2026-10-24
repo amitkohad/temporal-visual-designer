@@ -16,6 +16,7 @@ Program gate: NF-T003 and later implementation authorization are required before
   - [ ] F09-T04b Complete full package transfer, evidence attachment, UI and F09-A01–A06 end-to-end acceptance.
 - [ ] F09-T05 Assemble real provider ports in `nexusflow/modules/09-package-promotion/integration/`; prerequisites: F09-T02/F09-T03/F09-T04 and registry/runtime/identity providers ready; acceptance: F09-A01–A06 across environments.
   - [x] F09-T05a Compose actual local project/catalog/identity stores and start resolver; verify activation/rollback coexistence and replay against real local Temporal with explicit configuration/capability fakes.
+  - [x] F09-T05c Compose authenticated activation/current-state HTTP routes using actual local providers, explicit readiness ports and safe receipt summaries; verify activation through the signed HTTP-to-Temporal start path (ADR 0012).
   - [ ] F09-T05b Complete secure package transfer, actual configuration/capability providers, Admin UI and cross-environment acceptance.
 - [ ] F09-T06 Record acceptance and applicable lint in `nexusflow/modules/09-package-promotion/integration/verification.md`; prerequisites: F09-T05; acceptance: no mixed activation or secret export, all scenarios pass.
 

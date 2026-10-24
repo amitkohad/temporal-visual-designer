@@ -13,11 +13,13 @@ Program gate: NF-T003 and later implementation authorization are required before
   - [x] **RT-T03a** Implement isolated SQLite start intent reservation, scoped input deduplication/conflicts, preflight and immutable release/configuration binding with retry recovery through required ports.
   - [x] **RT-T03c** Implement async start service and actual proof-runtime Temporal dispatcher with permanent SQLite receipts, exact plan/route conflicts and conservative history reconciliation.
   - [x] **RT-T03d** Wire persisted project activation snapshots into the actual start resolver and signed-token start authorization; correct successful SDK acknowledgement to use `result_run_id` (ADR 0011).
+  - [x] **RT-T03e** Expose authenticated HTTP starts and payload-free status with persisted ownership lookup, pinned binding checks and actual Temporal gateway using trusted registry placement (ADR 0012).
   - [ ] **RT-T03b** Implement actual Temporal/identity/activation adapters, automatic recovery orchestration, webhook/form/schedule starts, checkpoints and projections.
 - [ ] **RT-T04 [P]** Author independent contract/acceptance/replay fixtures in `nexusflow/modules/05-durable-runtime/tests/`. Prerequisite RT-T01. Maps RT-A1–A7; include negative authorization and recovery, fake ports and virtual time. Own no provider code.
   - [x] **RT-T04a** Verify isolated start reliability with real SQLite, independent provider fakes, concurrency, conflicting input, lost acknowledgements, restart, reauthorization and scope isolation (`tests/runtime/test_starts.py`).
   - [x] **RT-T04c** Verify dispatch security/recovery/cancellation and concurrent journal claims with SDK fakes; verify actual Temporal completed-run lost-ack recovery and mismatched-plan rejection, retaining existing replay/restart suite.
   - [x] **RT-T04d** Verify real persisted activation → start → Temporal coexistence during activation/rollback and replay all pinned runs; verify fresh start permission grants/revocation with signed-token local identity fixtures.
+  - [x] **RT-T04e** Verify signed HTTP-to-actual-Temporal create/publication/activation/start/status/retry acceptance, including a real namespace selected from the environment registry; verify isolation/pending/error redaction with offline HTTP fixtures.
   - [ ] **RT-T04b** Complete full RT-A1–A7, actual Temporal start/replay/retention integration and remaining failure/continuation fixtures.
 - [ ] **RT-T05** Integrate and verify core/adapters/tests; update `nexusflow/modules/05-durable-runtime/verification.md`. Prerequisites RT-T02–04. Serial integration owner may edit runtime-owned paths only. Pass RT-A1–A7 and applicable lint; record commands/results and publish contract compatibility evidence.
 

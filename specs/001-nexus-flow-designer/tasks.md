@@ -41,6 +41,8 @@ Foundation implementation was authorized on 2026-10-23. See [implementation-foun
 ## Integration and convergence
 
 - [ ] NF-T015 Integrate module composition, migrations and navigation under `nexusflow/apps/`, ordered by provider graph in plan.md. Prerequisites: NF-T005–014 and NF-T004. Owner: integration lead. Acceptance: same conformance fixtures pass against actual providers; no fake in deployment configuration.
+  - [x] NF-T015a Compose initial authenticated Python HTTP project/catalog/activation/start/status API using actual local module providers and an actual Temporal gateway; verify signed request isolation and HTTP-to-Temporal acceptance ([evidence](implementation-application-api.md)).
+  - [ ] NF-T015b Complete remaining provider/HTTP/download/stream composition, production migrations, local bootstrap/launcher, React navigation and full feature conformance. NF-T015a is a bounded provider-subset integration, not full NF-T005–014 completion.
 - [ ] NF-T016 Implement reference-process acceptance fixtures under `nexusflow/tests/system/` for onboarding and purchasing. Prerequisite: NF-T015. Owner: acceptance lead. Acceptance: NF-001–012 and SC-01–04, export/import/Prod authorization, optional evidence, rollback and old-run completion.
 - [ ] NF-T017 Verify capacity, tenant isolation, accessibility, recovery and release compatibility under `nexusflow/tests/readiness/`; publish measured results. Prerequisites: NF-T016, approved targets. Owner: readiness lead. Acceptance: SC-06 and no unresolved critical failures. Infrastructure changes require their own reviewed application deployment plan.
 
