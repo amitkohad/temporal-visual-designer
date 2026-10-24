@@ -58,6 +58,21 @@ class ApprovalCommand:
 
 
 @dataclass(frozen=True)
+class TaskCompletionCommand:
+    completion_id: str
+    task_id: str
+    organization_id: str
+    environment_id: str
+    workflow_id: str
+    temporal_run_id: str
+    node_invocation_id: str
+    definition_digest: str
+    definition_revision: str
+    outcome: str
+    task_revision: int
+
+
+@dataclass(frozen=True)
 class DebugCommand:
     command_id: str
     node_id: str

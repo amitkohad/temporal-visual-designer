@@ -1,0 +1,11 @@
+# ADR 0021: Bound Temporal task completion delivery
+
+Status: accepted for the bounded proof-runtime completion sink.
+
+Human-task decisions already commit a completion outbox atomically. Add an asynchronous delivery port so a trusted worker can await the Temporal client outside SQLite transactions without blocking a request event loop. Mark the outbox delivered and append its audit event atomically only after acknowledgment. Cancellation, failed delivery or failed local acknowledgment leaves the completion available for retry.
+
+A trusted host explicitly registers an immutable destination for each scoped task: logical execution, exact Temporal workflow and run, invocation, pinned release and definition digest. For this proof adapter the logical execution is the Temporal workflow ID and the task definition revision is the pinned release ID. Registration and dispatch are internal operations, never participant HTTP endpoints. Destination placement includes the configured server and namespace; receipts cannot move silently to another destination.
+
+Use a dedicated workflow completion update rather than converting task revisions into workflow control revisions. Validate scope, exact workflow/run, pinned definition and current approval invocation. Preserve immutable command receipts and reject conflicting completion content. A permanent SQLite journal retains dispatch intent and accepted receipts. An ambiguous response reuses the same update identity and exact run; an existing durable update result may establish acceptance after workflow closure. Closed or missing history alone never establishes success. If history expires before acceptance can be established, fail closed and retain the pending item for operator investigation. Preserve journals and backups; this guarantee does not survive deleting receipt storage.
+
+This increment does not compile assignment configuration, create tasks from workflow activities, install a background delivery scheduler, expose a public completion route or enable human tasks in the local launcher. Existing manual proof approval remains available; the proof is not a production task-managed approval boundary. A later full bridge must create and bind tasks durably and prevent manual approval bypass for task-managed nodes. React, live Entra adapters, attachments and notification transports remain separate work.

@@ -15,6 +15,7 @@ from nexusflow.modules.durable_runtime.types import (
     ExecutionPlan,
     ExecutionResult,
     Snapshot,
+    TaskCompletionCommand,
 )
 
 
@@ -30,6 +31,7 @@ class ProofWorkflow:
         self.permit = ""
         self.stepping = True
         self.receipts: dict[str, tuple[ApprovalCommand | DebugCommand, CommandReceipt]] = {}
+        self.task_receipts: dict[str, tuple[TaskCompletionCommand, CommandReceipt]] = {}
 
     @workflow.run
     async def run(self, plan: ExecutionPlan) -> ExecutionResult:
@@ -137,6 +139,57 @@ class ProofWorkflow:
             raise ApplicationError("Approval does not match the waiting step", type="Conflict")
         self.approved = command.approved
         return self._accept(command)
+
+    def _validate_task_completion(self, command: TaskCompletionCommand) -> CommandReceipt | None:
+        plan = self.plan
+        info = workflow.info()
+        if (
+            plan is None
+            or (command.organization_id, command.environment_id)
+            != (plan.binding.organization_id, plan.binding.environment_id)
+            or command.workflow_id != info.workflow_id
+            or command.temporal_run_id != info.run_id
+            or command.definition_digest != plan.definition_digest
+            or command.definition_revision != plan.binding.release_id
+            or command.outcome not in {"approved", "rejected"}
+            or not command.completion_id
+            or not command.task_id
+            or type(command.task_revision) is not int
+            or command.task_revision < 2
+        ):
+            raise ApplicationError("Task completion binding is invalid", type="Conflict")
+        previous = self.task_receipts.get(command.completion_id)
+        if previous is not None:
+            if previous[0] != command:
+                raise ApplicationError(
+                    "Completion ID reused with different content", type="Conflict"
+                )
+            return previous[1]
+        if (
+            len(self.task_receipts) >= 100
+            or self.state != "waiting_approval"
+            or command.node_invocation_id != self.node_id
+            or self.approved is not None
+        ):
+            raise ApplicationError("Task completion does not match waiting step", type="Conflict")
+        return None
+
+    @workflow.update
+    def complete_task(self, command: TaskCompletionCommand) -> CommandReceipt:
+        previous = self._validate_task_completion(command)
+        if previous is not None:
+            return previous
+        self.approved = command.outcome == "approved"
+        self.revision += 1
+        receipt = CommandReceipt(command.completion_id, self.revision)
+        self.task_receipts[command.completion_id] = (command, receipt)
+        return receipt
+
+    @complete_task.validator
+    def validate_complete_task(self, command: TaskCompletionCommand) -> None:
+        # Reject before acceptance: an early future-node delivery must not
+        # permanently poison its stable update ID with a failed outcome.
+        self._validate_task_completion(command)
 
     @workflow.update
     def control(self, command: DebugCommand) -> CommandReceipt:
