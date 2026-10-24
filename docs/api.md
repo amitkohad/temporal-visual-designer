@@ -8,7 +8,7 @@ To host it, supply a Python module (for example `your_host.py`) which constructs
 uv run uvicorn your_host:app --host 127.0.0.1 --port 8000
 ```
 
-`your_host.py` is a host composition example, not a file supplied by this increment. The local bootstrap/launcher with identity configuration and worker startup is still pending. Do not run `--factory nexusflow.apps.api:create_app` without providing its required backend. Tests below provide a fully configured isolated harness for exercising the API immediately.
+`your_host.py` is a host composition example, not a supplied default production module. For an immediately runnable local-demo API and real worker, use the [local launcher guide](local-development.md). Do not run `--factory nexusflow.apps.api:create_app` without providing its required backend. Tests below also provide an isolated application harness.
 
 `ApiBackend` requires:
 

@@ -43,6 +43,8 @@ Project activation decision (2026-10-24): target-local releases use one atomic p
 
 Application API decision (2026-10-24): FastAPI/Uvicorn host explicit authenticated module composition, typed transport views and guarded OpenAPI. Scoped HTTP requests use existing identity/domain rules; runtime clients follow registry-owned placement. No default fake production providers or automatic bootstrap are supplied. See [ADR 0012](../../docs/decisions/0012-application-api.md) and the locked dependency/test commands in the API implementation record.
 
+Local launcher decision (2026-10-24): separate opt-in `local-demo` composition owns synthetic signing material, Dev-only grants, real local stores and a loopback disk-backed Temporal proof worker. Persistent destination/journal checks and an installation lock guard restart. Production composition remains explicit. See [ADR 0013](../../docs/decisions/0013-local-launcher.md).
+
 Identity decisions: explicit per-organization directory binding, allowlisted user/workload clients, fresh injected group resolution, scoped server grants and local SQLite provider. No live tenant or production database topology is assumed. See [ADR 0003](../../docs/decisions/0003-identity-environments.md).
 
 Authoring validation decisions: offline descriptor-backed checks, structured joins, project-local reusable references and versioned variable bindings with conservative schema/availability proof. The proof runtime rejects bindings pending execution support. General expression and form contracts remain open. See [ADR 0005](../../docs/decisions/0005-authoring-validation.md).
