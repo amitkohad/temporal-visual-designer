@@ -21,6 +21,7 @@ packages = ["nexusflow"]
 exclude = ["nexusflow/tests"]
 
 [project.scripts]
+nexusflow-local = "nexusflow.apps.local:main"
 nexusflow-check = "nexusflow.apps.cli:main"
 nexusflow-export-schemas = "nexusflow.contracts.export:main"
 nexusflow-project-schema = "nexusflow.modules.project_versioning.export:main"
