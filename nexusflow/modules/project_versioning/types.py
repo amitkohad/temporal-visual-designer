@@ -135,6 +135,10 @@ class ArtifactResolver(Protocol):
 
 
 class ProjectRepository(Protocol):
+    def list_projects(
+        self, scope: Scope, limit: int = 50, offset: int = 0
+    ) -> tuple[ProjectRecord, ...]: ...
+
     def create(
         self,
         scope: Scope,

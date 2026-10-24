@@ -31,3 +31,5 @@ Server form validation now provides permission-filtered previews, conditional bu
 Activity intake now validates bounded Python source bundles and stores private immutable candidates with scoped publisher authorization. See [implementation scope](specs/001-nexus-flow-designer/implementation-activity-intake.md). Palette publication and Python worker execution remain planned.
 
 The activity catalog backend now supports explicit immutable publication, scoped palette search, deprecation/withdrawal, retained exports and protected catalog purge. See [implementation scope](specs/001-nexus-flow-designer/implementation-activity-catalog.md); Admin UI, isolated execution and automatic release/run retention integration remain planned.
+
+An authenticated FastAPI application factory now composes project editing/publication, catalog reads, activation/rollback, workflow starts and safe execution status. See the [API route and hosting guide](docs/api.md) and [implementation evidence](specs/001-nexus-flow-designer/implementation-application-api.md). Host/provider configuration is explicit; a turnkey local launcher and React browser application remain pending.
