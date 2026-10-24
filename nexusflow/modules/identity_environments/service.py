@@ -13,6 +13,7 @@ from nexusflow.modules.identity_environments.types import (
     GroupResolver,
     IdentityError,
     IdentityRepository,
+    Principal,
     SigningKeys,
 )
 
@@ -76,6 +77,31 @@ class IdentityService:
         self.limiter = limiter if limiter is not None else AdmissionLimiter()
         self.policy = AuthorizationPolicy(repository)
 
+    def _verify(self, token: str, scope: Scope) -> Principal:
+        binding = self.repository.binding(scope.organization_id)
+        if binding is None:
+            raise IdentityError("unauthenticated", "Invalid access token")
+        self.limiter.admit(binding.organization_id)
+        return EntraTokenVerifier(binding, self.keys, self.groups).verify(token)
+
+    def authorize_user_object_id(
+        self,
+        token: str,
+        scope: Scope,
+        permission: str,
+        *,
+        request_id: str,
+        correlation_id: str,
+    ) -> str:
+        """Freshly authorize a user and return the verified directory object ID."""
+        principal = self._verify(token, scope)
+        if principal.kind != "user":
+            raise IdentityError("forbidden", "A user identity is required")
+        self.policy.authorize(
+            principal, scope, permission, request_id=request_id, correlation_id=correlation_id
+        )
+        return principal.object_id
+
     def authorize(
         self,
         token: str,
@@ -85,11 +111,7 @@ class IdentityService:
         request_id: str,
         correlation_id: str,
     ) -> RequestContext:
-        binding = self.repository.binding(scope.organization_id)
-        if binding is None:
-            raise IdentityError("unauthenticated", "Invalid access token")
-        self.limiter.admit(binding.organization_id)
-        principal = EntraTokenVerifier(binding, self.keys, self.groups).verify(token)
+        principal = self._verify(token, scope)
         return self.policy.authorize(
             principal,
             scope,
@@ -106,11 +128,7 @@ class IdentityService:
         request_id: str,
         correlation_id: str,
     ) -> Environment:
-        binding = self.repository.binding(scope.organization_id)
-        if binding is None:
-            raise IdentityError("unauthenticated", "Invalid access token")
-        self.limiter.admit(binding.organization_id)
-        principal = EntraTokenVerifier(binding, self.keys, self.groups).verify(token)
+        principal = self._verify(token, scope)
         return self.policy.placement(
             principal, scope, request_id=request_id, correlation_id=correlation_id
         )

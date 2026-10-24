@@ -36,4 +36,6 @@ An authenticated FastAPI application factory now composes project editing/public
 
 Run the local-demo API and real Temporal worker with `uv run nexusflow-local init` followed by `uv run nexusflow-local serve` (requires Temporal CLI 1.9.1). Issue a token with `uv run nexusflow-local token`, and stop with `uv run nexusflow-local stop`. See the [local testing guide](docs/local-development.md) for requests, persistent state and profile boundaries. The React browser application remains pending.
 
-The human-task backend core now persists any-one/all-approver decisions, pinned assignment snapshots and a recoverable completion outbox. See [implementation scope](specs/001-nexus-flow-designer/implementation-human-task-core.md). The inbox, form/task integration and runtime completion adapter remain planned.
+The human-task backend core now persists any-one/all-approver decisions, pinned assignment snapshots and a recoverable completion outbox. See [implementation scope](specs/001-nexus-flow-designer/implementation-human-task-core.md). The React inbox, form/task integration and runtime completion adapter remain planned.
+
+An optional explicitly configured human-task API now provides assigned-task inbox pages, task/audit reads and approval decisions. See [implementation scope](specs/001-nexus-flow-designer/implementation-human-task-api.md). The local launcher does not enable this provider; React inbox and workflow-to-task integration remain planned.

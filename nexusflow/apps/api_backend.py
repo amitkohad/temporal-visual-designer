@@ -1,8 +1,10 @@
 """Explicit application composition; required providers have no fake defaults."""
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import timedelta
+from pathlib import Path
 from typing import Protocol
 
 from temporalio.client import Client
@@ -20,6 +22,8 @@ from nexusflow.modules.durable_runtime.temporal_starts import (
 )
 from nexusflow.modules.durable_runtime.types import ExecutionPlan, Snapshot
 from nexusflow.modules.durable_runtime.workflow import ProofWorkflow
+from nexusflow.modules.human_tasks.service import TaskService
+from nexusflow.modules.human_tasks.types import TaskAuthorization, TaskError
 from nexusflow.modules.identity_environments.service import IdentityService
 from nexusflow.modules.identity_environments.types import Environment
 from nexusflow.modules.package_promotion.readiness import ProofActivationReadiness
@@ -91,6 +95,23 @@ class RequestAuthorization:
         return context.actor.subject
 
 
+class RequestTaskAuthorization:
+    """Authorize the same verified principal whose immutable oid owns the task."""
+
+    def __init__(self, authorization: RequestAuthorization) -> None:
+        self.authorization = authorization
+
+    def authorize(self, scope: Scope, permission: str, resource_id: str) -> str:
+        request = self.authorization
+        return request.identity.authorize_user_object_id(
+            request.token,
+            scope,
+            permission,
+            request_id=request.request_id,
+            correlation_id=request.request_id,
+        )
+
+
 @dataclass(frozen=True)
 class ApiBackend:
     identity: IdentityService
@@ -102,6 +123,17 @@ class ApiBackend:
     capabilities: RuntimeCapabilities
     configurations: ConfigurationCompatibility
     runtime: RuntimeGateway
+    tasks_database: Path | None = None
+
+    @contextmanager
+    def task_service(self, authorization: TaskAuthorization) -> Iterator[TaskService]:
+        if self.tasks_database is None:
+            raise TaskError("unavailable", "Human task provider is not configured")
+        service = TaskService(self.tasks_database, authorization)
+        try:
+            yield service
+        finally:
+            service.close()
 
     def catalog_service(self, authorization: RequestAuthorization) -> CatalogService:
         return CatalogService(self.catalog, self.intake, authorization, self.capabilities)

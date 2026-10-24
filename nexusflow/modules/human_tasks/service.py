@@ -21,6 +21,7 @@ from nexusflow.modules.human_tasks.types import (
     TaskAuthorization,
     TaskError,
     TaskEvent,
+    TaskPage,
     TaskStatus,
     TaskView,
 )
@@ -36,7 +37,10 @@ def _scope(scope: Scope) -> tuple[str, str]:
 
 class TaskService:
     def __init__(
-        self, database: Path, authorization: TaskAuthorization, assignments: AssignmentResolver
+        self,
+        database: Path,
+        authorization: TaskAuthorization,
+        assignments: AssignmentResolver | None = None,
     ) -> None:
         self.authorization = authorization
         self.assignments = assignments
@@ -124,6 +128,8 @@ class TaskService:
                     raise TaskError("conflict", "Task invocation already has different content")
                 return task
             try:
+                if self.assignments is None:
+                    raise ValueError("Assignment resolver is unavailable")
                 resolved = self.assignments.resolve(scope, request.user_ids, request.group_ids)
                 if not isinstance(resolved, tuple) or not 1 <= len(resolved) <= 1000:
                     raise ValueError("Invalid assignment size")
@@ -162,6 +168,57 @@ class TaskService:
             task = self._get(scope, task_id)
             self._eligible(task, actor)
             return task
+
+    def list_tasks(
+        self,
+        scope: Scope,
+        *,
+        status: TaskStatus | None = None,
+        run_id: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> TaskPage:
+        """List snapshot-assigned tasks using SQLite JSON1 before pagination.
+
+        Offset traversal is bounded at 10000; no continuation beyond that bound
+        is emitted. Every page performs fresh authorization.
+        """
+        actor = self._actor(scope, "task.read", "tasks")
+        if (
+            type(limit) is not int
+            or not 1 <= limit <= 100
+            or type(offset) is not int
+            or not 0 <= offset <= 10000
+        ):
+            raise TaskError("invalid_input", "Task page bounds are invalid")
+        try:
+            if run_id is not None:
+                run_id = TypeAdapter(Identifier).validate_python(run_id, strict=True)
+        except ValidationError:
+            raise TaskError("invalid_input", "Task filters are invalid") from None
+        if status is not None and (
+            not isinstance(status, str) or status not in ("pending", "approved", "rejected")
+        ):
+            raise TaskError("invalid_input", "Task filters are invalid")
+        with self._lock:
+            rows = self._db.execute(
+                """SELECT view FROM human_tasks
+                   WHERE org=? AND env=?
+                     AND EXISTS (
+                         SELECT 1 FROM json_each(view, '$.eligible_approver_ids')
+                         WHERE value=?
+                     )
+                     AND (? IS NULL OR json_extract(view, '$.status')=?)
+                     AND (? IS NULL OR run=?)
+                   ORDER BY json_extract(view, '$.created_at'), id
+                   LIMIT ? OFFSET ?""",
+                (*_scope(scope), actor, status, status, run_id, run_id, limit + 1, offset),
+            ).fetchall()
+            next_offset = offset + limit
+            return TaskPage(
+                items=tuple(TaskView.model_validate_json(row[0]) for row in rows[:limit]),
+                next_offset=next_offset if len(rows) > limit and next_offset <= 10000 else None,
+            )
 
     def decide(self, scope: Scope, task_id: str, request: DecisionRequest) -> TaskView:
         actor = self._actor(scope, "task.respond", task_id)
