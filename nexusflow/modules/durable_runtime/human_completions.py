@@ -32,6 +32,7 @@ class CompletionTarget(Contract):
 
 class SQLiteCompletionJournal:
     def __init__(self, database: str | Path) -> None:
+        self.database = Path(database).resolve()
         self._lock = RLock()
         self._db = sqlite3.connect(str(database), check_same_thread=False)
         self._db.execute("""CREATE TABLE IF NOT EXISTS temporal_task_completions (
@@ -43,17 +44,29 @@ class SQLiteCompletionJournal:
     def close(self) -> None:
         self._db.close()
 
-    def register(self, target: CompletionTarget) -> None:
+    def register(self, target: CompletionTarget, *, route: str | None = None) -> None:
         target = CompletionTarget.model_validate(target)
         if target.run_id != target.workflow_id:
             raise TaskError("conflict", "Proof task execution must match Temporal workflow ID")
         with self._lock, self._db:
             self._db.execute(
-                "INSERT OR IGNORE INTO temporal_task_completions(org,env,task,target) VALUES(?,?,?,?)",
-                (*self._key(target.scope, target.task_id), target.model_dump_json()),
+                "INSERT OR IGNORE INTO temporal_task_completions(org,env,task,target,route) VALUES(?,?,?,?,?)",
+                (*self._key(target.scope, target.task_id), target.model_dump_json(), route),
             )
             if self.target(target.scope, target.task_id) != target:
                 raise TaskError("conflict", "Task already has another completion destination")
+            if route is not None:
+                self._db.execute(
+                    "UPDATE temporal_task_completions SET route=? "
+                    "WHERE org=? AND env=? AND task=? AND route IS NULL",
+                    (route, *self._key(target.scope, target.task_id)),
+                )
+                saved = self._db.execute(
+                    "SELECT route FROM temporal_task_completions WHERE org=? AND env=? AND task=?",
+                    self._key(target.scope, target.task_id),
+                ).fetchone()
+                if saved is None or saved[0] != route:
+                    raise TaskError("conflict", "Task completion destination changed")
 
     @staticmethod
     def _key(scope: Scope, task_id: str) -> tuple[str, str, str]:
@@ -74,8 +87,9 @@ class SQLiteCompletionJournal:
         with self._lock, self._db:
             self._db.execute(
                 "UPDATE temporal_task_completions SET route=?,command=? "
-                "WHERE org=? AND env=? AND task=? AND route IS NULL",
-                (route, command, *key),
+                "WHERE org=? AND env=? AND task=? AND command IS NULL "
+                "AND (route IS NULL OR route=?)",
+                (route, command, *key, route),
             )
             row = self._db.execute(
                 "SELECT route,command,receipt FROM temporal_task_completions "

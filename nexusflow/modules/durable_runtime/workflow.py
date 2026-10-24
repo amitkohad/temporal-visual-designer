@@ -16,6 +16,7 @@ from nexusflow.modules.durable_runtime.types import (
     ExecutionResult,
     Snapshot,
     TaskCompletionCommand,
+    TaskCreationCall,
 )
 
 
@@ -32,6 +33,8 @@ class ProofWorkflow:
         self.stepping = True
         self.receipts: dict[str, tuple[ApprovalCommand | DebugCommand, CommandReceipt]] = {}
         self.task_receipts: dict[str, tuple[TaskCompletionCommand, CommandReceipt]] = {}
+        self.managed_approval = False
+        self.managed_task_id = ""
 
     @workflow.run
     async def run(self, plan: ExecutionPlan) -> ExecutionResult:
@@ -85,6 +88,34 @@ class ProofWorkflow:
                         )
                 elif step.kind == "approval":
                     self.approved = None
+                    self.managed_approval = bool(step.task_approval_json)
+                    self.managed_task_id = ""
+                    if self.managed_approval:
+                        self.state = "creating_task"
+                        task_id = await workflow.execute_activity(
+                            "nexusflow.tasks.create",
+                            TaskCreationCall(
+                                binding=plan.binding,
+                                execution_id=workflow.info().workflow_id,
+                                temporal_run_id=workflow.info().run_id,
+                                node_invocation_id=step.node_id,
+                                definition_digest=plan.definition_digest,
+                                approval_json=step.task_approval_json,
+                            ),
+                            result_type=str,
+                            activity_id=f"task-{step.node_id}",
+                            start_to_close_timeout=timedelta(seconds=30),
+                            retry_policy=RetryPolicy(maximum_attempts=3),
+                        )
+                        if (
+                            not task_id
+                            or len(task_id) > 128
+                            or any(
+                                not (c.isascii() and (c.isalnum() or c in "_.-")) for c in task_id
+                            )
+                        ):
+                            raise ApplicationError("Invalid created task ID", non_retryable=True)
+                        self.managed_task_id = task_id
                     self.state = "waiting_approval"
                     await workflow.wait_condition(lambda: self.approved is not None)
                     if not self.approved:
@@ -133,6 +164,7 @@ class ProofWorkflow:
             return previous
         if (
             self.state != "waiting_approval"
+            or self.managed_approval
             or command.node_id != self.node_id
             or self.approved is not None
         ):
@@ -169,6 +201,7 @@ class ProofWorkflow:
             len(self.task_receipts) >= 100
             or self.state != "waiting_approval"
             or command.node_invocation_id != self.node_id
+            or (self.managed_approval and command.task_id != self.managed_task_id)
             or self.approved is not None
         ):
             raise ApplicationError("Task completion does not match waiting step", type="Conflict")

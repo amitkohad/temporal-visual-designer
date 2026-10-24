@@ -1,0 +1,15 @@
+# ADR 0022: Opt-in workflow-managed approval tasks
+
+Status: accepted for bounded linear proof-runtime approvals.
+
+An approval node opts into managed tasks through a strict `input_mapping.human_task` configuration containing `rule`, `user_ids`, `group_ids` and optional sequential `stages`. Compile this configuration into canonical JSON in the immutable execution plan. Reject invalid assignments, unsupported fields and use on other node kinds. An approval without this configuration retains its existing manual proof behavior.
+
+A managed approval invokes the retryable `nexusflow.tasks.create` activity with the pinned plan binding, exact workflow execution/run, node invocation and definition digest. The explicitly configured host validates actual activity workflow/run/namespace metadata, trusted organization/environment scope and fresh task-creation authorization. The worker is trusted to execute the persisted plan; this is not an independent attestation service for arbitrary caller-supplied release metadata.
+
+The creation service registers the completion destination before committing the visible task and creation audit. Registration uses a separate SQLite journal and pins server/namespace placement. Registration failure rolls back the task transaction. A journal record can survive a later task rollback: deterministic scoped invocation IDs make retry reuse that immutable registration instead of creating additional destinations. Preserve both stores and their backups. Reject using the same resolved database path for these stores to avoid cross-connection lock deadlocks. Provisioning callbacks must not reenter the task database.
+
+Once the activity result is recorded, the workflow binds its exact task ID and waits for the existing durable completion path. Earlier participant decisions may produce pending completions while activity acknowledgment is uncertain; workflow readiness validation rejects delivery before acceptance, allowing the same completion to be retried. Managed steps reject manual proof approval and completions from other task IDs. Existing approved receipts remain retryable after advancement.
+
+Old plans default the new step field to empty and issue no new activity commands. Omit the empty additive field from permanent start fingerprints so pre-upgrade dispatch receipts continue to match. Existing replay and manual-runtime acceptance must continue to pass. Managed workflow IDs must not be reused for new Temporal runs; the existing start dispatcher rejects reuse and permanently retains its start receipts. A mismatched run fails closed.
+
+Hosts must explicitly register the activity and invoke asynchronous completion delivery. Background scheduling, local-launcher/API host composition, cancellation reconciliation, form mapping, attachments, connector transports, React screens and the full interpreter remain separate work. This increment supports the existing any-one, all-approver and fixed sequential task policies; it does not establish full production human-task acceptance.
