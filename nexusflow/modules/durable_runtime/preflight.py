@@ -6,9 +6,10 @@ import math
 
 from jsonschema import Draft202012Validator
 from jsonschema import ValidationError as SchemaValidationError
-from pydantic import JsonValue
+from pydantic import JsonValue, ValidationError
 
 from nexusflow.contracts import Scope, WorkflowDefinition, validate_contract
+from nexusflow.modules.durable_runtime.task_approval import parse_task_approval
 from nexusflow.modules.durable_runtime.types import ExecutionPlan, ReleaseBinding, Step
 
 MAX_DEFINITION_BYTES = 131072
@@ -99,6 +100,25 @@ def compile_plan(
     node_id = definition.start_definitions[0].node_id
     while True:
         node = nodes[node_id]
+        task_approval_json = ""
+        if "human_task" in node.input_mapping:
+            if node.kind != "approval":
+                raise PlanError("Human task configuration requires an approval node")
+            configuration = node.input_mapping["human_task"]
+            if not isinstance(configuration, dict):
+                raise PlanError("Human task configuration must be an object")
+            if set(configuration) - {"rule", "user_ids", "group_ids", "stages"}:
+                raise PlanError("Human task configuration contains unsupported fields")
+            try:
+                request = parse_task_approval(json.dumps(configuration, allow_nan=False))
+            except (ValueError, ValidationError):
+                raise PlanError("Invalid human task approval configuration") from None
+            task_approval_json = json.dumps(
+                request.model_dump(mode="json"),
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
         if node.kind not in {"start", "end", "activity", "approval", "wait"}:
             raise PlanError("Node kind is not supported by this proof")
         delay = node.input_mapping.get("seconds", 0)
@@ -130,6 +150,7 @@ def compile_plan(
                 timeout_seconds=policy.timeout_seconds if policy else 30,
                 maximum_attempts=policy.maximum_attempts if policy else 1,
                 delay_seconds=delay_seconds,
+                task_approval_json=task_approval_json,
             )
         )
         if node_id not in successors:

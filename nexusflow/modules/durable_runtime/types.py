@@ -24,6 +24,7 @@ class Step:
     timeout_seconds: int = 30
     maximum_attempts: int = 1
     delay_seconds: float = 0
+    task_approval_json: str = ""
 
 
 @dataclass(frozen=True)
@@ -55,6 +56,16 @@ class ApprovalCommand:
     node_id: str
     approved: bool
     expected_revision: int
+
+
+@dataclass(frozen=True)
+class TaskCreationCall:
+    binding: ReleaseBinding
+    execution_id: str
+    temporal_run_id: str
+    node_invocation_id: str
+    definition_digest: str
+    approval_json: str
 
 
 @dataclass(frozen=True)

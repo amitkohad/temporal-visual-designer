@@ -107,7 +107,13 @@ class TemporalStartDispatcher:
             or plan.binding.runtime_version != "proof.v1"
         ):
             raise StartError("invalid_input", "Unsupported execution ID or interpreter")
-        canonical = json.dumps(asdict(plan), sort_keys=True, separators=(",", ":"), allow_nan=False)
+        # An absent managed-task configuration is the original proof.v1 plan.
+        # Keep its permanent journal fingerprint stable across this additive field.
+        serialized = asdict(plan)
+        for step in serialized["steps"]:
+            if step.get("task_approval_json") == "":
+                step.pop("task_approval_json")
+        canonical = json.dumps(serialized, sort_keys=True, separators=(",", ":"), allow_nan=False)
         claimed, run_id = self.journal.claim(
             execution_id, self.route, hashlib.sha256(canonical.encode()).hexdigest()
         )

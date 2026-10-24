@@ -1,7 +1,9 @@
 """Scoped durable human decisions and at-least-once completion delivery."""
 
+import hashlib
+import json
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -48,6 +50,7 @@ class TaskService:
         authorization: TaskAuthorization,
         assignments: AssignmentResolver | None = None,
     ) -> None:
+        self.database = database.resolve()
         self.authorization = authorization
         self.assignments = assignments
         self._lock = RLock()
@@ -215,6 +218,17 @@ class TaskService:
         )
 
     def create(self, scope: Scope, request: CreateTask) -> TaskView:
+        return self._create(scope, request, None)
+
+    def create_bound(
+        self, scope: Scope, request: CreateTask, binder: Callable[[TaskView], None]
+    ) -> TaskView:
+        """Provision a destination before making a new task visible."""
+        return self._create(scope, request, binder)
+
+    def _create(
+        self, scope: Scope, request: CreateTask, binder: Callable[[TaskView], None] | None
+    ) -> TaskView:
         actor = self._actor(scope, "task.create", request.run_id)
         with self._transaction():
             row = self._db.execute(
@@ -225,6 +239,8 @@ class TaskService:
                 task = TaskView.model_validate_json(row[0])
                 if task.request != request:
                     raise TaskError("conflict", "Task invocation already has different content")
+                if binder is not None:
+                    binder(task)
                 return task
             stages = tuple(
                 StageAssignment(
@@ -243,7 +259,17 @@ class TaskService:
             )
             task = TaskView(
                 stage_assignments=stages,
-                task_id=str(uuid4()),
+                task_id=(
+                    "bound-"
+                    + hashlib.sha256(
+                        json.dumps(
+                            [*_scope(scope), request.run_id, request.node_invocation_id],
+                            separators=(",", ":"),
+                        ).encode()
+                    ).hexdigest()
+                    if binder is not None
+                    else str(uuid4())
+                ),
                 scope=scope,
                 request=request,
                 eligible_approver_ids=ids,
@@ -262,6 +288,8 @@ class TaskService:
                 ),
             )
             self._event(task, "created", actor)
+            if binder is not None:
+                binder(task)
             return task
 
     def get(self, scope: Scope, task_id: str) -> TaskView:
