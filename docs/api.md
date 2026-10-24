@@ -24,6 +24,8 @@ All routes below are relative to `/api/v1/organizations/{organization_id}/enviro
 | GET | `/tasks?status=pending&run_id=run-1&limit=50&offset=0` | List snapshot-assigned tasks (status/run filters optional) |
 | GET | `/tasks/{id}` | Read an eligible task |
 | GET | `/tasks/{id}/audit` | Read eligible task audit |
+| GET | `/tasks/{id}/form` | Preview a pinned form with permitted fields and values |
+| POST | `/tasks/{id}/form` | Validate and persist form values using the task revision |
 | POST | `/tasks/{id}/decisions` | Approve/reject with command ID and expected revision |
 | POST | `/tasks/{id}/reassignments` | Replace or refresh pending assignments before voting (scoped admin) |
 | GET | `/context` | Verify access to the selected scope |
@@ -55,8 +57,10 @@ uv run pytest nexusflow/tests/api
 uv run pytest -m integration nexusflow/tests/runtime
 ```
 
-Package download/import, archive streams, evidence attachments, project history/compare/restore HTTP routes, form preview/submission APIs, browser inbox/debug controls, live identity adapters and React UI remain separate work. Existing backend methods do not imply those routes exist. The run-status route is a safe summary and deliberately does not expose activity inputs/outputs.
+Package download/import, archive streams, evidence attachments, project history/compare/restore HTTP routes, remaining form API integrations, browser inbox/debug controls, live identity adapters and React UI remain separate work. Existing backend methods do not imply those routes exist. The run-status route is a safe summary and deliberately does not expose activity inputs/outputs.
 
 Human-task routes require explicit `ApiBackend.tasks_database` configuration, a scoped `task_participant` grant and the verified user object ID in the pinned eligible set. The optional provider defaults to unavailable; the local launcher does not enable it. Inbox responses contain `items` and `next_offset`; limit is 1–100 and offset 0–10000. Ordering is creation time then task ID; offset pages reflect current state. Decision bodies contain only `command_id`, `expected_revision` and `decision` (`approve`/`reject`). Creation and outbox delivery are internal operations without HTTP routes. See [ADR 0015](decisions/0015-human-task-api.md).
 
 Reassignment requires scoped `task.reassign` permission (organization administrators) and explicit `ApiBackend.task_assignments` provider configuration. Send `command_id`, `expected_revision`, `user_ids` and/or `group_ids` as JSON arrays. A new command resolves a fresh complete snapshot and increments the task revision, even when refreshing unchanged declarations. Reassignment is restricted to pending tasks with no votes, bounded to 100 changes; exact retries return historical receipts without directory resolution. Former eligible users immediately lose inbox/read/decision access. Creation inputs remain immutable; assignment history and audit expose before/after snapshots to authorized readers. Missing/failed resolvers return sanitized 503 responses. There is no delegation or post-vote assignment change. See [ADR 0016](decisions/0016-task-reassignment.md).
+
+Task forms require explicit `ApiBackend.task_fields` configuration and a pre-bound internal form snapshot. GET returns the existing `FormView` structure: task `revision`, permitted `fields` metadata and filtered `values_json`. Write-only values are omitted. POST accepts only `expected_revision` and a `values` object, returning the new task `revision`. The server validates merged values and rechecks field policy at commit. Form binding and values are separate from ordinary task views/audits; binding has no HTTP route. Approval is blocked until a bound form has a successful submission; rejection remains allowed. Form edits stop after the first vote. Submissions have revision-conflict semantics: after a lost response, reload instead of assuming an idempotent command receipt. These endpoints retain safe generic error envelopes; richer field-error presentation and React rendering remain future UI work. See [ADR 0017](decisions/0017-task-forms.md).

@@ -39,3 +39,5 @@ Run the local-demo API and real Temporal worker with `uv run nexusflow-local ini
 The human-task backend core now persists any-one/all-approver decisions, pinned assignment snapshots and a recoverable completion outbox. See [implementation scope](specs/001-nexus-flow-designer/implementation-human-task-core.md). The React inbox, form/task integration and runtime completion adapter remain planned.
 
 An optional explicitly configured human-task API now provides assigned-task inbox pages, task/audit reads and approval decisions. See [implementation scope](specs/001-nexus-flow-designer/implementation-human-task-api.md). The local launcher does not enable this provider; React inbox and workflow-to-task integration remain planned.
+
+Task-bound configurable forms now support permission-filtered preview and revision-checked submission, with approval blocked until a bound form is server-validated. See [implementation scope](specs/001-nexus-flow-designer/implementation-task-forms.md). Field policies and binding remain explicit host/internal operations; React rendering and workflow form mapping remain planned.

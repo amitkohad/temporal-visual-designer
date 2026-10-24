@@ -30,12 +30,15 @@ from nexusflow.apps.api_models import (
     ReassignTask,
     SaveProject,
     StartWorkflow,
+    SubmitTaskForm,
+    TaskFormSubmission,
     ValidateProject,
 )
 from nexusflow.contracts.models import Identifier, Scope
 from nexusflow.contracts.validation import ValidationIssue
 from nexusflow.modules.activity_catalog.catalog_types import CatalogEntry
 from nexusflow.modules.activity_catalog.types import CatalogError
+from nexusflow.modules.designer_forms.form_types import FormError, FormView
 from nexusflow.modules.durable_runtime.starts import AsyncStartService, StartError, StartRequest
 from nexusflow.modules.durable_runtime.types import Snapshot
 from nexusflow.modules.human_tasks.types import (
@@ -150,6 +153,7 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
         ActivationError,
         StartError,
         TaskError,
+        FormError,
         RPCError,
         OSError,
         sqlite3.Error,
@@ -230,6 +234,24 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
     def task(task_id: Identifier, context: SessionDependency) -> TaskView:
         with backend.task_service(RequestTaskAuthorization(context.authorization)) as service:
             return service.get(context.scope, task_id)
+
+    @app.get(prefix + "/tasks/{task_id}/form")
+    def task_form(task_id: Identifier, context: SessionDependency) -> FormView:
+        with backend.task_form_service(RequestTaskAuthorization(context.authorization)) as service:
+            return service.preview(context.scope, task_id)
+
+    @app.post(prefix + "/tasks/{task_id}/form")
+    def submit_task_form(
+        task_id: Identifier, payload: SubmitTaskForm, context: SessionDependency
+    ) -> TaskFormSubmission:
+        with backend.task_form_service(RequestTaskAuthorization(context.authorization)) as service:
+            revision = service.submit(
+                context.scope,
+                task_id,
+                payload.expected_revision,
+                json.dumps(payload.values, allow_nan=False),
+            )
+            return TaskFormSubmission(revision=revision)
 
     @app.get(prefix + "/tasks/{task_id}/audit")
     def task_audit(task_id: Identifier, context: SessionDependency) -> tuple[TaskEvent, ...]:
