@@ -27,6 +27,7 @@ from nexusflow.apps.api_models import (
     ProjectRelease,
     ProjectRevision,
     PublishProject,
+    ReassignTask,
     SaveProject,
     StartWorkflow,
     ValidateProject,
@@ -39,6 +40,7 @@ from nexusflow.modules.durable_runtime.starts import AsyncStartService, StartErr
 from nexusflow.modules.durable_runtime.types import Snapshot
 from nexusflow.modules.human_tasks.types import (
     DecisionRequest,
+    ReassignmentRequest,
     TaskError,
     TaskEvent,
     TaskPage,
@@ -240,6 +242,19 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
     ) -> TaskView:
         with backend.task_service(RequestTaskAuthorization(context.authorization)) as service:
             return service.decide(context.scope, task_id, payload)
+
+    @app.post(prefix + "/tasks/{task_id}/reassignments")
+    def reassign_task(
+        task_id: Identifier, payload: ReassignTask, context: SessionDependency
+    ) -> TaskView:
+        with backend.task_service(RequestTaskAuthorization(context.authorization)) as service:
+            command = ReassignmentRequest(
+                command_id=payload.command_id,
+                expected_revision=payload.expected_revision,
+                user_ids=tuple(payload.user_ids),
+                group_ids=tuple(payload.group_ids),
+            )
+            return service.reassign(context.scope, task_id, command)
 
     @app.get(prefix + "/projects")
     def projects(

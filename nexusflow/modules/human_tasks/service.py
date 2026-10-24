@@ -18,6 +18,8 @@ from nexusflow.modules.human_tasks.types import (
     CreateTask,
     DecisionRecord,
     DecisionRequest,
+    ReassignmentRecord,
+    ReassignmentRequest,
     TaskAuthorization,
     TaskError,
     TaskEvent,
@@ -98,7 +100,13 @@ class TaskService:
         if actor not in task.eligible_approver_ids:
             raise TaskError("forbidden", "Actor is not an eligible approver")
 
-    def _event(self, task: TaskView, kind: str, actor: str | None) -> None:
+    def _event(
+        self,
+        task: TaskView,
+        kind: str,
+        actor: str | None,
+        assignment: ReassignmentRecord | None = None,
+    ) -> None:
         event = TaskEvent.model_validate(
             {
                 "event_id": str(uuid4()),
@@ -108,11 +116,74 @@ class TaskService:
                 "actor_id": actor,
                 "revision": task.revision,
                 "created_at": _now(),
+                "assignment": assignment,
             }
         )
         self._db.execute(
             "INSERT INTO human_events(org,env,task,event) VALUES(?,?,?,?)",
             (*_scope(task.scope), task.task_id, event.model_dump_json()),
+        )
+
+    def _resolve(
+        self, scope: Scope, user_ids: tuple[str, ...], group_ids: tuple[str, ...]
+    ) -> tuple[str, ...]:
+        try:
+            if self.assignments is None:
+                raise ValueError("Assignment resolver is unavailable")
+            resolved = self.assignments.resolve(scope, user_ids, group_ids)
+            if not isinstance(resolved, tuple) or not 1 <= len(resolved) <= 1000:
+                raise ValueError("Invalid assignment size")
+            return tuple(
+                sorted(
+                    {
+                        TypeAdapter(Identifier).validate_python(value, strict=True)
+                        for value in resolved
+                    }
+                )
+            )
+        except Exception:
+            raise TaskError(
+                "assignment_unavailable", "Eligible approvers could not be resolved"
+            ) from None
+
+    def _receipt(
+        self,
+        scope: Scope,
+        task_id: str,
+        actor: str,
+        request: DecisionRequest | ReassignmentRequest,
+    ) -> TaskView | None:
+        row = self._db.execute(
+            "SELECT actor,request,response FROM human_commands WHERE org=? AND env=? AND task=? AND command=?",
+            (*_scope(scope), task_id, request.command_id),
+        ).fetchone()
+        if row is None:
+            return None
+        try:
+            saved_request = type(request).model_validate_json(row[1])
+        except ValidationError:
+            raise TaskError("conflict", "Task command already has different content") from None
+        if row[0] != actor or saved_request.model_dump_json() != request.model_dump_json():
+            raise TaskError("conflict", "Task command already has different content")
+        return TaskView.model_validate_json(row[2])
+
+    def _save_command(
+        self, task: TaskView, actor: str, request: DecisionRequest | ReassignmentRequest
+    ) -> None:
+        self._db.execute(
+            "UPDATE human_tasks SET view=? WHERE org=? AND env=? AND id=?",
+            (task.model_dump_json(), *_scope(task.scope), task.task_id),
+        )
+        self._db.execute(
+            "INSERT INTO human_commands VALUES(?,?,?,?,?,?,?)",
+            (
+                *_scope(task.scope),
+                task.task_id,
+                request.command_id,
+                actor,
+                request.model_dump_json(),
+                task.model_dump_json(),
+            ),
         )
 
     def create(self, scope: Scope, request: CreateTask) -> TaskView:
@@ -127,19 +198,7 @@ class TaskService:
                 if task.request != request:
                     raise TaskError("conflict", "Task invocation already has different content")
                 return task
-            try:
-                if self.assignments is None:
-                    raise ValueError("Assignment resolver is unavailable")
-                resolved = self.assignments.resolve(scope, request.user_ids, request.group_ids)
-                if not isinstance(resolved, tuple) or not 1 <= len(resolved) <= 1000:
-                    raise ValueError("Invalid assignment size")
-                ids = tuple(
-                    sorted({TypeAdapter(Identifier).validate_python(value) for value in resolved})
-                )
-            except Exception:
-                raise TaskError(
-                    "assignment_unavailable", "Eligible approvers could not be resolved"
-                ) from None
+            ids = self._resolve(scope, request.user_ids, request.group_ids)
             task = TaskView(
                 task_id=str(uuid4()),
                 scope=scope,
@@ -225,14 +284,9 @@ class TaskService:
         with self._transaction():
             task = self._get(scope, task_id)
             self._eligible(task, actor)
-            row = self._db.execute(
-                "SELECT actor,request,response FROM human_commands WHERE org=? AND env=? AND task=? AND command=?",
-                (*_scope(scope), task_id, request.command_id),
-            ).fetchone()
-            if row:
-                if row[0] != actor or DecisionRequest.model_validate_json(row[1]) != request:
-                    raise TaskError("conflict", "Decision command already has different content")
-                return TaskView.model_validate_json(row[2])
+            receipt = self._receipt(scope, task_id, actor, request)
+            if receipt is not None:
+                return receipt
             if task.revision != request.expected_revision:
                 raise TaskError("conflict", "Task revision has changed")
             if task.status != "pending":
@@ -257,21 +311,7 @@ class TaskService:
             updated = task.model_copy(
                 update={"revision": record.revision, "decisions": decisions, "status": status}
             )
-            self._db.execute(
-                "UPDATE human_tasks SET view=? WHERE org=? AND env=? AND id=?",
-                (updated.model_dump_json(), *_scope(scope), task_id),
-            )
-            self._db.execute(
-                "INSERT INTO human_commands VALUES(?,?,?,?,?,?,?)",
-                (
-                    *_scope(scope),
-                    task_id,
-                    request.command_id,
-                    actor,
-                    request.model_dump_json(),
-                    updated.model_dump_json(),
-                ),
-            )
+            self._save_command(updated, actor, request)
             self._event(updated, "decided", actor)
             if status != "pending":
                 completion = Completion.model_validate(
@@ -290,6 +330,42 @@ class TaskService:
                     "INSERT INTO human_outbox(org,env,task,completion) VALUES(?,?,?,?)",
                     (*_scope(scope), task_id, completion.model_dump_json()),
                 )
+            return updated
+
+    def reassign(self, scope: Scope, task_id: str, request: ReassignmentRequest) -> TaskView:
+        """Explicitly replace a pending assignment snapshot before any decision."""
+        actor = self._actor(scope, "task.reassign", task_id)
+        with self._transaction():
+            task = self._get(scope, task_id)
+            receipt = self._receipt(scope, task_id, actor, request)
+            if receipt is not None:
+                return receipt
+            if task.revision != request.expected_revision:
+                raise TaskError("conflict", "Task revision has changed")
+            if task.status != "pending" or task.decisions:
+                raise TaskError("conflict", "Task assignment can no longer be changed")
+            if len(task.assignment_history) >= 100:
+                raise TaskError("conflict", "Task assignment revision limit has been reached")
+            ids = self._resolve(scope, request.user_ids, request.group_ids)
+            record = ReassignmentRecord(
+                command_id=request.command_id,
+                actor_id=actor,
+                revision=task.revision + 1,
+                created_at=_now(),
+                user_ids=request.user_ids,
+                group_ids=request.group_ids,
+                previous_eligible_ids=task.eligible_approver_ids,
+                eligible_approver_ids=ids,
+            )
+            updated = task.model_copy(
+                update={
+                    "revision": record.revision,
+                    "eligible_approver_ids": ids,
+                    "assignment_history": (*task.assignment_history, record),
+                }
+            )
+            self._save_command(updated, actor, request)
+            self._event(updated, "reassigned", actor, record)
             return updated
 
     def audit(self, scope: Scope, task_id: str) -> tuple[TaskEvent, ...]:

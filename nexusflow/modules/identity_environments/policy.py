@@ -30,7 +30,7 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
         {"activity.read", "activity.import", "activity.publish", "environment.read"}
     ),
     "organization_administrator": frozenset(
-        {"membership.manage", "connection.manage", "environment.read"}
+        {"membership.manage", "connection.manage", "environment.read", "task.reassign"}
     ),
     "production_support": frozenset(
         {
