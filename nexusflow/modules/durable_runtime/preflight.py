@@ -11,6 +11,8 @@ from pydantic import JsonValue
 from nexusflow.contracts import Scope, WorkflowDefinition, validate_contract
 from nexusflow.modules.durable_runtime.types import ExecutionPlan, ReleaseBinding, Step
 
+MAX_DEFINITION_BYTES = 131072
+
 
 class PlanError(ValueError):
     """A definition cannot be executed by this proof interpreter."""
@@ -143,7 +145,7 @@ def compile_plan(
     canonical = json.dumps(
         definition.model_dump(mode="json"), sort_keys=True, separators=(",", ":"), allow_nan=False
     )
-    if len(canonical.encode()) > 131072:
+    if len(canonical.encode()) > MAX_DEFINITION_BYTES:
         raise PlanError("Definition exceeds the proof payload limit")
     return ExecutionPlan(
         binding=binding,

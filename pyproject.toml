@@ -42,7 +42,7 @@ ignore = ["E501"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["nexusflow/contracts", "nexusflow/apps", "nexusflow/modules/durable_runtime", "nexusflow/modules/identity_environments", "nexusflow/modules/project_versioning", "nexusflow/modules/designer_forms", "nexusflow/modules/activity_catalog"]
+files = ["nexusflow/contracts", "nexusflow/apps", "nexusflow/modules/durable_runtime", "nexusflow/modules/identity_environments", "nexusflow/modules/project_versioning", "nexusflow/modules/designer_forms", "nexusflow/modules/activity_catalog", "nexusflow/modules/package_promotion"]
 
 [dependency-groups]
 dev = [

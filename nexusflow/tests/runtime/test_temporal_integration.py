@@ -429,3 +429,130 @@ async def test_dispatcher_rejects_existing_execution_with_another_plan(temporal_
     finally:
         await handle.terminate("Test cleanup")
         journal.close()
+
+
+async def test_persisted_activation_and_rollback_preserve_waiting_runs(temporal_env, tmp_path):
+    """Real project → activation → start intent → Temporal release coexistence."""
+    from nexusflow.modules.activity_catalog.catalog_repository import SQLiteCatalogRepository
+    from nexusflow.modules.package_promotion.readiness import ProofActivationReadiness
+    from nexusflow.modules.package_promotion.repository import SQLiteActivationRepository
+    from nexusflow.modules.package_promotion.service import (
+        ActivatedReleaseResolver,
+        ActivationService,
+    )
+    from nexusflow.modules.package_promotion.types import ActivationRequest
+    from nexusflow.modules.project_versioning.repository import SQLiteProjectRepository
+    from nexusflow.modules.project_versioning.service import ProjectService
+    from nexusflow.modules.project_versioning.validation import BuiltinContentValidator
+    from nexusflow.tests.package_promotion.test_activation import (
+        Artifacts,
+        Authorization,
+        Capabilities,
+        Configurations,
+    )
+
+    scope = Scope(organization_id="acme", environment_id="dev")
+    queue = f"activation-{uuid4()}"
+    value = definition()
+    value["nodes"] = [
+        node for node in value["nodes"] if node["kind"] in {"start", "approval", "end"}
+    ]
+    ids = [node["node_id"] for node in value["nodes"]]
+    value["edges"] = [
+        {
+            "source_node_id": source,
+            "source_port": "out",
+            "target_node_id": target,
+            "target_port": "in",
+        }
+        for source, target in zip(ids, ids[1:], strict=False)
+    ]
+    projects = SQLiteProjectRepository(tmp_path / "projects.db")
+    activations = SQLiteActivationRepository(tmp_path / "activations.db")
+    catalog = SQLiteCatalogRepository(tmp_path / "catalog.db")
+    intents = SQLiteStartRepository(tmp_path / "starts.db")
+    journal = SQLiteDispatchJournal(tmp_path / "dispatch.db")
+    auth = Authorization()
+    publisher = ProjectService(projects, auth, BuiltinContentValidator(), Artifacts())
+    payload = {"schema_version": "0.1", "workflows": [value]}
+    first = publisher.create(scope, "hr", "HR", json.dumps(payload))
+    release_a = publisher.publish(scope, "hr", first.number, "a")
+    value["input_schema"]["description"] = "Release B"
+    second = publisher.save(scope, "hr", first.number, json.dumps(payload), "B")
+    release_b = publisher.publish(scope, "hr", second.number, "b")
+    activation = ActivationService(
+        activations,
+        projects,
+        auth,
+        ProofActivationReadiness(catalog, Capabilities(), Configurations()),
+    )
+
+    class StartAuthorization:
+        def authorize(self, scope, project):
+            pass
+
+    starts = AsyncStartService(
+        intents,
+        StartAuthorization(),
+        ActivatedReleaseResolver(activations),
+        TemporalStartDispatcher(
+            temporal_env.client, journal, scope, queue, rpc_timeout=timedelta(seconds=30)
+        ),
+    )
+
+    def activate(release, revision, operation, action="activate"):
+        return activation.apply(
+            scope,
+            ActivationRequest(
+                project_id="hr",
+                release_id=release.release_id,
+                configuration_revision="cfg-" + operation,
+                operation_id=operation,
+                expected_revision=revision,
+                action=action,
+            ),
+        )
+
+    try:
+        async with Worker(temporal_env.client, task_queue=queue, workflows=[ProofWorkflow]):
+            activate(release_a, 0, "a")
+            request_a = StartRequest(scope, "hr", value["workflow_id"], "run-a")
+            a = await starts.start(request_a)
+            handle_a = temporal_env.client.get_workflow_handle(a.execution_id)
+            await wait_state(handle_a, "waiting_approval")
+            activate(release_b, 1, "b")
+            b = await starts.start(replace(request_a, idempotency_key="run-b"))
+            handle_b = temporal_env.client.get_workflow_handle(b.execution_id)
+            await wait_state(handle_b, "waiting_approval")
+            activate(release_a, 2, "rollback", "rollback")
+            c = await starts.start(replace(request_a, idempotency_key="run-c"))
+            handle_c = temporal_env.client.get_workflow_handle(c.execution_id)
+            await wait_state(handle_c, "waiting_approval")
+            assert await starts.start(request_a) == a
+            assert (
+                a.plan.binding.release_id,
+                b.plan.binding.release_id,
+                c.plan.binding.release_id,
+            ) == (release_a.release_id, release_b.release_id, release_a.release_id)
+            assert a.plan.binding.configuration_revision == "cfg-a"
+            assert b.plan.binding.configuration_revision == "cfg-b"
+            assert c.plan.binding.configuration_revision == "cfg-rollback"
+            for handle, release in (
+                (handle_a, release_a),
+                (handle_b, release_b),
+                (handle_c, release_a),
+            ):
+                assert (await handle.query(ProofWorkflow.snapshot)).release_id == release.release_id
+                await handle.execute_update(
+                    ProofWorkflow.approve, ApprovalCommand("approve", "approval", True, 0)
+                )
+                await handle.result()
+                await Replayer(workflows=[ProofWorkflow]).replay_workflow(
+                    await handle.fetch_history()
+                )
+    finally:
+        journal.close()
+        intents.close()
+        catalog.close()
+        activations.close()
+        projects.close()

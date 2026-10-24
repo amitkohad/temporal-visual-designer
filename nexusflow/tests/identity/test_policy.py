@@ -73,6 +73,7 @@ def denied(policy, principal, scope, permission):
         "package.import",
         "package.activate",
         "package.rollback",
+        "run.start",
     ],
 )
 def test_author_permissions(environment, permission):
@@ -106,20 +107,30 @@ def test_context_is_constructed_from_server_grants():
             "project.read",
             "project.write",
             "run.read",
+            "run.start",
         ),
     )
 
 
 @pytest.mark.parametrize(
     "permission",
-    ["project.write", "package.import", "package.activate", "package.rollback", "activity.publish"],
+    [
+        "project.write",
+        "package.import",
+        "package.activate",
+        "package.rollback",
+        "activity.publish",
+        "run.start",
+    ],
 )
 def test_prod_author_has_no_authority(permission):
     policy, _, principal, scope = setup(environment="prod")
     denied(policy, principal, scope, permission)
 
 
-@pytest.mark.parametrize("permission", ["package.import", "package.activate", "package.rollback"])
+@pytest.mark.parametrize(
+    "permission", ["package.import", "package.activate", "package.rollback", "run.start"]
+)
 def test_production_support_can_deploy(permission):
     policy, _, principal, scope = setup("production_support", "prod")
     authorize(policy, principal, scope, permission)

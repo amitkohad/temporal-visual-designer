@@ -31,7 +31,7 @@ def setup(tmp_path):
         service_client=SimpleNamespace(config=SimpleNamespace(target_host="localhost:7233")),
         namespace="default",
         data_converter=DataConverter.default,
-        start_workflow=AsyncMock(return_value=SimpleNamespace(run_id="run-1")),
+        start_workflow=AsyncMock(return_value=SimpleNamespace(run_id=None, result_run_id="run-1")),
         get_workflow_handle=Mock(),
     )
     journal = SQLiteDispatchJournal(tmp_path / "dispatch.db")

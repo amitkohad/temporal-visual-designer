@@ -1,0 +1,1 @@
+"""Independent project activation acceptance."""
