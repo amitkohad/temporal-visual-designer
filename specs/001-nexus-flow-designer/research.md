@@ -37,6 +37,8 @@ User-selected stack: Python backend/contracts/Temporal workers and React browser
 
 Runtime proof uses Temporal Python SDK 1.34.0, immutable proof.v1 plans and sandbox/replay tests. See [ADR 0002](../../docs/decisions/0002-runtime-proof.md). Production interpreter and adapter decisions remain separate.
 
+Temporal start dispatch decision (2026-10-24): permanent private dispatch claims/receipts bind the original plan and destination; ambiguous claims reconcile against run-pinned Temporal start history without automatically resending. Actual local server acceptance verifies completed-run lost-ack recovery. See [ADR 0010](../../docs/decisions/0010-temporal-start-dispatch.md). Unverified claims require future operator recovery; full production identity/activation and transactional retention remain open.
+
 Identity decisions: explicit per-organization directory binding, allowlisted user/workload clients, fresh injected group resolution, scoped server grants and local SQLite provider. No live tenant or production database topology is assumed. See [ADR 0003](../../docs/decisions/0003-identity-environments.md).
 
 Authoring validation decisions: offline descriptor-backed checks, structured joins, project-local reusable references and versioned variable bindings with conservative schema/availability proof. The proof runtime rejects bindings pending execution support. General expression and form contracts remain open. See [ADR 0005](../../docs/decisions/0005-authoring-validation.md).

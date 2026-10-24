@@ -63,6 +63,12 @@ class StartDispatcher(Protocol):
         ...
 
 
+class AsyncStartDispatcher(Protocol):
+    async def start(self, execution_id: str, plan: ExecutionPlan) -> None:
+        """Apply the same permanent deduplication contract as StartDispatcher."""
+        ...
+
+
 class SQLiteStartRepository:
     def __init__(self, database: str | Path) -> None:
         self._lock = RLock()
@@ -125,20 +131,18 @@ class SQLiteStartRepository:
             )
 
 
-class StartService:
+class _StartBoundary:
     def __init__(
         self,
         repository: SQLiteStartRepository,
         authorization: StartAuthorization,
         releases: ActiveReleaseResolver,
-        dispatcher: StartDispatcher,
     ) -> None:
         self.repository = repository
         self.authorization = authorization
         self.releases = releases
-        self.dispatcher = dispatcher
 
-    def start(self, request: StartRequest) -> StartReceipt:
+    def _prepare(self, request: StartRequest) -> StartReceipt:
         # Authorization precedes lookup, including retries of acknowledged starts.
         self.authorization.authorize(request.scope, request.project_id)
         try:
@@ -165,9 +169,49 @@ class StartService:
             if plan.workflow_id != request.workflow_id:
                 raise StartError("invalid_input", "Resolved workflow does not match request")
             receipt = self.repository.reserve(request, fingerprint, plan)
+        return receipt
+
+
+class StartService(_StartBoundary):
+    def __init__(
+        self,
+        repository: SQLiteStartRepository,
+        authorization: StartAuthorization,
+        releases: ActiveReleaseResolver,
+        dispatcher: StartDispatcher,
+    ) -> None:
+        super().__init__(repository, authorization, releases)
+        self.dispatcher = dispatcher
+
+    def start(self, request: StartRequest) -> StartReceipt:
+        receipt = self._prepare(request)
         if not receipt.dispatched:
             try:
                 self.dispatcher.start(receipt.execution_id, receipt.plan)
+            except OSError:
+                raise StartError(
+                    "unavailable", "Start delivery pending; retry the same key"
+                ) from None
+            self.repository.acknowledge(receipt.execution_id)
+        return StartReceipt(receipt.execution_id, receipt.plan, True)
+
+
+class AsyncStartService(_StartBoundary):
+    def __init__(
+        self,
+        repository: SQLiteStartRepository,
+        authorization: StartAuthorization,
+        releases: ActiveReleaseResolver,
+        dispatcher: AsyncStartDispatcher,
+    ) -> None:
+        super().__init__(repository, authorization, releases)
+        self.dispatcher = dispatcher
+
+    async def start(self, request: StartRequest) -> StartReceipt:
+        receipt = self._prepare(request)
+        if not receipt.dispatched:
+            try:
+                await self.dispatcher.start(receipt.execution_id, receipt.plan)
             except OSError:
                 raise StartError(
                     "unavailable", "Start delivery pending; retry the same key"

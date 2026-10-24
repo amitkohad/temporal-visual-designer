@@ -28,6 +28,7 @@ Foundation implementation was authorized on 2026-10-23. See [implementation-foun
   - [x] NF-T008b Catalog publication/lifecycle/export acceptance is complete (F04-T003/T005). Isolated execution remains explicitly open under F04-T007; it is not inferred from metadata/capability fakes.
 - [ ] NF-T009 [P] Deliver feature 05 runtime acceptance. Prerequisites: NF-T003, NF-T004 for full implementation. Owner paths: `nexusflow/modules/05-durable-runtime/`.
   - [x] NF-T009a Isolated durable start contracts and SQLite deduplication/pinned-plan recovery are implemented and verified with required provider fakes (RT-T01a/T03a/T04a; [evidence](implementation-durable-starts.md)).
+  - [x] NF-T009c Async proof-runtime Temporal start dispatch and permanent journal reconciliation are verified with SDK-failure and actual local Temporal tests (RT-T01c/T03c/T04c; [evidence](implementation-temporal-start-dispatch.md)).
   - [ ] NF-T009b Complete full interpreter, actual start/provider adapters, checkpoint/projection and RT-A1–A7 acceptance.
 - [ ] NF-T010 [P] Deliver feature 06 task suite with directory/runtime/form fixtures. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/06-human-tasks/`.
 - [ ] NF-T011 [P] Deliver feature 07 debugger suite with event fixtures. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/07-designer-debugger/`.

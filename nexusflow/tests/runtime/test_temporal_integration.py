@@ -19,6 +19,16 @@ from temporalio.worker import Replayer, Worker
 
 from nexusflow.contracts import Scope
 from nexusflow.modules.durable_runtime.preflight import compile_plan
+from nexusflow.modules.durable_runtime.starts import (
+    AsyncStartService,
+    SQLiteStartRepository,
+    StartError,
+    StartRequest,
+)
+from nexusflow.modules.durable_runtime.temporal_starts import (
+    SQLiteDispatchJournal,
+    TemporalStartDispatcher,
+)
 from nexusflow.modules.durable_runtime.types import (
     ActivityCall,
     ApprovalCommand,
@@ -328,3 +338,94 @@ async def test_retry_exhaustion_does_not_enter_approval(temporal_env):
         assert snapshot.state == "failed"
         assert snapshot.completed_nodes == ("start",)
     await Replayer(workflows=[ProofWorkflow]).replay_workflow(await handle.fetch_history())
+
+
+async def test_journaled_start_recovers_lost_ack_after_completion(
+    temporal_env, tmp_path, monkeypatch
+):
+    """Actual Temporal acceptance with separate start/dispatch SQLite journals."""
+    queue = f"start-dispatch-{uuid4()}"
+    client = temporal_env.client
+    value = definition()
+    value["nodes"] = [node for node in value["nodes"] if node["kind"] in {"start", "end"}]
+    value["edges"] = [
+        {
+            "source_node_id": "start",
+            "source_port": "out",
+            "target_node_id": "end",
+            "target_port": "in",
+        }
+    ]
+    scope = Scope(organization_id="acme", environment_id="dev")
+    binding = ReleaseBinding("acme", "dev", "release-a", "sha256:" + "a" * 64, "cfg-a")
+
+    class Authorization:
+        def authorize(self, scope, project):
+            pass
+
+    class Releases:
+        def resolve(self, scope, project, workflow):
+            return binding, json.dumps(value)
+
+    repository = SQLiteStartRepository(tmp_path / "starts.db")
+    journal = SQLiteDispatchJournal(tmp_path / "dispatch.db")
+    dispatcher = TemporalStartDispatcher(client, journal, scope, queue)
+    service = AsyncStartService(repository, Authorization(), Releases(), dispatcher)
+    request = StartRequest(scope, "purchasing", value["workflow_id"], "start-1")
+    original = client.start_workflow
+    accepted = []
+
+    async def lose_ack(*args, **kwargs):
+        handle = await original(*args, **kwargs)
+        accepted.append(handle)
+        await handle.result()
+        raise TimeoutError("ack lost after completion")
+
+    try:
+        async with Worker(client, task_queue=queue, workflows=[ProofWorkflow]):
+            monkeypatch.setattr(client, "start_workflow", lose_ack)
+            with pytest.raises(StartError) as error:
+                await service.start(request)
+            assert error.value.code == "unavailable"
+            assert len(accepted) == 1
+            # Reopen both repositories to prove persisted pending-plan recovery.
+            repository.close()
+            journal.close()
+            repository = SQLiteStartRepository(tmp_path / "starts.db")
+            journal = SQLiteDispatchJournal(tmp_path / "dispatch.db")
+            service = AsyncStartService(
+                repository,
+                Authorization(),
+                Releases(),
+                TemporalStartDispatcher(client, journal, scope, queue),
+            )
+            receipt = await service.start(request)
+            assert receipt.execution_id == accepted[0].id
+            assert receipt.plan.binding == binding
+            assert await service.start(request) == receipt
+            assert len(accepted) == 1
+            await Replayer(workflows=[ProofWorkflow]).replay_workflow(
+                await accepted[0].fetch_history()
+            )
+    finally:
+        repository.close()
+        journal.close()
+
+
+async def test_dispatcher_rejects_existing_execution_with_another_plan(temporal_env, tmp_path):
+    queue = f"start-conflict-{uuid4()}"
+    execution = "nf-" + uuid4().hex
+    journal = SQLiteDispatchJournal(tmp_path / "dispatch.db")
+    scope = Scope(organization_id="acme", environment_id="dev")
+    dispatcher = TemporalStartDispatcher(temporal_env.client, journal, scope, queue)
+    original_plan = plan()
+    handle = await temporal_env.client.start_workflow(
+        ProofWorkflow.run, original_plan, id=execution, task_queue=queue
+    )
+    try:
+        with pytest.raises(StartError) as error:
+            await dispatcher.start(execution, replace(original_plan, input_json='{"changed":true}'))
+        assert error.value.code == "conflict"
+    finally:
+        await handle.terminate("Test cleanup")
+        journal.close()
