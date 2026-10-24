@@ -184,6 +184,19 @@ class Completion(Contract):
     task_revision: Annotated[int, Field(ge=2)]
 
 
+class CompletionBatch(Contract):
+    attempted: Annotated[int, Field(ge=0, le=100)]
+    delivered: Annotated[int, Field(ge=0, le=100)]
+    failed: Annotated[int, Field(ge=0, le=100)]
+    next_after_task_id: Identifier | None = None
+
+    @model_validator(mode="after")
+    def bounded_counts(self) -> "CompletionBatch":
+        if self.delivered + self.failed > self.attempted:
+            raise ValueError("Batch outcomes cannot exceed attempted completions")
+        return self
+
+
 class TaskAuthorization(Protocol):
     def authorize(self, scope: Scope, permission: str, resource_id: str) -> str:
         """Freshly authorize and return a trusted immutable actor ID, or deny.

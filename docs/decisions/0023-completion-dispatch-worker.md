@@ -1,0 +1,15 @@
+# ADR 0023: Bounded background task completion delivery
+
+Status: accepted for an explicitly hosted completion dispatcher.
+
+The existing all-pending delivery method stops at its first failed destination. Wrapping it in a polling loop would allow one missing or expired destination to starve later completions. Add a separate bounded batch operation that isolates each row's delivery and acknowledgment failure. Preserve the existing synchronous and asynchronous methods for their current callers.
+
+Each batch selects at most 100 pending rows from one trusted organization/environment, ordered by task ID after an optional exclusive cursor. Release SQLite locks before awaiting the sink. Validate the persisted payload against the selected task and scope, bound each delivery wait, and atomically acknowledge delivery and audit only after a durable sink acknowledgment. Failed or malformed rows remain pending; subsequent selected rows still get an attempt. Cancellation propagates and leaves unacknowledged work available for recovery. Concurrent workers rely on destination idempotency and the existing conditional local acknowledgment to avoid duplicate progress and delivery audits.
+
+The host-owned dispatcher advances through bounded pages and wraps after an empty page. It sleeps between batches, including failures and empty batches, so a failed destination is retried on a later sweep without a tight loop. The cursor and health summary are in memory; pending completions and destination receipts remain durable. Restart begins a new sweep rather than treating previous attempts as delivered. This is fixed-interval retry, not a persisted exponential retry schedule or distributed lease system.
+
+Expose only attempted/delivered/failed counts, cursor and a generic dispatcher error code in the worker health surface. Do not log completion payloads, directory identifiers or provider exception details. A concurrent acknowledgment can make the delivered count lower than attempted minus failed. The host must monitor the summary and persistent pending work; this worker does not automatically repair missing destinations or expired history.
+
+The async lifecycle helper owns one background loop and cancels and awaits it before the caller closes task stores, journals or the Temporal client. Concurrent loops on one dispatcher are rejected. Delivery timeouts depend on cooperative asynchronous sinks; the existing Temporal adapter has bounded RPC timeouts. This does not impose a hard termination guarantee on arbitrary blocking Python or SQLite operations.
+
+No API or launcher starts a worker implicitly. Local-demo composition, live identity, notification delivery scheduling, workflow cancellation reconciliation, global fairness/capacity targets and production multi-worker supervision retain separate gates. Integration tests must demonstrate actual Temporal progress from background dispatch, isolation of a broken destination, receipt recovery and shutdown/restart without manual delivery calls.

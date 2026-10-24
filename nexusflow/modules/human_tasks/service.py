@@ -1,7 +1,9 @@
 """Scoped durable human decisions and at-least-once completion delivery."""
 
+import asyncio
 import hashlib
 import json
+import math
 import sqlite3
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -17,6 +19,7 @@ from nexusflow.modules.human_tasks.types import (
     AssignmentResolver,
     AsyncCompletionSink,
     Completion,
+    CompletionBatch,
     CompletionSink,
     CreateTask,
     DecisionRecord,
@@ -636,6 +639,54 @@ class TaskService:
                 ) from None
             delivered += self._mark_completion_delivered(scope, completion)
         return delivered
+
+    async def dispatch_completion_batch(
+        self,
+        scope: Scope,
+        sink: AsyncCompletionSink,
+        *,
+        limit: int = 25,
+        after_task_id: str | None = None,
+        delivery_timeout: float = 10.0,
+    ) -> CompletionBatch:
+        """Trusted worker port: bounded fair scanning with independent acknowledgements.
+
+        The cursor advances over failed rows as well as successes. An empty page
+        clears it, allowing the next sweep to retry retained failures. Cancellation
+        leaves uncertain delivery pending; sinks must deduplicate completion IDs.
+        """
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError("Completion batch limit must be between 1 and 100")
+        if after_task_id is not None:
+            TypeAdapter(Identifier).validate_python(after_task_id, strict=True)
+        if (
+            type(delivery_timeout) not in (int, float)
+            or not 0 < delivery_timeout <= 300
+            or not math.isfinite(delivery_timeout)
+        ):
+            raise ValueError("Completion delivery timeout must be positive and at most 300 seconds")
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT task,completion FROM human_outbox WHERE org=? AND env=? "
+                "AND delivered=0 AND task>? ORDER BY task LIMIT ?",
+                (*_scope(scope), after_task_id or "", limit),
+            ).fetchall()
+        delivered = failed = 0
+        for task_id, payload in rows:
+            try:
+                completion = Completion.model_validate_json(payload)
+                if completion.scope != scope or completion.task_id != task_id:
+                    raise ValueError("Stored completion does not match its scoped outbox row")
+                await asyncio.wait_for(sink.deliver(completion), timeout=delivery_timeout)
+                delivered += self._mark_completion_delivered(scope, completion)
+            except Exception:
+                failed += 1
+        return CompletionBatch(
+            attempted=len(rows),
+            delivered=delivered,
+            failed=failed,
+            next_after_task_id=rows[-1][0] if rows else None,
+        )
 
     def _mark_completion_delivered(self, scope: Scope, completion: Completion) -> int:
         with self._transaction():

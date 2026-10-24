@@ -67,3 +67,18 @@ Delegation: `uv run pytest nexusflow/tests/human_tasks/test_delegation.py nexusf
 Task completion delivery: `uv run pytest nexusflow/tests/human_tasks/test_async_completion.py nexusflow/tests/runtime/test_human_completions.py` verifies the async outbox and immutable Temporal destination journal offline. `uv run pytest -m integration nexusflow/tests/runtime/test_task_completion_integration.py` exercises real SQLite decisions and actual Temporal approval/rejection, retained acknowledgments, invocation isolation and worker restart/replay. Register `CompletionTarget` through the trusted host, then use `TemporalCompletionSink` with `TaskService.deliver_pending_async`; keep journals and backups indefinitely. This adds no public delivery endpoint or automatic task creation/scheduler. See [ADR 0021](decisions/0021-task-completion-delivery.md).
 
 Managed task creation: `uv run pytest nexusflow/tests/runtime/test_managed_preflight.py nexusflow/tests/runtime/test_task_creation.py nexusflow/tests/runtime/test_managed_start_compatibility.py` verifies strict assignments, transactional provisioning and old permanent dispatch receipts. `uv run pytest -m integration nexusflow/tests/runtime/test_managed_tasks_integration.py` verifies automatic task creation, task-ID-bound approval/rejection, rules, retries and replay. Configure `TaskCreationActivities(tasks, journal, client, scope)` on the same destination worker with `activities=[creation.create]`; the task and journal databases must have separate resolved paths. Continue explicit async outbox dispatch through `TemporalCompletionSink`. See [ADR 0022](decisions/0022-managed-task-creation.md) for trusted host boundaries and remaining composition work.
+
+Background completion delivery: `uv run pytest nexusflow/tests/human_tasks/test_completion_batches.py nexusflow/tests/human_tasks/test_completion_worker.py` verifies batch isolation, cursor sweeps, timeouts, cancellation and owned loop lifecycle. `uv run pytest -m integration nexusflow/tests/runtime/test_completion_worker_integration.py` verifies background approval/rejection against actual Temporal, broken-destination isolation and receipt recovery after store reopen. See [ADR 0023](decisions/0023-completion-dispatch-worker.md). The existing local launcher does not enable this worker automatically.
+
+```python
+from nexusflow.modules.human_tasks.dispatch import (
+    CompletionDispatcher,
+    run_completion_dispatcher,
+)
+
+dispatcher = CompletionDispatcher(tasks, scope, sink, batch_size=25, poll_interval=1.0)
+async with run_completion_dispatcher(dispatcher):
+    await serve_application()  # Host owns stores/client until this context exits.
+```
+
+Here `tasks` is the configured `TaskService` and `sink` is its scoped `TemporalCompletionSink`. Monitor `last_batch.failed`, pending work and `last_error_code`; individual failures remain pending and retry on later sweeps. The helper cancels and awaits the dispatcher before returning, so close stores/journals/client afterward. Fixed retry pacing and cooperative sink timeouts do not replace production recovery tooling or a durable retry schedule.
