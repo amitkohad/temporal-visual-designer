@@ -37,6 +37,7 @@ Foundation implementation was authorized on 2026-10-23. See [implementation-foun
   - [x] NF-T010e Verify pinned task-form previews/submissions, field-policy authorization and approval gating with signed HTTP and atomic SQLite recovery ([evidence](implementation-task-forms.md)).
   - [x] NF-T010f Verify durable one-shot reminder/escalation notification scheduling and recoverable due delivery through a trusted sink, with stable IDs and terminal/recipient guards ([evidence](implementation-task-notifications.md)).
   - [x] NF-T010g Verify bounded sequential approval stages, current-stage signed access, atomic transitions/receipts and shared form/notification behavior ([evidence](implementation-sequential-approvals.md)).
+  - [x] NF-T010h Verify participant delegation of uncast current-stage votes, atomic audit/receipts, signed authorization and shared form/reminder behavior ([evidence](implementation-task-delegation.md)).
   - [ ] NF-T010b Complete remaining form integrations/attachments, timers/escalation/notifications, remaining conditional rules, task lifecycle, remaining inbox filters/UI and full HT-A1–A7 acceptance with actual adapters.
 - [ ] NF-T011 [P] Deliver feature 07 debugger suite with event fixtures. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/07-designer-debugger/`.
 - [ ] NF-T012 [P] Deliver feature 08 connector suite with local transports. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/08-connectors/`.

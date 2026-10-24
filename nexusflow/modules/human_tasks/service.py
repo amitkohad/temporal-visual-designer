@@ -18,6 +18,8 @@ from nexusflow.modules.human_tasks.types import (
     CreateTask,
     DecisionRecord,
     DecisionRequest,
+    DelegationRecord,
+    DelegationRequest,
     ReassignmentRecord,
     ReassignmentRequest,
     StageAssignment,
@@ -123,6 +125,7 @@ class TaskService:
         *,
         stage_id: str | None = None,
         previous_stage_id: str | None = None,
+        delegation: DelegationRecord | None = None,
     ) -> None:
         event = TaskEvent.model_validate(
             {
@@ -137,6 +140,7 @@ class TaskService:
                 "notification_id": notification_id,
                 "stage_id": stage_id,
                 "previous_stage_id": previous_stage_id,
+                "delegation": delegation,
             }
         )
         self._db.execute(
@@ -171,7 +175,7 @@ class TaskService:
         scope: Scope,
         task_id: str,
         actor: str,
-        request: DecisionRequest | ReassignmentRequest,
+        request: DecisionRequest | ReassignmentRequest | DelegationRequest,
     ) -> TaskView | None:
         row = self._db.execute(
             "SELECT actor,request,response FROM human_commands WHERE org=? AND env=? AND task=? AND command=?",
@@ -188,7 +192,10 @@ class TaskService:
         return TaskView.model_validate_json(row[2])
 
     def _save_command(
-        self, task: TaskView, actor: str, request: DecisionRequest | ReassignmentRequest
+        self,
+        task: TaskView,
+        actor: str,
+        request: DecisionRequest | ReassignmentRequest | DelegationRequest,
     ) -> None:
         self._db.execute(
             "UPDATE human_tasks SET view=? WHERE org=? AND env=? AND id=?",
@@ -427,7 +434,7 @@ class TaskService:
                 raise TaskError("conflict", "Task revision has changed")
             if task.status != "pending" or task.decisions:
                 raise TaskError("conflict", "Task assignment can no longer be changed")
-            if len(task.assignment_history) >= 100:
+            if len(task.assignment_history) + len(task.delegation_history) >= 100:
                 raise TaskError("conflict", "Task assignment revision limit has been reached")
             ids = self._resolve(scope, request.user_ids, request.group_ids)
             record = ReassignmentRecord(
@@ -460,6 +467,95 @@ class TaskService:
             )
             self._save_command(updated, actor, request)
             self._event(updated, "reassigned", actor, record)
+            return updated
+
+    def delegate(self, scope: Scope, task_id: str, request: DelegationRequest) -> TaskView:
+        """Replace the current actor's unvoted place with a verified directory user."""
+        actor = self._actor(scope, "task.respond", task_id)
+        with self._transaction():
+            task = self._get(scope, task_id)
+            if actor not in task.eligible_approver_ids:
+                # Delegating removes the actor's current access. Only their own
+                # accepted command can retrieve its immutable historical receipt.
+                stored = self._db.execute(
+                    "SELECT actor FROM human_commands WHERE org=? AND env=? AND task=? AND command=?",
+                    (*_scope(scope), task_id, request.command_id),
+                ).fetchone()
+                own_delegation = (
+                    stored is not None
+                    and stored[0] == actor
+                    and any(
+                        item.actor_id == actor and item.command_id == request.command_id
+                        for item in task.delegation_history
+                    )
+                )
+                if not own_delegation:
+                    self._eligible(task, actor)
+            receipt = self._receipt(scope, task_id, actor, request)
+            if receipt is not None:
+                return receipt
+            self._eligible(task, actor)
+            if task.revision != request.expected_revision:
+                raise TaskError("conflict", "Task revision has changed")
+            if task.status != "pending":
+                raise TaskError("conflict", "Task is already completed")
+            stage = task.stage_assignments[task.stage_index] if task.stage_assignments else None
+            stage_id = stage.stage_id if stage else None
+            if any(item.actor_id == actor and item.stage_id == stage_id for item in task.decisions):
+                raise TaskError("conflict", "Actor has already decided this task")
+            if request.delegate_id == actor or request.delegate_id in task.eligible_approver_ids:
+                raise TaskError("conflict", "Delegate must be a different unassigned user")
+            if len(task.assignment_history) + len(task.delegation_history) >= 100:
+                raise TaskError("conflict", "Task assignment revision limit has been reached")
+            try:
+                if self.assignments is None:
+                    raise ValueError("Assignment resolver is unavailable")
+                resolved = self.assignments.resolve(scope, (request.delegate_id,), ())
+                if (
+                    not isinstance(resolved, tuple)
+                    or len(resolved) != 1
+                    or TypeAdapter(Identifier).validate_python(resolved[0], strict=True)
+                    != request.delegate_id
+                ):
+                    raise ValueError("Invalid delegate resolution")
+            except Exception:
+                raise TaskError(
+                    "assignment_unavailable", "Delegate could not be resolved"
+                ) from None
+            ids = tuple(
+                sorted(
+                    request.delegate_id if value == actor else value
+                    for value in task.eligible_approver_ids
+                )
+            )
+            record = DelegationRecord(
+                command_id=request.command_id,
+                actor_id=actor,
+                delegate_id=request.delegate_id,
+                stage_id=stage_id,
+                revision=task.revision + 1,
+                created_at=_now(),
+                previous_eligible_ids=task.eligible_approver_ids,
+                eligible_approver_ids=ids,
+            )
+            stages = task.stage_assignments
+            if stage is not None:
+                stages = tuple(
+                    value.model_copy(update={"eligible_approver_ids": ids})
+                    if index == task.stage_index
+                    else value
+                    for index, value in enumerate(stages)
+                )
+            updated = task.model_copy(
+                update={
+                    "revision": record.revision,
+                    "stage_assignments": stages,
+                    "eligible_approver_ids": ids,
+                    "delegation_history": (*task.delegation_history, record),
+                }
+            )
+            self._save_command(updated, actor, request)
+            self._event(updated, "delegated", actor, stage_id=stage_id, delegation=record)
             return updated
 
     def audit(self, scope: Scope, task_id: str) -> tuple[TaskEvent, ...]:
