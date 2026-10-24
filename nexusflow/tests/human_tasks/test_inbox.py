@@ -22,7 +22,7 @@ def test_scoped_membership_precedes_pagination_and_filters(tmp_path: Path) -> No
     auth, directory = Authorization(), Directory(("bob",))
     core = TaskService(tmp_path / "tasks.db", auth, directory)
     try:
-        core.create(SCOPE, request())  # Hidden oldest row must not consume the first page.
+        core.create(SCOPE, request())  # A hidden row must not consume a page position.
         directory.resolved = ("alice",)
         first = core.create(SCOPE, request().model_copy(update={"node_invocation_id": "two"}))
         second = core.create(SCOPE, request().model_copy(update={"node_invocation_id": "three"}))
@@ -31,15 +31,16 @@ def test_scoped_membership_precedes_pagination_and_filters(tmp_path: Path) -> No
             request().model_copy(update={"run_id": "run-other", "node_invocation_id": "four"}),
         )
         core.create(OTHER, request())
-        core.decide(SCOPE, second.task_id, decision("approve", 1))
+        second = core.decide(SCOPE, second.task_id, decision("approve", 1))
+        expected = sorted((first, second, third), key=lambda task: (task.created_at, task.task_id))
         page = core.list_tasks(SCOPE, limit=1)
-        assert page.items == (first,)
+        assert page.items == (expected[0],)
         assert page.next_offset == 1
         page2 = core.list_tasks(SCOPE, limit=1, offset=page.next_offset)
-        assert page2.items[0].task_id == second.task_id
+        assert page2.items == (expected[1],)
         assert page2.next_offset == 2
         last = core.list_tasks(SCOPE, limit=1, offset=2)
-        assert last.items == (third,)
+        assert last.items == (expected[2],)
         assert last.next_offset is None
         assert tuple(item.task_id for item in core.list_tasks(SCOPE, status="approved").items) == (
             second.task_id,
