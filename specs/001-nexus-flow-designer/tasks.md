@@ -31,6 +31,8 @@ Foundation implementation was authorized on 2026-10-23. See [implementation-foun
   - [x] NF-T009c Async proof-runtime Temporal start dispatch and permanent journal reconciliation are verified with SDK-failure and actual local Temporal tests (RT-T01c/T03c/T04c; [evidence](implementation-temporal-start-dispatch.md)).
   - [ ] NF-T009b Complete full interpreter, actual start/provider adapters, checkpoint/projection and RT-A1–A7 acceptance.
 - [ ] NF-T010 [P] Deliver feature 06 task suite with directory/runtime/form fixtures. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/06-human-tasks/`.
+  - [x] NF-T010a Verify bounded any-one/all-approver core, fresh trusted authorization, immutable assignment snapshots, SQLite decision/outbox atomicity, command retries, concurrency and recovery against fake ports ([evidence](implementation-human-task-core.md)).
+  - [ ] NF-T010b Complete forms/attachments, timers/escalation/notifications, sequential/conditional rules, task lifecycle/inbox and full HT-A1–A7 acceptance with actual adapters.
 - [ ] NF-T011 [P] Deliver feature 07 debugger suite with event fixtures. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/07-designer-debugger/`.
 - [ ] NF-T012 [P] Deliver feature 08 connector suite with local transports. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/08-connectors/`.
 - [ ] NF-T013 [P] Deliver feature 09 promotion suite with registry/runtime fakes. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/09-package-promotion/`.

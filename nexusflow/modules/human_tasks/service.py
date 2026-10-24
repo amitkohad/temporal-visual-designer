@@ -1,0 +1,279 @@
+"""Scoped durable human decisions and at-least-once completion delivery."""
+
+import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import UTC, datetime
+from pathlib import Path
+from threading import RLock
+from uuid import uuid4
+
+from pydantic import TypeAdapter, ValidationError
+
+from nexusflow.contracts.models import Identifier, Scope
+from nexusflow.modules.human_tasks.types import (
+    AssignmentResolver,
+    Completion,
+    CompletionSink,
+    CreateTask,
+    DecisionRecord,
+    DecisionRequest,
+    TaskAuthorization,
+    TaskError,
+    TaskEvent,
+    TaskStatus,
+    TaskView,
+)
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat()
+
+
+def _scope(scope: Scope) -> tuple[str, str]:
+    return scope.organization_id, scope.environment_id
+
+
+class TaskService:
+    def __init__(
+        self, database: Path, authorization: TaskAuthorization, assignments: AssignmentResolver
+    ) -> None:
+        self.authorization = authorization
+        self.assignments = assignments
+        self._lock = RLock()
+        self._db = sqlite3.connect(str(database), timeout=30, check_same_thread=False)
+        self._db.executescript("""
+            CREATE TABLE IF NOT EXISTS human_tasks (
+                org TEXT NOT NULL, env TEXT NOT NULL, id TEXT NOT NULL,
+                run TEXT NOT NULL, invocation TEXT NOT NULL, view TEXT NOT NULL,
+                PRIMARY KEY(org,env,id), UNIQUE(org,env,run,invocation));
+            CREATE TABLE IF NOT EXISTS human_commands (
+                org TEXT NOT NULL, env TEXT NOT NULL, task TEXT NOT NULL,
+                command TEXT NOT NULL, actor TEXT NOT NULL, request TEXT NOT NULL,
+                response TEXT NOT NULL, PRIMARY KEY(org,env,task,command));
+            CREATE TABLE IF NOT EXISTS human_events (
+                sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                org TEXT NOT NULL, env TEXT NOT NULL, task TEXT NOT NULL,
+                event TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS human_outbox (
+                org TEXT NOT NULL, env TEXT NOT NULL, task TEXT NOT NULL,
+                completion TEXT NOT NULL, delivered INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(org,env,task));
+        """)
+        self._db.commit()
+
+    @contextmanager
+    def _transaction(self) -> Iterator[None]:
+        with self._lock:
+            self._db.execute("BEGIN IMMEDIATE")
+            try:
+                yield
+                self._db.commit()
+            except BaseException:
+                self._db.rollback()
+                raise
+
+    def _actor(self, scope: Scope, permission: str, resource: str) -> str:
+        actor = self.authorization.authorize(scope, permission, resource)
+        try:
+            return TypeAdapter(Identifier).validate_python(actor)
+        except ValidationError:
+            raise TaskError("forbidden", "Authorization did not return a valid actor") from None
+
+    def _get(self, scope: Scope, task_id: str) -> TaskView:
+        row = self._db.execute(
+            "SELECT view FROM human_tasks WHERE org=? AND env=? AND id=?",
+            (*_scope(scope), task_id),
+        ).fetchone()
+        if row is None:
+            raise TaskError("not_found", "Task was not found")
+        return TaskView.model_validate_json(row[0])
+
+    @staticmethod
+    def _eligible(task: TaskView, actor: str) -> None:
+        if actor not in task.eligible_approver_ids:
+            raise TaskError("forbidden", "Actor is not an eligible approver")
+
+    def _event(self, task: TaskView, kind: str, actor: str | None) -> None:
+        event = TaskEvent.model_validate(
+            {
+                "event_id": str(uuid4()),
+                "task_id": task.task_id,
+                "scope": task.scope,
+                "kind": kind,
+                "actor_id": actor,
+                "revision": task.revision,
+                "created_at": _now(),
+            }
+        )
+        self._db.execute(
+            "INSERT INTO human_events(org,env,task,event) VALUES(?,?,?,?)",
+            (*_scope(task.scope), task.task_id, event.model_dump_json()),
+        )
+
+    def create(self, scope: Scope, request: CreateTask) -> TaskView:
+        actor = self._actor(scope, "task.create", request.run_id)
+        with self._transaction():
+            row = self._db.execute(
+                "SELECT view FROM human_tasks WHERE org=? AND env=? AND run=? AND invocation=?",
+                (*_scope(scope), request.run_id, request.node_invocation_id),
+            ).fetchone()
+            if row:
+                task = TaskView.model_validate_json(row[0])
+                if task.request != request:
+                    raise TaskError("conflict", "Task invocation already has different content")
+                return task
+            try:
+                resolved = self.assignments.resolve(scope, request.user_ids, request.group_ids)
+                if not isinstance(resolved, tuple) or not 1 <= len(resolved) <= 1000:
+                    raise ValueError("Invalid assignment size")
+                ids = tuple(
+                    sorted({TypeAdapter(Identifier).validate_python(value) for value in resolved})
+                )
+            except Exception:
+                raise TaskError(
+                    "assignment_unavailable", "Eligible approvers could not be resolved"
+                ) from None
+            task = TaskView(
+                task_id=str(uuid4()),
+                scope=scope,
+                request=request,
+                eligible_approver_ids=ids,
+                status="pending",
+                revision=1,
+                created_at=_now(),
+            )
+            self._db.execute(
+                "INSERT INTO human_tasks(org,env,id,run,invocation,view) VALUES(?,?,?,?,?,?)",
+                (
+                    *_scope(scope),
+                    task.task_id,
+                    request.run_id,
+                    request.node_invocation_id,
+                    task.model_dump_json(),
+                ),
+            )
+            self._event(task, "created", actor)
+            return task
+
+    def get(self, scope: Scope, task_id: str) -> TaskView:
+        actor = self._actor(scope, "task.read", task_id)
+        with self._lock:
+            task = self._get(scope, task_id)
+            self._eligible(task, actor)
+            return task
+
+    def decide(self, scope: Scope, task_id: str, request: DecisionRequest) -> TaskView:
+        actor = self._actor(scope, "task.respond", task_id)
+        with self._transaction():
+            task = self._get(scope, task_id)
+            self._eligible(task, actor)
+            row = self._db.execute(
+                "SELECT actor,request,response FROM human_commands WHERE org=? AND env=? AND task=? AND command=?",
+                (*_scope(scope), task_id, request.command_id),
+            ).fetchone()
+            if row:
+                if row[0] != actor or DecisionRequest.model_validate_json(row[1]) != request:
+                    raise TaskError("conflict", "Decision command already has different content")
+                return TaskView.model_validate_json(row[2])
+            if task.revision != request.expected_revision:
+                raise TaskError("conflict", "Task revision has changed")
+            if task.status != "pending":
+                raise TaskError("conflict", "Task is already completed")
+            if any(item.actor_id == actor for item in task.decisions):
+                raise TaskError("conflict", "Actor has already decided this task")
+            record = DecisionRecord(
+                command_id=request.command_id,
+                actor_id=actor,
+                decision=request.decision,
+                revision=task.revision + 1,
+                created_at=_now(),
+            )
+            decisions = (*task.decisions, record)
+            status: TaskStatus = task.status
+            if request.decision == "reject":
+                status = "rejected"
+            elif task.request.rule == "any_one" or len(decisions) == len(
+                task.eligible_approver_ids
+            ):
+                status = "approved"
+            updated = task.model_copy(
+                update={"revision": record.revision, "decisions": decisions, "status": status}
+            )
+            self._db.execute(
+                "UPDATE human_tasks SET view=? WHERE org=? AND env=? AND id=?",
+                (updated.model_dump_json(), *_scope(scope), task_id),
+            )
+            self._db.execute(
+                "INSERT INTO human_commands VALUES(?,?,?,?,?,?,?)",
+                (
+                    *_scope(scope),
+                    task_id,
+                    request.command_id,
+                    actor,
+                    request.model_dump_json(),
+                    updated.model_dump_json(),
+                ),
+            )
+            self._event(updated, "decided", actor)
+            if status != "pending":
+                completion = Completion.model_validate(
+                    {
+                        "completion_id": str(uuid4()),
+                        "task_id": task_id,
+                        "scope": scope,
+                        "run_id": task.request.run_id,
+                        "node_invocation_id": task.request.node_invocation_id,
+                        "definition_revision": task.request.definition_revision,
+                        "outcome": status,
+                        "task_revision": updated.revision,
+                    }
+                )
+                self._db.execute(
+                    "INSERT INTO human_outbox(org,env,task,completion) VALUES(?,?,?,?)",
+                    (*_scope(scope), task_id, completion.model_dump_json()),
+                )
+            return updated
+
+    def audit(self, scope: Scope, task_id: str) -> tuple[TaskEvent, ...]:
+        actor = self._actor(scope, "task.read", task_id)
+        with self._lock:
+            self._eligible(self._get(scope, task_id), actor)
+            rows = self._db.execute(
+                "SELECT event FROM human_events WHERE org=? AND env=? AND task=? ORDER BY sequence",
+                (*_scope(scope), task_id),
+            ).fetchall()
+            return tuple(TaskEvent.model_validate_json(row[0]) for row in rows)
+
+    def pending_completions(self, scope: Scope) -> tuple[Completion, ...]:
+        """Trusted worker port; must never be exposed directly to user requests."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT completion FROM human_outbox WHERE org=? AND env=? AND delivered=0 ORDER BY task",
+                _scope(scope),
+            ).fetchall()
+            return tuple(Completion.model_validate_json(row[0]) for row in rows)
+
+    def deliver_pending(self, scope: Scope, sink: CompletionSink) -> int:
+        """Deliver outside transactions; uncertain acknowledgements retry the same ID."""
+        delivered = 0
+        for completion in self.pending_completions(scope):
+            try:
+                sink.deliver(completion)
+            except Exception:
+                raise TaskError(
+                    "delivery_unavailable", "Task completion could not be delivered"
+                ) from None
+            with self._transaction():
+                changed = self._db.execute(
+                    "UPDATE human_outbox SET delivered=1 WHERE org=? AND env=? AND task=? AND delivered=0",
+                    (*_scope(scope), completion.task_id),
+                ).rowcount
+                if changed:
+                    self._event(self._get(scope, completion.task_id), "completion_delivered", None)
+                    delivered += 1
+        return delivered
+
+    def close(self) -> None:
+        with self._lock:
+            self._db.close()
