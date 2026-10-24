@@ -13,6 +13,7 @@ from pydantic import TypeAdapter, ValidationError
 from nexusflow.contracts.models import Identifier, Scope
 from nexusflow.modules.human_tasks.types import (
     AssignmentResolver,
+    AsyncCompletionSink,
     Completion,
     CompletionSink,
     CreateTask,
@@ -587,15 +588,36 @@ class TaskService:
                 raise TaskError(
                     "delivery_unavailable", "Task completion could not be delivered"
                 ) from None
-            with self._transaction():
-                changed = self._db.execute(
-                    "UPDATE human_outbox SET delivered=1 WHERE org=? AND env=? AND task=? AND delivered=0",
-                    (*_scope(scope), completion.task_id),
-                ).rowcount
-                if changed:
-                    self._event(self._get(scope, completion.task_id), "completion_delivered", None)
-                    delivered += 1
+            delivered += self._mark_completion_delivered(scope, completion)
         return delivered
+
+    async def deliver_pending_async(self, scope: Scope, sink: AsyncCompletionSink) -> int:
+        """Trusted worker port; await acknowledgements outside SQLite transactions.
+
+        Concurrent dispatch can deliver the same ID more than once. The sink must
+        deduplicate it; local acknowledgement and audit are committed only once.
+        Cancellation propagates and leaves the unacknowledged completion pending.
+        """
+        delivered = 0
+        for completion in self.pending_completions(scope):
+            try:
+                await sink.deliver(completion)
+            except Exception:
+                raise TaskError(
+                    "delivery_unavailable", "Task completion could not be delivered"
+                ) from None
+            delivered += self._mark_completion_delivered(scope, completion)
+        return delivered
+
+    def _mark_completion_delivered(self, scope: Scope, completion: Completion) -> int:
+        with self._transaction():
+            changed = self._db.execute(
+                "UPDATE human_outbox SET delivered=1 WHERE org=? AND env=? AND task=? AND delivered=0",
+                (*_scope(scope), completion.task_id),
+            ).rowcount
+            if changed:
+                self._event(self._get(scope, completion.task_id), "completion_delivered", None)
+            return int(bool(changed))
 
     def close(self) -> None:
         with self._lock:

@@ -213,3 +213,13 @@ class CompletionSink(Protocol):
         the same completion must advance the destination workflow at most once.
         """
         ...
+
+
+class AsyncCompletionSink(Protocol):
+    async def deliver(self, completion: Completion) -> None:
+        """Acknowledge durable delivery, deduplicating forever by completion ID.
+
+        Failure or cancellation leaves delivery pending. Uncertain acknowledgements
+        may retry the same completion; the destination must advance at most once.
+        """
+        ...
