@@ -100,12 +100,22 @@ class TaskEvent(Contract):
     task_id: Identifier
     scope: Scope
     kind: Literal[
-        "created", "decided", "reassigned", "form_bound", "form_updated", "completion_delivered"
+        "created",
+        "decided",
+        "reassigned",
+        "form_bound",
+        "form_updated",
+        "completion_delivered",
+        "notification_scheduled",
+        "notification_delivered",
+        "notification_failed",
+        "notification_cancelled",
     ]
     actor_id: Identifier | None
     revision: Annotated[int, Field(ge=1)]
     created_at: Timestamp
     assignment: ReassignmentRecord | None = None
+    notification_id: Identifier | None = None
 
 
 class Completion(Contract):

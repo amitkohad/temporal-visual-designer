@@ -70,6 +70,13 @@ class TaskService:
                 definition TEXT NOT NULL, initial_values TEXT NOT NULL,
                 values_json TEXT NOT NULL, validated INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY(org,env,task));
+            CREATE TABLE IF NOT EXISTS human_task_notifications (
+                org TEXT NOT NULL, env TEXT NOT NULL, task TEXT NOT NULL,
+                schedule TEXT NOT NULL, record TEXT NOT NULL,
+                status TEXT NOT NULL, next_attempt_at TEXT NOT NULL,
+                PRIMARY KEY(org,env,task,schedule));
+            CREATE INDEX IF NOT EXISTS human_task_notifications_due
+                ON human_task_notifications(org,env,status,next_attempt_at,task,schedule);
         """)
         self._db.commit()
 
@@ -111,6 +118,7 @@ class TaskService:
         kind: str,
         actor: str | None,
         assignment: ReassignmentRecord | None = None,
+        notification_id: str | None = None,
     ) -> None:
         event = TaskEvent.model_validate(
             {
@@ -122,6 +130,7 @@ class TaskService:
                 "revision": task.revision,
                 "created_at": _now(),
                 "assignment": assignment,
+                "notification_id": notification_id,
             }
         )
         self._db.execute(
