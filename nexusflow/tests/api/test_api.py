@@ -402,3 +402,28 @@ def test_generated_schema_declares_bearer_authentication(api):
     assert document["components"]["securitySchemes"]["HTTPBearer"]["scheme"] == "bearer"
     path = "/api/v1/organizations/{organization_id}/environments/{environment_id}/projects"
     assert document["paths"][path]["get"]["security"] == [{"HTTPBearer": []}]
+
+
+def test_accepted_start_retry_does_not_require_runtime_connection(api, monkeypatch):
+    client, _, _, runtime = api
+    publish_activate(client)
+    payload = {"workflow_id": "onboarding", "idempotency_key": "accepted"}
+    first = client.post(BASE + "/projects/hr/executions", json=payload)
+    assert first.status_code == 202
+    attempts = []
+
+    async def disconnected(placement):
+        attempts.append(placement)
+        raise OSError("Temporal connection unavailable")
+
+    monkeypatch.setattr(runtime, "dispatcher", disconnected)
+    retried = client.post(BASE + "/projects/hr/executions", json=payload)
+    assert retried.status_code == 202 and retried.json() == first.json()
+    assert attempts == []
+    conflicting = client.post(
+        BASE + "/projects/hr/executions", json={**payload, "input": {"changed": True}}
+    )
+    assert conflicting.status_code == 409 and attempts == []
+    new = client.post(BASE + "/projects/hr/executions", json={**payload, "idempotency_key": "new"})
+    assert new.status_code == 503
+    assert len(attempts) == 1

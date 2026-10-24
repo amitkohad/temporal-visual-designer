@@ -13,7 +13,7 @@ from starlette.exceptions import HTTPException
 from temporalio.exceptions import ApplicationError
 from temporalio.service import RPCError
 
-from nexusflow.apps.api_backend import ApiBackend, RequestAuthorization
+from nexusflow.apps.api_backend import ApiBackend, PlacedStartDispatcher, RequestAuthorization
 from nexusflow.apps.api_boundary import ApiBoundary, error_response
 from nexusflow.apps.api_models import (
     CreateProject,
@@ -304,7 +304,7 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
             request_id=context.authorization.request_id,
             correlation_id=context.authorization.request_id,
         )
-        dispatcher = await backend.runtime.dispatcher(placement)
+        dispatcher = PlacedStartDispatcher(backend.runtime, placement)
         service = AsyncStartService(
             backend.starts, authorization, ActivatedReleaseResolver(backend.activations), dispatcher
         )

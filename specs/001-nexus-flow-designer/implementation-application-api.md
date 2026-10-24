@@ -24,11 +24,13 @@ Download/stream routes, evidence handling, history/compare/restore routes, inbox
 
 Verified locally on Python 3.12.2:
 
-- `uv run pytest nexusflow/tests/api -q`: 19 passed.
-- `uv run pytest -q`: 552 passed, 10 integration tests deselected.
+- `uv run pytest nexusflow/tests/api -q`: 20 passed after review correction.
+- `uv run pytest -q`: 553 passed, 10 integration tests deselected after review correction.
 - `uv run pytest -m integration nexusflow/tests/runtime -q`: 10 passed against disposable local Temporal, including the signed HTTP-to-Temporal route test.
 - Ruff lint/format checks passed; strict mypy passed for 58 source files.
 - `uv build`: source distribution and wheel built successfully.
 - `git diff --check`: passed.
 
-Hosted CI has not been run for this uncommitted branch. Local ASGI transport tests verify the application HTTP boundary; they do not claim production network hosting, TLS, cloud identity or React browser acceptance. The real integration suite explicitly verifies the actual Temporal gateway separately from runtime fixtures used by default tests.
+Hosted CI must pass on the reviewed head before merge. Local ASGI transport tests verify the application HTTP boundary; they do not claim production network hosting, TLS, cloud identity or React browser acceptance. The real integration suite explicitly verifies the actual Temporal gateway separately from runtime fixtures used by default tests.
+
+PR review correction: runtime connection resolution is deferred until the domain start service actually dispatches a pending intent. Replaying an accepted start returns its persisted receipt, and conflicting reuse returns 409, even when a new runtime connection cannot be established. A new start still returns unavailable when dispatch fails; fresh authorization and trusted placement checks remain mandatory.

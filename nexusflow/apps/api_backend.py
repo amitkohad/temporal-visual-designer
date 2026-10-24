@@ -18,7 +18,7 @@ from nexusflow.modules.durable_runtime.temporal_starts import (
     SQLiteDispatchJournal,
     TemporalStartDispatcher,
 )
-from nexusflow.modules.durable_runtime.types import Snapshot
+from nexusflow.modules.durable_runtime.types import ExecutionPlan, Snapshot
 from nexusflow.modules.durable_runtime.workflow import ProofWorkflow
 from nexusflow.modules.identity_environments.service import IdentityService
 from nexusflow.modules.identity_environments.types import Environment
@@ -33,6 +33,18 @@ from nexusflow.modules.project_versioning.types import ProjectRepository
 class RuntimeGateway(Protocol):
     async def dispatcher(self, placement: Environment) -> AsyncStartDispatcher: ...
     async def snapshot(self, placement: Environment, execution_id: str) -> Snapshot: ...
+
+
+class PlacedStartDispatcher:
+    """Resolve the remote client only when an intent still needs dispatch."""
+
+    def __init__(self, gateway: RuntimeGateway, placement: Environment) -> None:
+        self.gateway = gateway
+        self.placement = placement
+
+    async def start(self, execution_id: str, plan: ExecutionPlan) -> None:
+        dispatcher = await self.gateway.dispatcher(self.placement)
+        await dispatcher.start(execution_id, plan)
 
 
 class TemporalRuntimeGateway:
