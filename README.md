@@ -35,3 +35,5 @@ The activity catalog backend now supports explicit immutable publication, scoped
 An authenticated FastAPI application factory now composes project editing/publication, catalog reads, activation/rollback, workflow starts and safe execution status. See the [API route and hosting guide](docs/api.md) and [implementation evidence](specs/001-nexus-flow-designer/implementation-application-api.md). Production host/provider configuration remains explicit.
 
 Run the local-demo API and real Temporal worker with `uv run nexusflow-local init` followed by `uv run nexusflow-local serve` (requires Temporal CLI 1.9.1). Issue a token with `uv run nexusflow-local token`, and stop with `uv run nexusflow-local stop`. See the [local testing guide](docs/local-development.md) for requests, persistent state and profile boundaries. The React browser application remains pending.
+
+The human-task backend core now persists any-one/all-approver decisions, pinned assignment snapshots and a recoverable completion outbox. See [implementation scope](specs/001-nexus-flow-designer/implementation-human-task-core.md). The inbox, form/task integration and runtime completion adapter remain planned.
