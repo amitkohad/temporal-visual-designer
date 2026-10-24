@@ -10,7 +10,8 @@ from pydantic import Field, model_validator
 
 from nexusflow.contracts.models import Contract, Identifier, Scope
 
-ApprovalRule = Literal["any_one", "all_approvers"]
+StageRule = Literal["any_one", "all_approvers"]
+ApprovalRule = Literal["any_one", "all_approvers", "sequential"]
 Decision = Literal["approve", "reject"]
 TaskStatus = Literal["pending", "approved", "rejected"]
 Timestamp = Annotated[str, Field(min_length=1, max_length=64)]
@@ -25,6 +26,25 @@ class TaskError(Exception):
         super().__init__(message)
 
 
+class ApprovalStage(Contract):
+    stage_id: Identifier
+    rule: StageRule
+    user_ids: PrincipalIds = ()
+    group_ids: PrincipalIds = ()
+
+    @model_validator(mode="after")
+    def has_assignment(self) -> "ApprovalStage":
+        if not self.user_ids and not self.group_ids:
+            raise ValueError("At least one user or group assignment is required")
+        return self
+
+
+class StageAssignment(Contract):
+    stage_id: Identifier
+    rule: StageRule
+    eligible_approver_ids: Annotated[tuple[Identifier, ...], Field(min_length=1, max_length=1000)]
+
+
 class CreateTask(Contract):
     run_id: Identifier
     node_invocation_id: Identifier
@@ -33,9 +53,18 @@ class CreateTask(Contract):
     user_ids: PrincipalIds = ()
     group_ids: PrincipalIds = ()
 
+    stages: Annotated[tuple[ApprovalStage, ...], Field(max_length=20)] = ()
+
     @model_validator(mode="after")
     def has_assignment(self) -> "CreateTask":
-        if not self.user_ids and not self.group_ids:
+        if self.rule == "sequential":
+            if not self.stages or self.user_ids or self.group_ids:
+                raise ValueError("Sequential tasks require stages and no root assignment")
+            if len({stage.stage_id for stage in self.stages}) != len(self.stages):
+                raise ValueError("Stage identifiers must be unique")
+        elif self.stages:
+            raise ValueError("Only sequential tasks can declare stages")
+        elif not self.user_ids and not self.group_ids:
             raise ValueError("At least one user or group assignment is required")
         return self
 
@@ -71,6 +100,7 @@ class ReassignmentRecord(Contract):
 
 
 class DecisionRecord(Contract):
+    stage_id: Identifier | None = None
     command_id: Identifier
     actor_id: Identifier
     decision: Decision
@@ -79,6 +109,8 @@ class DecisionRecord(Contract):
 
 
 class TaskView(Contract):
+    stage_assignments: Annotated[tuple[StageAssignment, ...], Field(max_length=20)] = ()
+    stage_index: Annotated[int, Field(ge=0, le=19)] = 0
     task_id: Identifier
     scope: Scope
     request: CreateTask
@@ -102,6 +134,7 @@ class TaskEvent(Contract):
     kind: Literal[
         "created",
         "decided",
+        "stage_advanced",
         "reassigned",
         "form_bound",
         "form_updated",
@@ -116,6 +149,8 @@ class TaskEvent(Contract):
     created_at: Timestamp
     assignment: ReassignmentRecord | None = None
     notification_id: Identifier | None = None
+    stage_id: Identifier | None = None
+    previous_stage_id: Identifier | None = None
 
 
 class Completion(Contract):
