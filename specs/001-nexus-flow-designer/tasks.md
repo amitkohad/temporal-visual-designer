@@ -34,6 +34,8 @@ Foundation implementation was authorized on 2026-10-23. See [implementation-foun
 - [ ] NF-T011 [P] Deliver feature 07 debugger suite with event fixtures. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/07-designer-debugger/`.
 - [ ] NF-T012 [P] Deliver feature 08 connector suite with local transports. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/08-connectors/`.
 - [ ] NF-T013 [P] Deliver feature 09 promotion suite with registry/runtime fakes. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/09-package-promotion/`.
+  - [x] NF-T013a Target-local whole-project activation/rollback, compatibility/authorization, conservative retention, atomic pointer/audit, retries and actual start resolution are independently verified ([evidence](implementation-project-activation.md)).
+  - [ ] NF-T013b Complete package archive transfer, binding/evidence persistence, Admin UI and full F09 acceptance.
 - [ ] NF-T014 [P] Deliver feature 10 adapter/telemetry tests against synthetic providers. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/10-operations-portability/`. Infrastructure provisioning is outside the current specification scope.
 
 ## Integration and convergence

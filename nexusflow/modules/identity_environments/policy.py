@@ -20,6 +20,7 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
             "package.activate",
             "package.rollback",
             "run.read",
+            "run.start",
             "debug.execute",
             "environment.read",
         }
@@ -38,6 +39,7 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
             "package.activate",
             "package.rollback",
             "run.read",
+            "run.start",
             "environment.read",
         }
     ),

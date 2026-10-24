@@ -128,9 +128,9 @@ class TemporalStartDispatcher:
                 except WorkflowAlreadyStartedError:
                     pass
                 else:
-                    if handle.run_id is None:
+                    if handle.result_run_id is None:
                         raise OSError("Start acknowledgement has no run ID")
-                    self.journal.acknowledge(execution_id, handle.run_id)
+                    self.journal.acknowledge(execution_id, handle.result_run_id)
                     return
             # Only the winning claimant may issue StartWorkflowExecution. On
             # ambiguous retries inspect history, never reissue a start after
