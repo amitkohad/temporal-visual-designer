@@ -25,7 +25,7 @@ The local API can now be launched from repository commands without supplying a c
 
 Verified locally on Python 3.12.2:
 
-- `uv run pytest nexusflow/tests/local -q`: 65 passed.
+- `uv run pytest nexusflow/tests/local -q`: 66 passed, 1 Linux-only regression skipped on Windows.
 - `uv run pytest -q`: 621 passed, 11 integration tests deselected.
 - `uv run pytest -m integration nexusflow/tests/runtime -q`: 11 passed, including independent real socket/subprocess restart acceptance using installed Temporal CLI 1.9.1.
 - Ruff lint/format and strict mypy passed (61 source files).
@@ -33,4 +33,4 @@ Verified locally on Python 3.12.2:
 - `uv build`: source distribution and wheel built successfully.
 - `git diff --check`: passed.
 
-Hosted CI has not run for this uncommitted branch. Independent final review found no blockers for the documented local-demo scope; production ACLs, live identity, history retention and partial-state recovery limitations remain explicit in ADR 0013.
+PR review identified a Linux graceful-restart failure caused by the runtime port probe rejecting TCP TIME_WAIT. The probe now matches the owned POSIX listener with SO_REUSEADDR while retaining active-listener rejection. A Linux socket regression proves the old bind fails before exercising the corrected probe. Hosted CI must pass on the updated PR head before merge. Independent final review found no blockers for the documented local-demo scope; production ACLs, live identity, history retention and partial-state recovery limitations remain explicit in ADR 0013.

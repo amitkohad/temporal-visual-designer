@@ -79,6 +79,11 @@ def _reserve_identity(directory: Path, placement: Environment, port: int) -> Non
         raise ValueError("Existing runtime databases have no identity; preserve them for recovery")
     # Fail before starting the SDK, so an unrelated server is never adopted.
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        if os.name != "nt":
+            # Go's POSIX listener enables reuse; match it so a graceful restart
+            # can bind past accepted connections in TIME_WAIT. A live listener
+            # still rejects this bind because SO_REUSEPORT is never enabled.
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             probe.bind(("127.0.0.1", port))
         except OSError as error:

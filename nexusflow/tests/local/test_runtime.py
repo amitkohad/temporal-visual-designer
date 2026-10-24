@@ -3,6 +3,7 @@
 import json
 import socket
 import sqlite3
+import sys
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -167,8 +168,11 @@ def test_explicit_executable_precedes_environment_and_path(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_occupied_port_is_not_adopted(tmp_path, boundary):
+@pytest.mark.parametrize("reuse", [False, True])
+async def test_occupied_port_is_not_adopted(tmp_path, boundary, reuse):
     with socket.socket() as occupied:
+        if reuse:
+            occupied.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         occupied.bind(("127.0.0.1", boundary.port))
         occupied.listen()
         with pytest.raises(ValueError, match="already in use"):
@@ -176,6 +180,30 @@ async def test_occupied_port_is_not_adopted(tmp_path, boundary):
                 pytest.fail("Existing server adopted")
     boundary.start.assert_not_called()
     assert not (tmp_path / "runtime").exists()
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux TCP TIME_WAIT regression")
+def test_runtime_port_probe_allows_graceful_restart_after_time_wait(tmp_path):
+    # Model the owned Go listener: SO_REUSEADDR, then the server side closes
+    # first so the accepted connection leaves the listening port in TIME_WAIT.
+    with socket.socket() as listener:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        port = listener.getsockname()[1]
+        with socket.create_connection(("127.0.0.1", port), timeout=2) as peer:
+            accepted, _ = listener.accept()
+            with accepted:
+                accepted.settimeout(2)
+                accepted.shutdown(socket.SHUT_WR)
+                assert peer.recv(1) == b""
+                peer.shutdown(socket.SHUT_WR)
+                assert accepted.recv(1) == b""
+    # Establish that this really exercises the old failing condition.
+    with socket.socket() as old_probe, pytest.raises(OSError):
+        old_probe.bind(("127.0.0.1", port))
+    module._reserve_identity(tmp_path, placement(), port)
+    assert (tmp_path / "runtime-identity.json").exists()
 
 
 @pytest.mark.asyncio
