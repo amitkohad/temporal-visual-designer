@@ -24,11 +24,13 @@ Whole-project archive export/import, environment bindings/configuration persiste
 
 Verified locally on Python 3.12.2:
 
-- `uv run pytest nexusflow/tests/package_promotion -q`: 22 passed.
-- `uv run pytest -q`: 527 passed, 9 integration tests deselected.
+- `uv run pytest nexusflow/tests/package_promotion -q`: 24 passed after review corrections.
+- `uv run pytest -q`: 529 passed, 9 integration tests deselected after review corrections.
 - `uv run pytest -m integration nexusflow/tests/runtime -q`: 9 passed against disposable local Temporal CLI 1.9.1 / Server 1.32.0; 67 nonintegration runtime tests deselected.
 - Ruff lint/format checks passed; strict mypy passed for 54 source files.
 - `uv build`: source distribution and wheel built successfully.
 - `git diff --check`: passed.
 
-Hosted CI has not been run for this uncommitted branch. The real server test uses synthetic destination configuration/capability and authorization fixtures; separate signed-token tests cover actual local identity policy. No live Azure/Entra or production readiness result is inferred.
+Hosted CI must pass on the reviewed commit before merge. The real server test uses synthetic destination configuration/capability and authorization fixtures; separate signed-token tests cover actual local identity policy. No live Azure/Entra or production readiness result is inferred.
+
+PR review corrections: duplicate activations now recheck the immutable operation receipt if a commit races with the initial revision read. Activation also checks the original definition size, including its input schema, against the same budget used by runtime preflight. Independent regressions cover both cases. Updated-head hosted CI is required before merge.

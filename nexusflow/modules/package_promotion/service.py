@@ -92,6 +92,10 @@ class ActivationService:
                 return previous
             current = self.repository.current(scope, request.project_id)
             if (0 if current is None else current.revision) != request.expected_revision:
+                # A duplicate may have committed after the first receipt read.
+                previous = self.repository.receipt(scope, request)
+                if previous is not None:
+                    return previous
                 raise ActivationError("conflict", "Activation revision has changed")
             retained = self.repository.retained(scope, request.project_id, request.release_id)
             if request.action == "rollback" and retained is None:

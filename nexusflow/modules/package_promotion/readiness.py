@@ -1,12 +1,18 @@
 """Proof-runtime graph and actual catalog checks without executing bundle code."""
 
+import json
+
 from pydantic import JsonValue, TypeAdapter
 
 from nexusflow.contracts.models import ActivityRef, Scope
 from nexusflow.contracts.validation import ValidationIssue
 from nexusflow.modules.activity_catalog.catalog_types import CatalogRepository, RuntimeCapabilities
 from nexusflow.modules.activity_catalog.types import ActivityManifest, CatalogError
-from nexusflow.modules.durable_runtime.preflight import PlanError, compile_plan
+from nexusflow.modules.durable_runtime.preflight import (
+    MAX_DEFINITION_BYTES,
+    PlanError,
+    compile_plan,
+)
 from nexusflow.modules.durable_runtime.types import ReleaseBinding
 from nexusflow.modules.package_promotion.types import ActivationRequest, ConfigurationCompatibility
 from nexusflow.modules.project_versioning.types import ProjectContent, Release
@@ -53,6 +59,20 @@ class ProofActivationReadiness:
             request.runtime_version,
         )
         for index, workflow in enumerate(content.workflows):
+            original_json = json.dumps(
+                workflow.model_dump(mode="json"),
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+            if len(original_json.encode()) > MAX_DEFINITION_BYTES:
+                issues.append(
+                    ValidationIssue(
+                        f"/workflows/{index}",
+                        "definition_limit",
+                        "Workflow exceeds the selected interpreter's definition budget",
+                    )
+                )
 
             def references(value: JsonValue) -> bool:
                 if isinstance(value, dict):

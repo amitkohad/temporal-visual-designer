@@ -458,3 +458,42 @@ def test_reference_input_schema_is_rejected_at_activation(system):
         service.apply(SCOPE, request(release))
     assert error.value.code == "incompatible_release"
     assert any(issue.code == "unsupported_schema" for issue in error.value.issues)
+
+
+def test_duplicate_committing_between_receipt_lookup_and_revision_read_is_reconciled(system):
+    service, _, a, _, path = system
+    other_repo = SQLiteActivationRepository(path / "activations.db")
+    other = ActivationService(
+        other_repo, service.releases, service.authorization, service.readiness
+    )
+    original = service.repository.current
+    committed = []
+
+    def commit_before_revision_read(scope, project):
+        service.repository.current = original
+        committed.append(other.apply(scope, request(a)))
+        return original(scope, project)
+
+    service.repository.current = commit_before_revision_read
+    try:
+        assert service.apply(SCOPE, request(a)) == committed[0]
+        assert len(service.events(SCOPE, "hr")) == 1
+    finally:
+        service.repository.current = original
+        other_repo.close()
+
+
+def test_large_input_schema_cannot_bypass_interpreter_definition_budget(system):
+    service, publisher, _, _, _ = system
+    payload = content()
+    payload["workflows"][0]["input_schema"]["description"] = "x" * 131072
+    revision = publisher.read(SCOPE, "hr")
+    revision = publisher.save(
+        SCOPE, "hr", revision.number, json.dumps(payload), "Large input schema"
+    )
+    release = publisher.publish(SCOPE, "hr", revision.number, "large-schema")
+    with pytest.raises(ActivationError) as error:
+        service.apply(SCOPE, request(release))
+    assert error.value.code == "incompatible_release"
+    assert any(issue.code == "definition_limit" for issue in error.value.issues)
+    assert service.current(SCOPE, "hr") is None
