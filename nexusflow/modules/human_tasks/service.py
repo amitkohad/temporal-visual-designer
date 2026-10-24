@@ -20,6 +20,7 @@ from nexusflow.modules.human_tasks.types import (
     DecisionRequest,
     ReassignmentRecord,
     ReassignmentRequest,
+    StageAssignment,
     TaskAuthorization,
     TaskError,
     TaskEvent,
@@ -119,6 +120,9 @@ class TaskService:
         actor: str | None,
         assignment: ReassignmentRecord | None = None,
         notification_id: str | None = None,
+        *,
+        stage_id: str | None = None,
+        previous_stage_id: str | None = None,
     ) -> None:
         event = TaskEvent.model_validate(
             {
@@ -131,6 +135,8 @@ class TaskService:
                 "created_at": _now(),
                 "assignment": assignment,
                 "notification_id": notification_id,
+                "stage_id": stage_id,
+                "previous_stage_id": previous_stage_id,
             }
         )
         self._db.execute(
@@ -212,8 +218,23 @@ class TaskService:
                 if task.request != request:
                     raise TaskError("conflict", "Task invocation already has different content")
                 return task
-            ids = self._resolve(scope, request.user_ids, request.group_ids)
+            stages = tuple(
+                StageAssignment(
+                    stage_id=stage.stage_id,
+                    rule=stage.rule,
+                    eligible_approver_ids=self._resolve(scope, stage.user_ids, stage.group_ids),
+                )
+                for stage in request.stages
+            )
+            if sum(len(stage.eligible_approver_ids) for stage in stages) > 1000:
+                raise TaskError("assignment_unavailable", "Total stage assignment limit exceeded")
+            ids = (
+                stages[0].eligible_approver_ids
+                if stages
+                else self._resolve(scope, request.user_ids, request.group_ids)
+            )
             task = TaskView(
+                stage_assignments=stages,
                 task_id=str(uuid4()),
                 scope=scope,
                 request=request,
@@ -297,15 +318,35 @@ class TaskService:
         actor = self._actor(scope, "task.respond", task_id)
         with self._transaction():
             task = self._get(scope, task_id)
-            self._eligible(task, actor)
+            if actor not in task.eligible_approver_ids:
+                # A prior-stage participant may retrieve only their own accepted
+                # decision receipt, never probe another participant's command.
+                stored = self._db.execute(
+                    "SELECT actor FROM human_commands WHERE org=? AND env=? AND task=? AND command=?",
+                    (*_scope(scope), task_id, request.command_id),
+                ).fetchone()
+                own_decision = (
+                    task.request.rule == "sequential"
+                    and stored is not None
+                    and stored[0] == actor
+                    and any(
+                        decision.actor_id == actor and decision.command_id == request.command_id
+                        for decision in task.decisions
+                    )
+                )
+                if not own_decision:
+                    self._eligible(task, actor)
             receipt = self._receipt(scope, task_id, actor, request)
             if receipt is not None:
                 return receipt
+            self._eligible(task, actor)
             if task.revision != request.expected_revision:
                 raise TaskError("conflict", "Task revision has changed")
             if task.status != "pending":
                 raise TaskError("conflict", "Task is already completed")
-            if any(item.actor_id == actor for item in task.decisions):
+            stage = task.stage_assignments[task.stage_index] if task.stage_assignments else None
+            stage_id = stage.stage_id if stage else None
+            if any(item.actor_id == actor and item.stage_id == stage_id for item in task.decisions):
                 raise TaskError("conflict", "Actor has already decided this task")
             if request.decision == "approve":
                 form = self._db.execute(
@@ -315,6 +356,7 @@ class TaskService:
                 if form is not None and form[0] != 1:
                     raise TaskError("conflict", "The task form requires a valid submission")
             record = DecisionRecord(
+                stage_id=stage_id,
                 command_id=request.command_id,
                 actor_id=actor,
                 decision=request.decision,
@@ -323,17 +365,37 @@ class TaskService:
             )
             decisions = (*task.decisions, record)
             status: TaskStatus = task.status
+            next_index = task.stage_index
+            ids = task.eligible_approver_ids
+            stage_votes = tuple(item for item in decisions if item.stage_id == stage_id)
+            effective_rule = stage.rule if stage else task.request.rule
             if request.decision == "reject":
                 status = "rejected"
-            elif task.request.rule == "any_one" or len(decisions) == len(
-                task.eligible_approver_ids
-            ):
-                status = "approved"
+            elif effective_rule == "any_one" or len(stage_votes) == len(ids):
+                if stage and next_index + 1 < len(task.stage_assignments):
+                    next_index += 1
+                    ids = task.stage_assignments[next_index].eligible_approver_ids
+                else:
+                    status = "approved"
             updated = task.model_copy(
-                update={"revision": record.revision, "decisions": decisions, "status": status}
+                update={
+                    "revision": record.revision,
+                    "decisions": decisions,
+                    "status": status,
+                    "stage_index": next_index,
+                    "eligible_approver_ids": ids,
+                }
             )
             self._save_command(updated, actor, request)
-            self._event(updated, "decided", actor)
+            self._event(updated, "decided", actor, stage_id=stage_id)
+            if next_index != task.stage_index:
+                self._event(
+                    updated,
+                    "stage_advanced",
+                    actor,
+                    stage_id=updated.stage_assignments[next_index].stage_id,
+                    previous_stage_id=stage_id,
+                )
             if status != "pending":
                 completion = Completion.model_validate(
                     {
@@ -378,9 +440,20 @@ class TaskService:
                 previous_eligible_ids=task.eligible_approver_ids,
                 eligible_approver_ids=ids,
             )
+            stages = task.stage_assignments
+            if stages:
+                if sum(len(stage.eligible_approver_ids) for stage in stages[1:]) + len(ids) > 1000:
+                    raise TaskError(
+                        "assignment_unavailable", "Total stage assignment limit exceeded"
+                    )
+                stages = (
+                    stages[0].model_copy(update={"eligible_approver_ids": ids}),
+                    *stages[1:],
+                )
             updated = task.model_copy(
                 update={
                     "revision": record.revision,
+                    "stage_assignments": stages,
                     "eligible_approver_ids": ids,
                     "assignment_history": (*task.assignment_history, record),
                 }

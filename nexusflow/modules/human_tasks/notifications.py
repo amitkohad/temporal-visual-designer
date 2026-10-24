@@ -26,8 +26,15 @@ def _stamp(value: datetime) -> str:
     return value.isoformat(timespec="microseconds")
 
 
+def _stage_id(task: TaskView) -> str | None:
+    if task.request.rule == "sequential":
+        return task.stage_assignments[task.stage_index].stage_id
+    return None
+
+
 def _remaining(task: TaskView) -> tuple[str, ...]:
-    voted = {decision.actor_id for decision in task.decisions}
+    stage_id = _stage_id(task)
+    voted = {decision.actor_id for decision in task.decisions if decision.stage_id == stage_id}
     return tuple(actor for actor in task.eligible_approver_ids if actor not in voted)
 
 
@@ -108,6 +115,7 @@ class TaskNotificationService:
                 due_at=request.due_at,
                 recipients=recipients,
                 eligible_approver_ids=task.eligible_approver_ids,
+                stage_id=_stage_id(task),
             )
             record = NotificationRecord(
                 request=request,
@@ -134,7 +142,11 @@ class TaskNotificationService:
                 (updated.model_dump_json(), *_scope(scope), task_id),
             )
             self.tasks._event(
-                updated, "notification_scheduled", actor, notification_id=occurrence.notification_id
+                updated,
+                "notification_scheduled",
+                actor,
+                notification_id=occurrence.notification_id,
+                stage_id=occurrence.stage_id,
             )
             return record
 
@@ -177,6 +189,7 @@ class TaskNotificationService:
                 occurrence = record.occurrence
                 if (
                     task.status != "pending"
+                    or _stage_id(task) != occurrence.stage_id
                     or task.eligible_approver_ids != occurrence.eligible_approver_ids
                     or _remaining(task) != occurrence.recipients
                 ):
@@ -186,6 +199,7 @@ class TaskNotificationService:
                         "notification_cancelled",
                         None,
                         notification_id=occurrence.notification_id,
+                        stage_id=occurrence.stage_id,
                     )
                     cancelled += 1
                     continue
@@ -206,6 +220,7 @@ class TaskNotificationService:
                         "notification_failed",
                         None,
                         notification_id=occurrence.notification_id,
+                        stage_id=occurrence.stage_id,
                     )
                     failed += 1
                 else:
@@ -223,6 +238,7 @@ class TaskNotificationService:
                         "notification_delivered",
                         None,
                         notification_id=occurrence.notification_id,
+                        stage_id=occurrence.stage_id,
                     )
                     delivered += 1
         return DeliveryBatch(delivered=delivered, failed=failed, cancelled=cancelled)
