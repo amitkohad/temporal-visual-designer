@@ -65,6 +65,11 @@ class TaskView(Contract):
     created_at: Timestamp
 
 
+class TaskPage(Contract):
+    items: tuple[TaskView, ...]
+    next_offset: Annotated[int, Field(ge=0, le=10000)] | None
+
+
 class TaskEvent(Contract):
     event_id: Identifier
     task_id: Identifier

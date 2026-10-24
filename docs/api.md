@@ -21,6 +21,10 @@ All routes below are relative to `/api/v1/organizations/{organization_id}/enviro
 
 | Method | Path | Operation |
 |---|---|---|
+| GET | `/tasks?status=pending&run_id=run-1&limit=50&offset=0` | List snapshot-assigned tasks (status/run filters optional) |
+| GET | `/tasks/{id}` | Read an eligible task |
+| GET | `/tasks/{id}/audit` | Read eligible task audit |
+| POST | `/tasks/{id}/decisions` | Approve/reject with command ID and expected revision |
 | GET | `/context` | Verify access to the selected scope |
 | GET | `/schema` | Retrieve authenticated OpenAPI |
 | GET | `/projects?limit=50&offset=0` | List scoped project metadata |
@@ -50,4 +54,6 @@ uv run pytest nexusflow/tests/api
 uv run pytest -m integration nexusflow/tests/runtime
 ```
 
-Package download/import, archive streams, evidence attachments, project history/compare/restore HTTP routes, form preview/submission APIs, inbox/debug controls, live identity adapters and React UI remain separate work. Existing backend methods do not imply those routes exist. The run-status route is a safe summary and deliberately does not expose activity inputs/outputs.
+Package download/import, archive streams, evidence attachments, project history/compare/restore HTTP routes, form preview/submission APIs, browser inbox/debug controls, live identity adapters and React UI remain separate work. Existing backend methods do not imply those routes exist. The run-status route is a safe summary and deliberately does not expose activity inputs/outputs.
+
+Human-task routes require explicit `ApiBackend.tasks_database` configuration, a scoped `task_participant` grant and the verified user object ID in the pinned eligible set. The optional provider defaults to unavailable; the local launcher does not enable it. Inbox responses contain `items` and `next_offset`; limit is 1–100 and offset 0–10000. Ordering is creation time then task ID; offset pages reflect current state. Decision bodies contain only `command_id`, `expected_revision` and `decision` (`approve`/`reject`). Creation and outbox delivery are internal operations without HTTP routes. See [ADR 0015](decisions/0015-human-task-api.md).

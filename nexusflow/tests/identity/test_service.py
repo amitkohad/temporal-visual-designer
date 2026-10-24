@@ -99,6 +99,47 @@ def test_context_uses_signed_identity_and_server_grants(identity):
     )
 
 
+def test_task_identity_returns_verified_object_id_and_rechecks_policy(identity):
+    repo, scope, grant, keys, token = identity
+    service = IdentityService(repo, keys)
+    access_token = token()
+
+    def resolve():
+        return service.authorize_user_object_id(
+            access_token,
+            scope,
+            "project.read",
+            request_id="task-request",
+            correlation_id="task-trace",
+        )
+
+    assert resolve() == USER
+    repo.revoke_grant(scope, grant.grant_id, expected_revision=grant.revision)
+    with pytest.raises(IdentityError):
+        resolve()
+
+
+def test_task_identity_rejects_an_otherwise_authorized_workload(identity):
+    repo, _, _, keys, token = identity
+    scope = Scope(organization_id="worker-org", environment_id="dev")
+    repo.register_binding(
+        DirectoryBinding("worker-org", TENANT, "nexus-api", allowed_workload_clients=(CLIENT,))
+    )
+    repo.provision_environments("worker-org")
+    repo.add_membership("worker-org", TENANT, "workload", USER)
+    repo.save_grant(
+        Grant("worker-role", scope, TENANT, "workload", USER, "worker"), expected_revision=0
+    )
+    service = IdentityService(repo, keys)
+    access_token = token(_omit=("scp",), idtyp="app", roles=["NexusFlow.Worker"])
+    assert authorize(service, access_token, scope, "worker.execute").scope == scope
+    with pytest.raises(IdentityError) as failure:
+        service.authorize_user_object_id(
+            access_token, scope, "worker.execute", request_id="request", correlation_id="trace"
+        )
+    assert failure.value.code == "forbidden"
+
+
 def test_production_permission_cannot_be_injected_by_token(identity):
     repo, scope, _, keys, token = identity
     service = IdentityService(repo, keys)

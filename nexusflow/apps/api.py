@@ -13,7 +13,12 @@ from starlette.exceptions import HTTPException
 from temporalio.exceptions import ApplicationError
 from temporalio.service import RPCError
 
-from nexusflow.apps.api_backend import ApiBackend, PlacedStartDispatcher, RequestAuthorization
+from nexusflow.apps.api_backend import (
+    ApiBackend,
+    PlacedStartDispatcher,
+    RequestAuthorization,
+    RequestTaskAuthorization,
+)
 from nexusflow.apps.api_boundary import ApiBoundary, error_response
 from nexusflow.apps.api_models import (
     CreateProject,
@@ -32,6 +37,14 @@ from nexusflow.modules.activity_catalog.catalog_types import CatalogEntry
 from nexusflow.modules.activity_catalog.types import CatalogError
 from nexusflow.modules.durable_runtime.starts import AsyncStartService, StartError, StartRequest
 from nexusflow.modules.durable_runtime.types import Snapshot
+from nexusflow.modules.human_tasks.types import (
+    DecisionRequest,
+    TaskError,
+    TaskEvent,
+    TaskPage,
+    TaskStatus,
+    TaskView,
+)
 from nexusflow.modules.identity_environments.types import IdentityError
 from nexusflow.modules.package_promotion.service import ActivatedReleaseResolver
 from nexusflow.modules.package_promotion.types import (
@@ -109,6 +122,8 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
             "referenced": 409,
             "dependency_conflict": 409,
             "unavailable": 503,
+            "assignment_unavailable": 503,
+            "delivery_unavailable": 503,
         }.get(code, 422)
         normalized = {
             401: "unauthenticated",
@@ -132,6 +147,7 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
         VersioningError,
         ActivationError,
         StartError,
+        TaskError,
         RPCError,
         OSError,
         sqlite3.Error,
@@ -194,6 +210,36 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
     @app.get(prefix + "/context")
     def context(context: SessionDependency) -> dict[str, str]:
         return context.scope.model_dump()
+
+    @app.get(prefix + "/tasks")
+    def tasks(
+        context: SessionDependency,
+        status: TaskStatus | None = None,
+        run_id: Identifier | None = None,
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        offset: Annotated[int, Query(ge=0, le=10000)] = 0,
+    ) -> TaskPage:
+        with backend.task_service(RequestTaskAuthorization(context.authorization)) as service:
+            return service.list_tasks(
+                context.scope, status=status, run_id=run_id, limit=limit, offset=offset
+            )
+
+    @app.get(prefix + "/tasks/{task_id}")
+    def task(task_id: Identifier, context: SessionDependency) -> TaskView:
+        with backend.task_service(RequestTaskAuthorization(context.authorization)) as service:
+            return service.get(context.scope, task_id)
+
+    @app.get(prefix + "/tasks/{task_id}/audit")
+    def task_audit(task_id: Identifier, context: SessionDependency) -> tuple[TaskEvent, ...]:
+        with backend.task_service(RequestTaskAuthorization(context.authorization)) as service:
+            return service.audit(context.scope, task_id)
+
+    @app.post(prefix + "/tasks/{task_id}/decisions")
+    def decide_task(
+        task_id: Identifier, payload: DecisionRequest, context: SessionDependency
+    ) -> TaskView:
+        with backend.task_service(RequestTaskAuthorization(context.authorization)) as service:
+            return service.decide(context.scope, task_id, payload)
 
     @app.get(prefix + "/projects")
     def projects(
