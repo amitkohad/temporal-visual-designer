@@ -99,7 +99,9 @@ class TaskEvent(Contract):
     event_id: Identifier
     task_id: Identifier
     scope: Scope
-    kind: Literal["created", "decided", "reassigned", "completion_delivered"]
+    kind: Literal[
+        "created", "decided", "reassigned", "form_bound", "form_updated", "completion_delivered"
+    ]
     actor_id: Identifier | None
     revision: Annotated[int, Field(ge=1)]
     created_at: Timestamp

@@ -94,3 +94,12 @@ class ExecutionAccepted(Contract):
     release_id: Identifier
     configuration_revision: Identifier
     state: Literal["accepted"] = "accepted"
+
+
+class SubmitTaskForm(JsonRequest):
+    expected_revision: Annotated[int, Field(ge=1)]
+    values: dict[str, JsonValue]
+
+
+class TaskFormSubmission(Contract):
+    revision: Annotated[int, Field(ge=1)]

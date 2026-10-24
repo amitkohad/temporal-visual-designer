@@ -22,6 +22,8 @@ from nexusflow.modules.durable_runtime.temporal_starts import (
 )
 from nexusflow.modules.durable_runtime.types import ExecutionPlan, Snapshot
 from nexusflow.modules.durable_runtime.workflow import ProofWorkflow
+from nexusflow.modules.human_tasks.form_types import TaskFieldPolicy
+from nexusflow.modules.human_tasks.forms import TaskFormService
 from nexusflow.modules.human_tasks.service import TaskService
 from nexusflow.modules.human_tasks.types import AssignmentResolver, TaskAuthorization, TaskError
 from nexusflow.modules.identity_environments.service import IdentityService
@@ -125,6 +127,17 @@ class ApiBackend:
     runtime: RuntimeGateway
     tasks_database: Path | None = None
     task_assignments: AssignmentResolver | None = None
+    task_fields: TaskFieldPolicy | None = None
+
+    @contextmanager
+    def task_form_service(self, authorization: TaskAuthorization) -> Iterator[TaskFormService]:
+        if self.tasks_database is None:
+            raise TaskError("unavailable", "Human task provider is not configured")
+        service = TaskFormService(self.tasks_database, authorization, self.task_fields)
+        try:
+            yield service
+        finally:
+            service.close()
 
     @contextmanager
     def task_service(self, authorization: TaskAuthorization) -> Iterator[TaskService]:

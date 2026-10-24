@@ -65,6 +65,11 @@ class TaskService:
                 org TEXT NOT NULL, env TEXT NOT NULL, task TEXT NOT NULL,
                 completion TEXT NOT NULL, delivered INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY(org,env,task));
+            CREATE TABLE IF NOT EXISTS human_task_forms (
+                org TEXT NOT NULL, env TEXT NOT NULL, task TEXT NOT NULL,
+                definition TEXT NOT NULL, initial_values TEXT NOT NULL,
+                values_json TEXT NOT NULL, validated INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(org,env,task));
         """)
         self._db.commit()
 
@@ -293,6 +298,13 @@ class TaskService:
                 raise TaskError("conflict", "Task is already completed")
             if any(item.actor_id == actor for item in task.decisions):
                 raise TaskError("conflict", "Actor has already decided this task")
+            if request.decision == "approve":
+                form = self._db.execute(
+                    "SELECT validated FROM human_task_forms WHERE org=? AND env=? AND task=?",
+                    (*_scope(scope), task_id),
+                ).fetchone()
+                if form is not None and form[0] != 1:
+                    raise TaskError("conflict", "The task form requires a valid submission")
             record = DecisionRecord(
                 command_id=request.command_id,
                 actor_id=actor,
