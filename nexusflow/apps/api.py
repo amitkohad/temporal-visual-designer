@@ -70,6 +70,10 @@ from nexusflow.modules.human_tasks.types import (
 from nexusflow.modules.identity_environments.types import IdentityError
 from nexusflow.modules.package_promotion.attachments import AttachmentMetadata
 from nexusflow.modules.package_promotion.package_format import PackageManifest
+from nexusflow.modules.package_promotion.package_imports import (
+    PackageImportMetadata,
+    PackageImportPage,
+)
 from nexusflow.modules.package_promotion.service import ActivatedReleaseResolver
 from nexusflow.modules.package_promotion.types import (
     ActivationError,
@@ -163,6 +167,7 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
             "delivery_unavailable": 503,
             "attachment_too_large": 413,
             "attachment_limit": 409,
+            "import_limit": 409,
         }.get(code, 422)
         normalized = {
             401: "unauthenticated",
@@ -506,6 +511,78 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
                 "X-Content-Type-Options": "nosniff",
                 "Cache-Control": "no-store",
                 "X-Package-Digest": package.manifest.package_digest,
+            },
+        )
+
+    @app.put(
+        prefix + "/package-imports/{operation_id}",
+        status_code=201,
+        openapi_extra={
+            "requestBody": {
+                "required": True,
+                "content": {"application/zip": {"schema": {"type": "string", "format": "binary"}}},
+            }
+        },
+    )
+    async def stage_package_import(
+        operation_id: Identifier, request: Request, context: SessionDependency
+    ) -> PackageImportMetadata:
+        service = await run_in_threadpool(
+            backend.package_import_service, context.authorization, context.scope
+        )
+        media_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+        if media_type != "application/zip":
+            raise HTTPException(415)
+        archive = await request.body()
+        return await run_in_threadpool(service.stage, context.scope, operation_id, archive)
+
+    @app.get(prefix + "/package-imports")
+    def list_package_imports(
+        context: SessionDependency,
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        before_revision: Annotated[int | None, Query(ge=1, le=2**63 - 1)] = None,
+    ) -> PackageImportPage:
+        return backend.package_import_service(context.authorization, context.scope).list(
+            context.scope, limit=limit, before_revision=before_revision
+        )
+
+    @app.get(prefix + "/package-imports/{operation_id}")
+    def get_package_import(
+        operation_id: Identifier, context: SessionDependency
+    ) -> PackageImportMetadata:
+        return backend.package_import_service(context.authorization, context.scope).get(
+            context.scope, operation_id
+        )
+
+    @app.get(prefix + "/package-imports/{operation_id}/manifest")
+    def get_package_import_manifest(
+        operation_id: Identifier, context: SessionDependency
+    ) -> PackageManifest:
+        return backend.package_import_service(context.authorization, context.scope).manifest(
+            context.scope, operation_id
+        )
+
+    @app.get(
+        prefix + "/package-imports/{operation_id}/archive",
+        response_class=Response,
+        responses={
+            200: {
+                "content": {"application/zip": {"schema": {"type": "string", "format": "binary"}}}
+            }
+        },
+    )
+    def download_package_import(operation_id: Identifier, context: SessionDependency) -> Response:
+        result = backend.package_import_service(context.authorization, context.scope).download(
+            context.scope, operation_id
+        )
+        return Response(
+            result.archive,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": 'attachment; filename="nexus-flow-project.zip"',
+                "X-Content-Type-Options": "nosniff",
+                "Cache-Control": "no-store",
+                "X-Package-Digest": result.metadata.package_digest,
             },
         )
 

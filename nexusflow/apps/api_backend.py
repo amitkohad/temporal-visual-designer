@@ -30,11 +30,15 @@ from nexusflow.modules.human_tasks.types import AssignmentResolver, TaskAuthoriz
 from nexusflow.modules.identity_environments.service import IdentityService
 from nexusflow.modules.identity_environments.types import Environment
 from nexusflow.modules.package_promotion.attachments import DeploymentAttachmentService
+from nexusflow.modules.package_promotion.package_imports import (
+    PackageImportRepository,
+    PackageImportService,
+)
 from nexusflow.modules.package_promotion.packages import ProjectPackageService
 from nexusflow.modules.package_promotion.readiness import ProofActivationReadiness
 from nexusflow.modules.package_promotion.repository import SQLiteActivationRepository
 from nexusflow.modules.package_promotion.service import ActivationService
-from nexusflow.modules.package_promotion.types import ConfigurationCompatibility
+from nexusflow.modules.package_promotion.types import ActivationError, ConfigurationCompatibility
 from nexusflow.modules.project_versioning.service import ProjectService
 from nexusflow.modules.project_versioning.types import ProjectRepository
 
@@ -131,6 +135,15 @@ class ApiBackend:
     tasks_database: Path | None = None
     task_assignments: AssignmentResolver | None = None
     task_fields: TaskFieldPolicy | None = None
+    package_imports: PackageImportRepository | None = None
+
+    def package_import_service(
+        self, authorization: RequestAuthorization, scope: Scope
+    ) -> PackageImportService:
+        authorization.authorize(scope, "package.import", "package-imports")
+        if self.package_imports is None:
+            raise ActivationError("unavailable", "Package import provider is not configured")
+        return PackageImportService(self.package_imports, authorization)
 
     @contextmanager
     def task_form_service(self, authorization: TaskAuthorization) -> Iterator[TaskFormService]:

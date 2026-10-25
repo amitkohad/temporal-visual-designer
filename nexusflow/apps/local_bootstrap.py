@@ -26,6 +26,7 @@ from nexusflow.modules.durable_runtime.types import Snapshot
 from nexusflow.modules.identity_environments.repository import SQLiteIdentityRepository
 from nexusflow.modules.identity_environments.service import IdentityService
 from nexusflow.modules.identity_environments.types import DirectoryBinding, Environment, Grant
+from nexusflow.modules.package_promotion.package_imports import SQLitePackageImportRepository
 from nexusflow.modules.package_promotion.repository import SQLiteActivationRepository
 from nexusflow.modules.package_promotion.types import ActivationRequest
 from nexusflow.modules.project_versioning.repository import SQLiteProjectRepository
@@ -237,6 +238,8 @@ def _backend(
         stack.callback(activations.close)
         starts = SQLiteStartRepository(directory / "starts.db")
         stack.callback(starts.close)
+        package_imports = SQLitePackageImportRepository(directory / "package-imports.db")
+        stack.callback(package_imports.close)
         yield ApiBackend(
             IdentityService(identity, LocalSigningKeys(_public(_private(directory), settings))),
             projects,
@@ -250,6 +253,7 @@ def _backend(
             tasks_database=directory / profile.tasks_database if profile else None,
             task_assignments=LocalTaskAssignments(profile.scope) if profile else None,
             task_fields=LocalTaskFields(directory, profile.scope) if profile else None,
+            package_imports=package_imports,
         )
 
 
