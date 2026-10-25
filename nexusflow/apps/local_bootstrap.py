@@ -221,7 +221,7 @@ def _backend(
     *,
     tasks_enabled: bool = False,
 ) -> Iterator[ApiBackend]:
-    from nexusflow.apps.local_tasks import LocalTaskAssignments, load_task_profile
+    from nexusflow.apps.local_tasks import LocalTaskAssignments, LocalTaskFields, load_task_profile
 
     profile = load_task_profile(directory, settings) if tasks_enabled else None
     with ExitStack() as stack:
@@ -249,6 +249,7 @@ def _backend(
             runtime,
             tasks_database=directory / profile.tasks_database if profile else None,
             task_assignments=LocalTaskAssignments(profile.scope) if profile else None,
+            task_fields=LocalTaskFields(directory, profile.scope) if profile else None,
         )
 
 

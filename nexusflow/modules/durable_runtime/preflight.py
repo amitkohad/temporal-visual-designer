@@ -9,6 +9,7 @@ from jsonschema import ValidationError as SchemaValidationError
 from pydantic import JsonValue, ValidationError
 
 from nexusflow.contracts import Scope, WorkflowDefinition, validate_contract
+from nexusflow.modules.designer_forms.form_types import FormError
 from nexusflow.modules.durable_runtime.task_approval import parse_task_approval
 from nexusflow.modules.durable_runtime.types import ExecutionPlan, ReleaseBinding, Step
 
@@ -107,14 +108,14 @@ def compile_plan(
             configuration = node.input_mapping["human_task"]
             if not isinstance(configuration, dict):
                 raise PlanError("Human task configuration must be an object")
-            if set(configuration) - {"rule", "user_ids", "group_ids", "stages"}:
+            if set(configuration) - {"rule", "user_ids", "group_ids", "stages", "form"}:
                 raise PlanError("Human task configuration contains unsupported fields")
             try:
                 request = parse_task_approval(json.dumps(configuration, allow_nan=False))
-            except (ValueError, ValidationError):
+            except (ValueError, ValidationError, FormError):
                 raise PlanError("Invalid human task approval configuration") from None
             task_approval_json = json.dumps(
-                request.model_dump(mode="json"),
+                request.model_dump(mode="json", exclude_none=True),
                 sort_keys=True,
                 separators=(",", ":"),
                 allow_nan=False,

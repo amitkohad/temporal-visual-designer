@@ -13,6 +13,7 @@ from nexusflow.modules.durable_runtime.human_completions import (
 )
 from nexusflow.modules.durable_runtime.task_approval import parse_task_approval
 from nexusflow.modules.durable_runtime.types import TaskCreationCall
+from nexusflow.modules.human_tasks.forms import bind_task_form, prepare_task_form
 from nexusflow.modules.human_tasks.service import TaskService
 from nexusflow.modules.human_tasks.types import CreateTask, TaskView
 
@@ -53,6 +54,14 @@ class TaskCreationActivities:
         for digest in (binding.release_digest, call.definition_digest):
             TypeAdapter(Digest).validate_python(digest, strict=True)
         approval = parse_task_approval(call.approval_json)
+        prepared = (
+            prepare_task_form(
+                json.dumps(approval.form.definition.model_dump(mode="json"), allow_nan=False),
+                json.dumps(approval.form.initial_values, allow_nan=False),
+            )
+            if approval.form is not None
+            else None
+        )
         request = CreateTask(
             run_id=call.execution_id,
             node_invocation_id=call.node_invocation_id,
@@ -77,5 +86,7 @@ class TaskCreationActivities:
                 ),
                 route=self.route,
             )
+            if prepared is not None:
+                bind_task_form(self.tasks, self.scope, task.task_id, *prepared)
 
         return self.tasks.create_bound(self.scope, request, bind).task_id

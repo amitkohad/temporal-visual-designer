@@ -12,6 +12,7 @@ Implementation status is tracked below; checked subtasks record verified backend
   - [ ] **F03-T002b** Complete general expression validation and shared runtime semantics; verify remaining template/full-feature cases.
 - [ ] **F03-T003 [P]** Implement authoritative form validation and rendering rules with local tests in `nexusflow/modules/03-designer-forms/backend/forms/`. Prerequisites: F03-T001. Maps: F03-A04, A05.
   - [x] **F03-T003a** Authoritative server form-definition and submission validation, conditional rules, permission-filtered previews, partial merges and guarded commits pass isolated tests (`form_definition.py`, `forms.py`).
+  - [x] **F03-T003c** Reuse authoritative validation for inline managed-task forms with atomic creation/binding and immutable initial snapshots; dynamic task/start mappings and attachments remain open ([evidence](../../implementation-managed-approval-forms.md)).
   - [ ] **F03-T003b** Complete rendering/layout and attachment semantics, task/start adapters and shared expression integration; browser rendering is also tracked by T005.
 - [ ] **F03-T004 [P]** Implement project explorer, canvas, properties, mappings, and save recovery with component tests in `nexusflow/modules/03-designer-forms/ui/canvas/`. Prerequisites: F03-T001. Maps: F03-A01–A03, A06. Use fake APIs.
 - [ ] **F03-T005 [P]** Implement form builder, preview, and accessible renderer with component tests in `nexusflow/modules/03-designer-forms/ui/forms/`. Prerequisites: F03-T001. Maps: F03-A04, A05. Use fake validation/submission ports.
@@ -21,6 +22,7 @@ Implementation status is tracked below; checked subtasks record verified backend
   - [ ] **F03-T007b** Implement browser/keyboard/rendered-content security acceptance and remaining F03-A01–A09 coverage.
 - [ ] **F03-T008** Wire module and sibling adapters in `nexusflow/modules/03-designer-forms/integration/`; verify all acceptance fixtures and applicable lint; record results in `nexusflow/modules/03-designer-forms/tests/verification.md`. Prerequisites: F03-T002–T007; actual sibling adapters only needed for cross-feature integration. Maps: F03-A01–A07.
   - [x] **F03-T008a** Local project-publication composition uses actual SQLite revisions and authoring/form validators, with isolated identity/catalog/task ports; publication regressions pass.
+  - [x] **F03-T008c** Verify pinned inline forms through actual local task creation, signed submission and Temporal approval/restart, preserving field rules and no-form compatibility; browser and reusable project-form resolution remain open ([evidence](../../implementation-managed-approval-forms.md)).
   - [ ] **F03-T008b** Wire actual sibling providers and browser module, then verify all acceptance/UX scenarios and applicable lint.
 
 ## Additional UI gate

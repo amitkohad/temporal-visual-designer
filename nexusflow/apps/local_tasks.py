@@ -11,9 +11,11 @@ from pydantic import TypeAdapter, field_validator
 from nexusflow.apps.local_bootstrap import TENANT_ID, USER_ID, LocalSettings, load_settings
 from nexusflow.contracts.models import Contract, Identifier, Scope
 from nexusflow.modules.durable_runtime.human_completions import SQLiteCompletionJournal
+from nexusflow.modules.human_tasks.form_types import TaskFieldAccess
 from nexusflow.modules.human_tasks.service import TaskService
 from nexusflow.modules.identity_environments.repository import SQLiteIdentityRepository
 from nexusflow.modules.identity_environments.types import Grant
+from nexusflow.modules.project_versioning.types import FormDefinition
 
 
 class LocalTaskProfile(Contract):
@@ -104,6 +106,39 @@ class LocalTaskAssignments:
         ):
             raise PermissionError("Unknown synthetic task assignment")
         return (USER_ID,)
+
+
+class LocalTaskFields:
+    """Explicit single-user field policy for the synthetic local task profile."""
+
+    def __init__(self, directory: Path, scope: Scope) -> None:
+        if scope.environment_id != "dev":
+            raise ValueError("Local task fields support only Dev")
+        self.database = (directory / "tasks.db").resolve()
+        self.scope = scope
+
+    def access(self, scope: Scope, task_id: str, actor_id: str) -> TaskFieldAccess:
+        if scope != self.scope or actor_id != USER_ID:
+            raise PermissionError("Local task field access denied")
+        TypeAdapter(Identifier).validate_python(task_id, strict=True)
+        connection = sqlite3.connect(self.database.as_uri() + "?mode=ro", uri=True)
+        try:
+            row = connection.execute(
+                "SELECT definition FROM human_task_forms WHERE org=? AND env=? AND task=?",
+                (scope.organization_id, scope.environment_id, task_id),
+            ).fetchone()
+        finally:
+            connection.close()
+        if row is None or len(row[0].encode("utf-8")) > 1048576:
+            raise ValueError("Local task form is unavailable")
+        definition = FormDefinition.model_validate_json(row[0])
+        properties = definition.data_schema.get("properties")
+        if not isinstance(properties, dict):
+            raise ValueError("Local task form fields are unavailable")
+        fields = frozenset(properties)
+        # Shared form validation additionally enforces readOnly/writeOnly and
+        # pinned form field_permissions; this policy grants no task access.
+        return TaskFieldAccess(readable_fields=fields, editable_fields=fields)
 
 
 class LocalTaskWorkerAuthorization:

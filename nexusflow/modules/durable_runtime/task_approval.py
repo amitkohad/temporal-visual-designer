@@ -1,19 +1,36 @@
 """Strict host-side configuration for opt-in task-managed approval steps."""
 
+import json
 from typing import Annotated
 
-from pydantic import Field, model_validator
+from pydantic import Field, JsonValue, model_validator
 
 from nexusflow.contracts.models import Contract
+from nexusflow.modules.human_tasks.forms import prepare_task_form
 from nexusflow.modules.human_tasks.types import (
     ApprovalRule,
     ApprovalStage,
     CreateTask,
     PrincipalIds,
 )
+from nexusflow.modules.project_versioning.types import FormDefinition
+
+
+class ManagedApprovalForm(Contract):
+    definition: FormDefinition
+    initial_values: dict[str, JsonValue] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def valid_form(self) -> "ManagedApprovalForm":
+        prepare_task_form(
+            json.dumps(self.definition.model_dump(mode="json"), allow_nan=False),
+            json.dumps(self.initial_values, allow_nan=False),
+        )
+        return self
 
 
 class TaskApproval(Contract):
+    form: ManagedApprovalForm | None = None
     rule: ApprovalRule
     user_ids: PrincipalIds = ()
     group_ids: PrincipalIds = ()

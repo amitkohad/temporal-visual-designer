@@ -244,6 +244,7 @@ class TaskService:
                     raise TaskError("conflict", "Task invocation already has different content")
                 if binder is not None:
                     binder(task)
+                    return self._get(scope, task.task_id)
                 return task
             stages = tuple(
                 StageAssignment(
@@ -293,6 +294,7 @@ class TaskService:
             self._event(task, "created", actor)
             if binder is not None:
                 binder(task)
+                return self._get(scope, task.task_id)
             return task
 
     def get(self, scope: Scope, task_id: str) -> TaskView:
