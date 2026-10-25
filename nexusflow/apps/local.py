@@ -16,6 +16,7 @@ import uvicorn
 from nexusflow.apps.api import create_app
 from nexusflow.apps.local_bootstrap import initialize, issue_token, load_settings, open_backend
 from nexusflow.apps.local_runtime import local_runtime
+from nexusflow.apps.local_tasks import enable_tasks, load_task_profile
 from nexusflow.modules.identity_environments.repository import SQLiteIdentityRepository
 
 
@@ -78,6 +79,7 @@ async def serve_local(
         raise LocalCommandError("API and Temporal require distinct valid ports")
     with installation_lock(directory):
         settings = load_settings(directory)
+        task_profile = load_task_profile(directory, settings)
         identity = SQLiteIdentityRepository(directory / "identity.db")
         try:
             placement = next(
@@ -107,7 +109,11 @@ async def serve_local(
             except OSError:
                 raise LocalCommandError("The local API port is unavailable") from None
             async with local_runtime(
-                directory, placement, temporal_executable=temporal_executable, port=temporal_port
+                directory,
+                placement,
+                temporal_executable=temporal_executable,
+                port=temporal_port,
+                task_profile=task_profile,
             ) as gateway:
                 with open_backend(directory, gateway) as backend:
                     server = uvicorn.Server(
@@ -159,7 +165,7 @@ async def serve_local(
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Nexus Flow local-demo API and Temporal worker")
     commands = parser.add_subparsers(dest="command", required=True)
-    for name in ("init", "token", "serve", "stop"):
+    for name in ("init", "enable-tasks", "token", "serve", "stop"):
         command = commands.add_parser(name)
         command.add_argument("--state-dir", type=Path, default=Path(".nexusflow-local"))
         if name == "token":
@@ -181,6 +187,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "organization_id": settings.organization_id,
                         "environment_id": "dev",
                         "state_directory": str(directory),
+                    }
+                )
+            )
+        elif args.command == "enable-tasks":
+            with installation_lock(directory):
+                task_profile = enable_tasks(directory)
+            print(
+                json.dumps(
+                    {
+                        "profile": "local-demo",
+                        "human_tasks": "enabled",
+                        "organization_id": task_profile.scope.organization_id,
+                        "environment_id": task_profile.scope.environment_id,
                     }
                 )
             )

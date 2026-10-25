@@ -215,8 +215,15 @@ def _token(directory: Path, settings: LocalSettings, lifetime: int) -> str:
 
 @contextmanager
 def _backend(
-    directory: Path, settings: LocalSettings, runtime: RuntimeGateway
+    directory: Path,
+    settings: LocalSettings,
+    runtime: RuntimeGateway,
+    *,
+    tasks_enabled: bool = False,
 ) -> Iterator[ApiBackend]:
+    from nexusflow.apps.local_tasks import LocalTaskAssignments, load_task_profile
+
+    profile = load_task_profile(directory, settings) if tasks_enabled else None
     with ExitStack() as stack:
         identity = SQLiteIdentityRepository(directory / "identity.db")
         stack.callback(identity.close)
@@ -240,13 +247,15 @@ def _backend(
             LocalCapabilities(),
             LocalConfigurations(settings),
             runtime,
+            tasks_database=directory / profile.tasks_database if profile else None,
+            task_assignments=LocalTaskAssignments(profile.scope) if profile else None,
         )
 
 
 @contextmanager
 def open_backend(directory: Path, runtime: RuntimeGateway) -> Iterator[ApiBackend]:
     settings = load_settings(directory)
-    with _backend(directory, settings, runtime) as backend:
+    with _backend(directory, settings, runtime, tasks_enabled=True) as backend:
         yield backend
 
 
