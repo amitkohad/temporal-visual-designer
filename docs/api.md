@@ -132,3 +132,14 @@ History returns `items` and `next_before_revision`, ordered newest first with an
 `POST /package-imports/{import_operation_id}/materializations` accepts a strict JSON request with `operation_id`, `expected_project_revision`, `configuration_revision` and optional `runtime_version` (`proof.v1`). It requires fresh scoped `package.import` and returns 201 with an immutable materialization receipt. `GET /package-imports/{import_operation_id}/materializations/{operation_id}` reads that receipt under the same permission. A stage/request mismatch conflicts; the receipt identifies both original source and newly created destination releases/revisions.
 
 The destination catalog must already contain exact approved artifacts. Project integrity, configuration and worker/runtime readiness are checked before the atomic target project revision/release/receipt transaction. The operation does not activate, publish source artifacts or change the immutable staged receipt. Zero expected project revision requires an absent target project; conflicts return 409. Committed exact retries return original receipts before mutable stage/readiness reads. Missing operations return 404; unavailable providers return sanitized 503. See [walkthrough](package-materialization.md) and [ADR 0034](decisions/0034-package-materialization.md).
+
+
+## Destination configuration revisions
+
+Explicit hosts can configure `SQLiteConfigurationRepository` as `ApiBackend.configurations` to supply persistent configuration compatibility and administration. All configuration administration routes require fresh scoped `connection.manage`; unsupported providers report sanitized 503 after permission checks.
+
+- `PUT /projects/{project_id}/configurations/{configuration_revision}`: strict body `{"values": {...}}`, 201 metadata receipt. An absent project is allowed for pre-import preparation. Exact canonical-value retries retain original actor/time; changed values under the same revision return 409.
+- `GET /projects/{project_id}/configurations/{configuration_revision}`: metadata only, 404 if absent.
+- `GET /projects/{project_id}/configurations?limit=50&before_revision=100`: metadata-only descending history, limit 1–100, exclusive sequence cursor through `next_before_revision`.
+
+Receipt fields are `project_id`, `configuration_revision`, project-local `revision`, `values_digest`, `actor_id` and `created_at`. Responses never include stored values. Values are non-secret configuration objects, limited to 32 KiB, depth 16 and 1,000 aggregate container entries. The default scoped-project quota is 1,000 revisions. Configuration writes never activate or modify projects. The provider validates the actual immutable values against local release schemas during materialization/activation, rejects reference-dependent schemas, and keeps configuration outside packages. See [walkthrough](destination-configurations.md) and [ADR 0035](decisions/0035-destination-configurations.md).

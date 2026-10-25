@@ -1,6 +1,6 @@
 # Materialize a staged project package
 
-First [stage the exported project](package-import-staging.md) in the target environment. Publish any required custom activity bundles through the destination catalog administration process. Materialization requires exact approved artifacts and compatible configured workers; it never installs or executes uploaded Python.
+First [stage the exported project](package-import-staging.md) in the target environment. Publish any required custom activity bundles through the destination catalog administration process. A configured host can [prepare immutable destination configuration](destination-configurations.md) before materializing the target project. Materialization requires exact approved artifacts and compatible configured workers; it never installs or executes uploaded Python.
 
 With target-scoped signed headers and `package.import`, send:
 

@@ -30,6 +30,8 @@ from nexusflow.modules.human_tasks.types import AssignmentResolver, TaskAuthoriz
 from nexusflow.modules.identity_environments.service import IdentityService
 from nexusflow.modules.identity_environments.types import Environment
 from nexusflow.modules.package_promotion.attachments import DeploymentAttachmentService
+from nexusflow.modules.package_promotion.configuration_types import ConfigurationRepository
+from nexusflow.modules.package_promotion.configurations import ConfigurationService
 from nexusflow.modules.package_promotion.materialization_types import MaterializationRepository
 from nexusflow.modules.package_promotion.materializations import PackageMaterializationService
 from nexusflow.modules.package_promotion.package_imports import (
@@ -138,6 +140,14 @@ class ApiBackend:
     task_assignments: AssignmentResolver | None = None
     task_fields: TaskFieldPolicy | None = None
     package_imports: PackageImportRepository | None = None
+
+    def configuration_service(
+        self, authorization: RequestAuthorization, scope: Scope
+    ) -> ConfigurationService:
+        authorization.authorize(scope, "connection.manage", "configurations")
+        if not isinstance(self.configurations, ConfigurationRepository):
+            raise ActivationError("unavailable", "Configuration provider is not configured")
+        return ConfigurationService(self.configurations, authorization)
 
     def package_import_service(
         self, authorization: RequestAuthorization, scope: Scope
