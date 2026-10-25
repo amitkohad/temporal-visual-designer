@@ -24,6 +24,7 @@ from nexusflow.apps.api_boundary import ApiBoundary, error_response
 from nexusflow.apps.api_models import (
     ActivityImport,
     CreateProject,
+    CreateTemplateProject,
     ExecutionAccepted,
     ProjectActivation,
     ProjectChange,
@@ -48,6 +49,12 @@ from nexusflow.contracts.validation import ValidationIssue
 from nexusflow.modules.activity_catalog.catalog_types import CatalogEntry
 from nexusflow.modules.activity_catalog.types import ActivityManifest, CatalogError, ImportedBundle
 from nexusflow.modules.designer_forms.form_types import FormError, FormView
+from nexusflow.modules.designer_forms.templates import (
+    TemplateInfo,
+    build_template,
+    get_template,
+    list_templates,
+)
 from nexusflow.modules.durable_runtime.starts import AsyncStartService, StartError, StartRequest
 from nexusflow.modules.durable_runtime.types import Snapshot
 from nexusflow.modules.human_tasks.types import (
@@ -304,6 +311,33 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
     ) -> TaskView:
         with backend.task_service(RequestTaskAuthorization(context.authorization)) as service:
             return service.delegate(context.scope, task_id, payload)
+
+    @app.get(prefix + "/project-templates")
+    def project_templates(context: SessionDependency) -> tuple[TemplateInfo, ...]:
+        context.authorization.authorize(context.scope, "project.read")
+        return list_templates()
+
+    @app.get(prefix + "/project-templates/{template_id}")
+    def project_template(template_id: Identifier, context: SessionDependency) -> TemplateInfo:
+        context.authorization.authorize(context.scope, "project.read")
+        return get_template(template_id)
+
+    @app.post(prefix + "/project-templates/{template_id}/projects", status_code=201)
+    def create_template_project(
+        template_id: Identifier, payload: CreateTemplateProject, context: SessionDependency
+    ) -> ProjectRevision:
+        context.authorization.authorize(context.scope, "project.write", payload.project_id)
+        if context.scope.environment_id != "dev":
+            raise VersioningError("forbidden", "Project authoring requires Dev")
+        content = build_template(
+            template_id,
+            {slot: value.to_assignment() for slot, value in payload.assignments.items()},
+        )
+        return revision_view(
+            backend.project_service(context.authorization, context.scope).create(
+                context.scope, payload.project_id, payload.name, content.model_dump_json()
+            )
+        )
 
     @app.get(prefix + "/projects")
     def projects(
