@@ -14,6 +14,7 @@ from nexusflow.modules.project_versioning.types import (
     ArtifactResolver,
     Change,
     ContentValidator,
+    HistoryPage,
     ProjectAuthorization,
     ProjectContent,
     ProjectRecord,
@@ -154,6 +155,42 @@ class ProjectService:
     def history(self, scope: Scope, project_id: str) -> tuple[Revision, ...]:
         self._authorize(scope, project_id)
         return self.repository.history(scope, project_id)
+
+    def history_page(
+        self,
+        scope: Scope,
+        project_id: str,
+        *,
+        limit: int = 50,
+        before_revision: int | None = None,
+    ) -> HistoryPage:
+        self._authorize(scope, project_id)
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise VersioningError("invalid_request", "Invalid history pagination")
+        if before_revision is not None:
+            self._revision_number(before_revision)
+        return self.repository.history_page(scope, project_id, limit, before_revision)
+
+    def compare_bounded(
+        self,
+        scope: Scope,
+        project_id: str,
+        before_revision: int,
+        after_revision: int,
+        include_layout: bool = False,
+    ) -> tuple[Change, ...]:
+        self._authorize(scope, project_id)
+        self._revision_number(before_revision)
+        self._revision_number(after_revision)
+        if type(include_layout) is not bool:
+            raise VersioningError("invalid_request", "Invalid layout option")
+        return compare_json(
+            self.repository.revision(scope, project_id, before_revision).content_json,
+            self.repository.revision(scope, project_id, after_revision).content_json,
+            include_layout,
+            max_changes=1000,
+            max_bytes=262144,
+        )
 
     def compare(
         self,

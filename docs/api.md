@@ -34,6 +34,9 @@ All routes below are relative to `/api/v1/organizations/{organization_id}/enviro
 | GET | `/projects?limit=50&offset=0` | List scoped project metadata |
 | POST | `/projects` | Create a Dev project |
 | GET | `/projects/{id}?revision=1` | Read current or selected immutable revision |
+| GET | `/projects/{id}/history?limit=50&before_revision=10` | Page revision metadata, newest first |
+| GET | `/projects/{id}/compare?before_revision=1&after_revision=2&include_layout=false` | Bounded structural comparison |
+| POST | `/projects/{id}/restore` | Append a historical snapshot as a new Dev revision |
 | PUT | `/projects/{id}` | Save with expected-revision concurrency |
 | POST | `/projects/{id}/validation` | Validate authoring content without saving |
 | POST | `/projects/{id}/releases` | Publish a whole-project immutable release |
@@ -58,7 +61,7 @@ uv run pytest nexusflow/tests/api
 uv run pytest -m integration nexusflow/tests/runtime
 ```
 
-Package download/import, archive streams, evidence attachments, project history/compare/restore HTTP routes, remaining form API integrations, browser inbox/debug controls, live identity adapters and React UI remain separate work. Existing backend methods do not imply those routes exist. The run-status route is a safe summary and deliberately does not expose activity inputs/outputs.
+Package download/import, archive streams, evidence attachments, remaining form API integrations, browser inbox/debug controls, live identity adapters and React UI remain separate work. Existing backend methods do not imply those routes exist. The run-status route is a safe summary and deliberately does not expose activity inputs/outputs.
 
 Human-task routes require explicit `ApiBackend.tasks_database` configuration, a scoped `task_participant` grant and the verified user object ID in the pinned eligible set. The optional provider defaults to unavailable; the local launcher enables it only after the explicit `enable-tasks` command (see [local walkthrough](local-development.md#enable-managed-approvals)). Inbox responses contain `items` and `next_offset`; limit is 1–100 and offset 0–10000. Ordering is creation time then task ID; offset pages reflect current state. Decision bodies contain only `command_id`, `expected_revision` and `decision` (`approve`/`reject`). Creation and outbox delivery are internal operations without HTTP routes. See [ADR 0015](decisions/0015-human-task-api.md).
 
@@ -69,3 +72,9 @@ Task forms require explicit `ApiBackend.task_fields` configuration and a pre-bou
 Sequential approval tasks expose `stage_assignments` and zero-based `stage_index` in task views. Only current-stage approvers can read, list or submit new decisions. The existing decision endpoint atomically advances to the next stage, retaining `pending` status until final approval; a rejection terminates immediately. Decision records and stage-transition audits carry stage IDs. The same user may vote in multiple stages with different command IDs. A prior-stage actor with fresh `task.respond` permission can retry their own exact accepted command for its historical response, but cannot read current task state or submit a new vote unless currently eligible. One pinned form is shared and becomes read-only after the first vote. See [ADR 0019](decisions/0019-sequential-approvals.md).
 
 Delegation accepts only `command_id`, `expected_revision` and `delegate_id`. It requires current assignment eligibility, fresh `task.respond` authorization and explicit `ApiBackend.task_assignments` resolution. Targets must be different, unassigned current-stage users; no role or membership is granted. Other votes remain unchanged. Sequential tasks update only the active stage; target users still need independent scope permissions. Delegators lose current read/form/vote access but can retry their own exact accepted command for a historical response while freshly authorized. Delegation and admin reassignment share a 100-change limit. The existing form freeze and stale-reminder cancellation rules still apply. See [ADR 0020](decisions/0020-task-delegation.md).
+
+Project history requires fresh `project.read` permission and returns metadata only: `project_id`, `revisions` (revision, parent_revision, summary, author_id, created_at) and `next_before_revision`. Limit defaults to 50 (1–100). The positive signed-int64 cursor is exclusive; concurrent saves do not shift older pages. Read/compare revision numbers have the same int64 bounds.
+
+Comparison requires two revision numbers and defaults to excluding top-level layout. Changes contain JSON Pointer `path`, `before_json` and `after_json`: absent values are null, while an existing JSON null is the string `"null"`. Arrays are compared atomically. Responses stop at 1,000 changes or 262,144 UTF-8 bytes of encoded change objects and return sanitized 422 without partial results when exceeded.
+
+Restore accepts only `source_revision`, `expected_revision` and a nonblank `summary` (at most 1,000 characters). It requires fresh Dev `project.write`, appends a new revision and returns 201. It preserves history, release snapshots, activation and running executions. It does not publish or activate. Stale or duplicate retries return 409; after a lost response, reload the head before retrying. See [ADR 0027](decisions/0027-project-history-api.md).

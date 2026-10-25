@@ -94,6 +94,23 @@ class Revision:
 
 
 @dataclass(frozen=True)
+class RevisionMetadata:
+    project_id: str
+    number: int
+    parent_revision: int | None
+    summary: str
+    author_id: str
+    created_at: str
+
+
+@dataclass(frozen=True)
+class HistoryPage:
+    project_id: str
+    revisions: tuple[RevisionMetadata, ...]
+    next_before_revision: int | None
+
+
+@dataclass(frozen=True)
 class Release:
     scope: Scope
     project_id: str
@@ -160,6 +177,9 @@ class ProjectRepository(Protocol):
     ) -> Revision: ...
     def revision(self, scope: Scope, project_id: str, number: int | None = None) -> Revision: ...
     def history(self, scope: Scope, project_id: str) -> tuple[Revision, ...]: ...
+    def history_page(
+        self, scope: Scope, project_id: str, limit: int = 50, before_revision: int | None = None
+    ) -> HistoryPage: ...
     def published(self, scope: Scope, project_id: str, idempotency_key: str) -> Release | None: ...
     def publish(
         self,

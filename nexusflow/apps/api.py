@@ -24,10 +24,15 @@ from nexusflow.apps.api_models import (
     CreateProject,
     ExecutionAccepted,
     ProjectActivation,
+    ProjectChange,
+    ProjectComparison,
+    ProjectHistory,
     ProjectRelease,
     ProjectRevision,
+    ProjectRevisionMetadata,
     PublishProject,
     ReassignTask,
+    RestoreProject,
     SaveProject,
     StartWorkflow,
     SubmitTaskForm,
@@ -310,11 +315,78 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
     def read_project(
         project_id: Identifier,
         context: SessionDependency,
-        revision: Annotated[int | None, Query(ge=1)] = None,
+        revision: Annotated[int | None, Query(ge=1, le=2**63 - 1)] = None,
     ) -> ProjectRevision:
         return revision_view(
             backend.project_service(context.authorization, context.scope).read(
                 context.scope, project_id, revision
+            )
+        )
+
+    @app.get(prefix + "/projects/{project_id}/history")
+    def project_history(
+        project_id: Identifier,
+        context: SessionDependency,
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        before_revision: Annotated[int | None, Query(ge=1, le=2**63 - 1)] = None,
+    ) -> ProjectHistory:
+        page = backend.project_service(context.authorization, context.scope).history_page(
+            context.scope, project_id, limit=limit, before_revision=before_revision
+        )
+        return ProjectHistory(
+            project_id=page.project_id,
+            revisions=tuple(
+                ProjectRevisionMetadata(
+                    revision=item.number,
+                    parent_revision=item.parent_revision,
+                    summary=item.summary,
+                    author_id=item.author_id,
+                    created_at=item.created_at,
+                )
+                for item in page.revisions
+            ),
+            next_before_revision=page.next_before_revision,
+        )
+
+    @app.get(prefix + "/projects/{project_id}/compare")
+    def compare_project(
+        project_id: Identifier,
+        context: SessionDependency,
+        before_revision: Annotated[int, Query(ge=1, le=2**63 - 1)],
+        after_revision: Annotated[int, Query(ge=1, le=2**63 - 1)],
+        include_layout: bool = False,
+    ) -> ProjectComparison:
+        changes = backend.project_service(context.authorization, context.scope).compare_bounded(
+            context.scope,
+            project_id,
+            before_revision,
+            after_revision,
+            include_layout=include_layout,
+        )
+        return ProjectComparison(
+            project_id=project_id,
+            before_revision=before_revision,
+            after_revision=after_revision,
+            include_layout=include_layout,
+            changes=tuple(
+                ProjectChange(
+                    path=item.path, before_json=item.before_json, after_json=item.after_json
+                )
+                for item in changes
+            ),
+        )
+
+    @app.post(prefix + "/projects/{project_id}/restore", status_code=201)
+    def restore_project(
+        project_id: Identifier, payload: RestoreProject, context: SessionDependency
+    ) -> ProjectRevision:
+        return revision_view(
+            backend.project_service(context.authorization, context.scope).restore(
+                context.scope,
+                project_id,
+                payload.source_revision,
+                payload.expected_revision,
+                payload.summary,
             )
         )
 

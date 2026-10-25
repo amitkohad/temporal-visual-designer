@@ -140,3 +140,9 @@ uv run pytest -m integration nexusflow/tests/runtime
 ```
 
 Default tests use isolated local fixtures and do not start servers. The marked real-socket test invokes init/token/serve/stop in subprocesses, checks authentication/exclusive ownership, executes a workflow, restarts with the same disk state, and verifies original token/project/activation/execution continuity. It requires an installed Temporal CLI; existing proof tests retain their separate SDK test-server fallback behavior. See [ADR 0013](decisions/0013-local-launcher.md).
+
+## Project revision history
+
+Using the signed headers and scoped API base from the walkthrough above, request `GET /projects/{project_id}/history?limit=10`. Pass the returned `next_before_revision` as `before_revision` for the next page. Compare using `GET /projects/{project_id}/compare?before_revision=1&after_revision=2`; add `include_layout=true` to include canvas positions.
+
+To restore in Dev, send `POST /projects/{project_id}/restore` with `{"source_revision":1,"expected_revision":2,"summary":"Restore reviewed draft"}`. Substitute the current head for expected_revision. The response is a new revision; publication and activation remain explicit separate operations. A 409 means reload the head, including after an ambiguous retry. These operations are available through the API; React controls are not implemented yet.
