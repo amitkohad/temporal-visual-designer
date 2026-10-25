@@ -21,7 +21,7 @@ Send the ordinary signed `POST /projects/{project_id}/activation` request, optio
 
 Use the actual published release ID, current activation revision and configured destination revision. Set `action` to `rollback` to select a retained compatible release. Deployment remains project-wide and running workflows retain their pinned versions.
 
-Both evidence fields are optional, may be null and accept plain text. Supplied strings must contain non-whitespace characters. The change-request number allows up to 128 characters and notes up to 2,000. The server does not validate change-system references or interpret approval text. File attachments are not supported yet.
+Both evidence fields are optional, may be null and accept plain text. Supplied strings must contain non-whitespace characters. The change-request number allows up to 128 characters and notes up to 2,000. The server does not validate change-system references or interpret approval text. Optional files can be uploaded separately after deployment through the [attachment API](deployment-attachments.md).
 
 Retain the exact request when retrying after an unavailable response. The operation ID identifies the complete normalized request, including supplied evidence. Exact retries return the original actor and receipt without another activation; changed evidence with the same operation ID conflicts. Omitted or null evidence retains pre-upgrade request identity. An explicit empty evidence object is accepted but represents a different request from omitted evidence. Historical metadata is immutable; there is no note-edit endpoint.
 

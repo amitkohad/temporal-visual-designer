@@ -1,5 +1,6 @@
 """Atomic project pointer, operation receipts and audit in a local SQLite provider."""
 
+import hashlib
 import sqlite3
 from dataclasses import asdict
 from datetime import UTC, datetime
@@ -10,6 +11,11 @@ from typing import cast
 from pydantic import TypeAdapter
 
 from nexusflow.contracts.models import Scope
+from nexusflow.modules.package_promotion.attachments import (
+    MAX_OPERATION_ATTACHMENTS,
+    AttachmentDownload,
+    AttachmentMetadata,
+)
 from nexusflow.modules.package_promotion.types import (
     ActivationError,
     ActivationEvent,
@@ -104,6 +110,7 @@ class SQLiteActivationRepository:
     def __init__(self, database: str | Path) -> None:
         self._db = sqlite3.connect(str(database), check_same_thread=False, timeout=30)
         self._lock = RLock()
+        self._db.execute("PRAGMA foreign_keys=ON")
         self._db.executescript("""
             CREATE TABLE IF NOT EXISTS activation_operations (
                 org TEXT NOT NULL, env TEXT NOT NULL, project TEXT NOT NULL,
@@ -117,12 +124,147 @@ class SQLiteActivationRepository:
                 sequence INTEGER PRIMARY KEY AUTOINCREMENT,
                 org TEXT NOT NULL, env TEXT NOT NULL, project TEXT NOT NULL,
                 event TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS deployment_attachments (
+                org TEXT NOT NULL, env TEXT NOT NULL, project TEXT NOT NULL,
+                operation TEXT NOT NULL, attachment TEXT NOT NULL,
+                display_name TEXT NOT NULL, checksum TEXT NOT NULL, size INTEGER NOT NULL,
+                actor TEXT NOT NULL, created TEXT NOT NULL, content BLOB NOT NULL,
+                PRIMARY KEY(org,env,project,operation,attachment),
+                FOREIGN KEY(org,env,project,operation)
+                    REFERENCES activation_operations(org,env,project,operation));
         """)
         self._db.commit()
 
     def close(self) -> None:
         with self._lock:
             self._db.close()
+
+    _ATTACHMENT_COLUMNS = "attachment,display_name,checksum,size,actor,created"
+
+    @staticmethod
+    def _attachment(row: tuple[object, ...]) -> AttachmentMetadata:
+        return AttachmentMetadata.model_validate(
+            dict(
+                zip(
+                    ("attachment_id", "display_name", "checksum", "size", "actor_id", "created_at"),
+                    row[:6],
+                    strict=True,
+                )
+            )
+        )
+
+    def _attachment_operation(self, scope: Scope, project_id: str, operation_id: str) -> None:
+        exists = self._db.execute(
+            "SELECT 1 FROM activation_operations WHERE org=? AND env=? AND project=? AND operation=?",
+            (*self._key(scope, project_id), operation_id),
+        ).fetchone()
+        if exists is None:
+            raise ActivationError("not_found", "Deployment operation was not found")
+
+    def put_attachment(
+        self,
+        scope: Scope,
+        project_id: str,
+        operation_id: str,
+        attachment_id: str,
+        content: bytes,
+        display_name: str,
+        actor: str,
+    ) -> AttachmentMetadata:
+        checksum = "sha256:" + hashlib.sha256(content).hexdigest()
+        key = (*self._key(scope, project_id), operation_id)
+        with self._lock:
+            self._db.execute("BEGIN IMMEDIATE")
+            try:
+                self._attachment_operation(scope, project_id, operation_id)
+                row = self._db.execute(
+                    "SELECT "
+                    + self._ATTACHMENT_COLUMNS
+                    + " FROM deployment_attachments WHERE org=? AND env=? AND project=?"
+                    + " AND operation=? AND attachment=?",
+                    (*key, attachment_id),
+                ).fetchone()
+                if row is not None:
+                    result = self._attachment(row)
+                    if (result.checksum, result.size, result.display_name) != (
+                        checksum,
+                        len(content),
+                        display_name,
+                    ):
+                        raise ActivationError("conflict", "Attachment ID is already in use")
+                    self._db.commit()
+                    return result
+                count = self._db.execute(
+                    "SELECT COUNT(*) FROM deployment_attachments"
+                    + " WHERE org=? AND env=? AND project=? AND operation=?",
+                    key,
+                ).fetchone()[0]
+                if count >= MAX_OPERATION_ATTACHMENTS:
+                    raise ActivationError("attachment_limit", "Deployment attachment limit reached")
+                result = AttachmentMetadata(
+                    attachment_id=attachment_id,
+                    display_name=display_name,
+                    checksum=checksum,
+                    size=len(content),
+                    actor_id=actor,
+                    created_at=datetime.now(UTC).isoformat(),
+                )
+                self._db.execute(
+                    "INSERT INTO deployment_attachments VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    (
+                        *key,
+                        attachment_id,
+                        display_name,
+                        checksum,
+                        len(content),
+                        actor,
+                        result.created_at,
+                        content,
+                    ),
+                )
+                self._db.commit()
+                return result
+            except BaseException:
+                self._db.rollback()
+                raise
+
+    def list_attachments(
+        self, scope: Scope, project_id: str, operation_id: str
+    ) -> tuple[AttachmentMetadata, ...]:
+        with self._lock:
+            self._attachment_operation(scope, project_id, operation_id)
+            rows = self._db.execute(
+                "SELECT "
+                + self._ATTACHMENT_COLUMNS
+                + " FROM deployment_attachments"
+                + " WHERE org=? AND env=? AND project=? AND operation=? ORDER BY attachment",
+                (*self._key(scope, project_id), operation_id),
+            ).fetchall()
+            return tuple(self._attachment(row) for row in rows)
+
+    def download_attachment(
+        self, scope: Scope, project_id: str, operation_id: str, attachment_id: str
+    ) -> AttachmentDownload:
+        with self._lock:
+            self._attachment_operation(scope, project_id, operation_id)
+            row = self._db.execute(
+                "SELECT "
+                + self._ATTACHMENT_COLUMNS
+                + ",content FROM deployment_attachments"
+                + " WHERE org=? AND env=? AND project=? AND operation=? AND attachment=?",
+                (*self._key(scope, project_id), operation_id, attachment_id),
+            ).fetchone()
+            if row is None:
+                raise ActivationError("not_found", "Deployment attachment was not found")
+            metadata = self._attachment(row)
+            content = row[6]
+            if (
+                type(content) is not bytes
+                or len(content) != metadata.size
+                or "sha256:" + hashlib.sha256(content).hexdigest() != metadata.checksum
+            ):
+                raise ActivationError("unavailable", "Deployment attachment is unavailable")
+            return AttachmentDownload(metadata, content)
 
     @staticmethod
     def _key(scope: Scope, project_id: str) -> tuple[str, ...]:
