@@ -58,3 +58,5 @@ Completed bounded slices are recorded separately from full feature acceptance. `
   - [x] **HT-T05g** Integrate opt-in managed Temporal approval creation and task-ID-bound completion, rejecting manual approval bypass. Verify actual inbox/task state and workflow progression with explicit host activity and delivery wiring; background scheduling, launcher, form mapping and full production acceptance remain open ([evidence](../../implementation-managed-task-creation.md)).
 
   - [x] **HT-T05h** Verify explicitly hosted background dispatch with actual Temporal managed approvals, failure isolation, scope protection and receipt recovery after shutdown/reopen; launcher/API composition and production supervision remain open ([evidence](../../implementation-completion-dispatch-worker.md)).
+
+  - [x] **HT-T05i** Compose the opt-in local task API, single-user synthetic resolver, managed creation and background delivery; verify signed HTTP approval, revocation preservation, exact installation/placement and pending-task restart through actual CLI/socket/Temporal. React, forms and production providers remain open ([evidence](../../implementation-local-managed-approvals.md)).

@@ -61,6 +61,44 @@ Re-running `init` validates existing state and leaves keys, project edits and gr
 
 The whole directory is one recovery unit. Do not independently delete or replace its databases or keys. Permanent dispatch receipts prevent duplicate starts; they do not make completed Temporal history readable forever after its configured retention expires. Backups/recovery automation and production retention policies remain future work.
 
+## Enable managed approvals
+
+Stop the launcher before enabling this optional feature, then run:
+
+```sh
+uv run nexusflow-local enable-tasks
+uv run nexusflow-local serve
+```
+
+Use the same `--state-dir` on every command if you configured a custom directory. Enabling creates `human-tasks.json`, `tasks.db` and `task-completions.db`, and adds the Dev `local-task-participant` grant for the existing synthetic user. Ordinary `init` does not enable it. Repeating enable leaves grants and data unchanged, including revoked access. Missing enabled stores or partial provisioning fail closed; preserve all files for recovery rather than deleting a marker to reset the feature.
+
+In a second PowerShell terminal, obtain `$localDemoHeaders` and `$localDemoBase` as above. From the repository root, publish and activate the supplied sample project:
+
+```powershell
+$localApprovalProject = Invoke-RestMethod "$localDemoBase/projects" -Method Post -Headers $localDemoHeaders -ContentType "application/json" -Body (Get-Content examples/local-approval-project.json -Raw)
+$localApprovalPublish = @{ source_revision = $localApprovalProject.revision; idempotency_key = "approval-release-1" } | ConvertTo-Json
+$localApprovalRelease = Invoke-RestMethod "$localDemoBase/projects/welcome-approval/releases" -Method Post -Headers $localDemoHeaders -ContentType "application/json" -Body $localApprovalPublish
+$localApprovalActivation = @{ project_id = "welcome-approval"; release_id = $localApprovalRelease.release_id; configuration_revision = "local-v1"; operation_id = "approval-activation-1"; expected_revision = 0 } | ConvertTo-Json
+Invoke-RestMethod "$localDemoBase/projects/welcome-approval/activation" -Method Post -Headers $localDemoHeaders -ContentType "application/json" -Body $localApprovalActivation
+$localApprovalStart = @{ workflow_id = "approval-demo"; idempotency_key = "approval-run-1" } | ConvertTo-Json
+$localApprovalRun = Invoke-RestMethod "$localDemoBase/projects/welcome-approval/executions" -Method Post -Headers $localDemoHeaders -ContentType "application/json" -Body $localApprovalStart
+$localApprovalInbox = Invoke-RestMethod "$localDemoBase/tasks?status=pending&run_id=$($localApprovalRun.execution_id)" -Headers $localDemoHeaders
+$localApprovalInbox.items
+```
+
+Query the inbox again if task creation is still in progress. Once the task appears, approve it:
+
+```powershell
+$localApprovalTask = $localApprovalInbox.items | Select-Object -First 1
+$localApprovalDecision = @{ command_id = "approve-demo-1"; expected_revision = $localApprovalTask.revision; decision = "approve" } | ConvertTo-Json
+Invoke-RestMethod "$localDemoBase/tasks/$($localApprovalTask.task_id)/decisions" -Method Post -Headers $localDemoHeaders -ContentType "application/json" -Body $localApprovalDecision
+Invoke-RestMethod "$localDemoBase/projects/welcome-approval/executions/$($localApprovalRun.execution_id)" -Headers $localDemoHeaders
+```
+
+The background dispatcher resumes the workflow; query status again until it reports `completed`. Repeating the exact decision or start request is retry-safe. Use a new start key for another run; create/publish/initial activation commands above assume the sample project does not already exist. A pending approval survives graceful stop and restart with the same directory and runtime settings.
+
+This profile resolves only synthetic user `22222222-2222-4222-8222-222222222222`; groups and unknown users fail closed. No browser inbox, live Entra adapter or form-binding UI is added. Task forms still require separate explicit providers and bindings. See [ADR 0024](decisions/0024-local-managed-approvals.md).
+
 Local access is Dev-only. Existing repository provisioning also records UAT/Prod placements, but synthetic credentials receive no grants there. Custom Python execution is explicitly unavailable and cannot be enabled by publishing a bundle in this profile. The initial catalog is empty; the welcome workflow uses interpreter builtins. Windows file access follows workstation ACLs; Unix key creation requests mode 0600. This is a trusted-workstation demo, not hardened production key management or network deployment.
 
 Checks:

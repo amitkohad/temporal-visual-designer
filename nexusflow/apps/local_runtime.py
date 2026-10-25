@@ -5,8 +5,9 @@ import os
 import re
 import shutil
 import socket
+import sqlite3
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import ExitStack, asynccontextmanager, closing
 from datetime import timedelta
 from pathlib import Path
 
@@ -19,8 +20,22 @@ from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 
 from nexusflow.apps.api_backend import TemporalRuntimeGateway
+from nexusflow.apps.local_bootstrap import load_settings
+from nexusflow.apps.local_tasks import (
+    LocalTaskAssignments,
+    LocalTaskProfile,
+    LocalTaskWorkerAuthorization,
+    load_task_profile,
+)
+from nexusflow.modules.durable_runtime.human_completions import (
+    SQLiteCompletionJournal,
+    TemporalCompletionSink,
+)
+from nexusflow.modules.durable_runtime.task_creation import TaskCreationActivities
 from nexusflow.modules.durable_runtime.temporal_starts import SQLiteDispatchJournal
 from nexusflow.modules.durable_runtime.workflow import ProofWorkflow
+from nexusflow.modules.human_tasks.dispatch import CompletionDispatcher, run_completion_dispatcher
+from nexusflow.modules.human_tasks.service import TaskService
 from nexusflow.modules.identity_environments.types import Environment
 
 
@@ -134,15 +149,33 @@ async def local_runtime(
     *,
     temporal_executable: str | None = None,
     port: int = 7233,
+    task_profile: LocalTaskProfile | None = None,
 ) -> AsyncIterator[TemporalRuntimeGateway]:
     """Run a persistent local server; installation lock must be held by caller.
 
-    This runs only the proof interpreter: no user Python or activity dispatcher
-    is registered. All database files and dispatch receipts survive shutdown.
+    The optional synthetic task profile registers managed approval creation and
+    owns completion delivery. No custom Python activities are executed.
     """
     _validate(placement, port)
     executable = _executable(temporal_executable)
     directory = directory.resolve()
+    if task_profile is not None:
+        settings = load_settings(directory)
+        if (
+            load_task_profile(directory, settings) != task_profile
+            or task_profile.scope != placement.scope
+        ):
+            raise ValueError("Local task profile does not match this runtime")
+        # Read-only inspection must precede every writable journal constructor.
+        with closing(
+            sqlite3.connect((directory / "identity.db").as_uri() + "?mode=ro", uri=True)
+        ) as identity:
+            actual = identity.execute(
+                "SELECT namespace,queue FROM environments WHERE org=? AND env=?",
+                (placement.scope.organization_id, placement.scope.environment_id),
+            ).fetchone()
+        if actual != (placement.temporal_namespace, placement.task_queue):
+            raise ValueError("Local task runtime placement differs from persisted Dev placement")
     _reserve_identity(directory, placement, port)
     async with await WorkflowEnvironment.start_local(
         namespace=placement.temporal_namespace,
@@ -156,8 +189,9 @@ async def local_runtime(
         if client.namespace != placement.temporal_namespace:
             raise ValueError("Local Temporal client has an unexpected namespace")
         await _namespace(client, placement.temporal_namespace)
-        journal = SQLiteDispatchJournal(directory / "dispatch.db")
-        try:
+        with ExitStack() as resources:
+            journal = SQLiteDispatchJournal(directory / "dispatch.db")
+            resources.callback(journal.close)
 
             async def clients(requested: Environment) -> Client:
                 if requested != placement:
@@ -166,7 +200,31 @@ async def local_runtime(
                     )
                 return client
 
-            async with Worker(client, task_queue=placement.task_queue, workflows=[ProofWorkflow]):
-                yield TemporalRuntimeGateway(clients, journal)
-        finally:
-            journal.close()
+            if task_profile is None:
+                async with Worker(
+                    client, task_queue=placement.task_queue, workflows=[ProofWorkflow]
+                ):
+                    yield TemporalRuntimeGateway(clients, journal)
+            else:
+                tasks = TaskService(
+                    directory / task_profile.tasks_database,
+                    LocalTaskWorkerAuthorization(placement.scope),
+                    LocalTaskAssignments(placement.scope),
+                )
+                resources.callback(tasks.close)
+                completions = SQLiteCompletionJournal(directory / task_profile.completion_database)
+                resources.callback(completions.close)
+                creation = TaskCreationActivities(tasks, completions, client, placement.scope)
+                dispatcher = CompletionDispatcher(
+                    tasks,
+                    placement.scope,
+                    TemporalCompletionSink(client, completions, placement.scope),
+                )
+                async with Worker(
+                    client,
+                    task_queue=placement.task_queue,
+                    workflows=[ProofWorkflow],
+                    activities=[creation.create],
+                ):
+                    async with run_completion_dispatcher(dispatcher):
+                        yield TemporalRuntimeGateway(clients, journal)
