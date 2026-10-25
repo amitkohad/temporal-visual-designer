@@ -69,6 +69,7 @@ from nexusflow.modules.human_tasks.types import (
 )
 from nexusflow.modules.identity_environments.types import IdentityError
 from nexusflow.modules.package_promotion.attachments import AttachmentMetadata
+from nexusflow.modules.package_promotion.package_format import PackageManifest
 from nexusflow.modules.package_promotion.service import ActivatedReleaseResolver
 from nexusflow.modules.package_promotion.types import (
     ActivationError,
@@ -480,6 +481,55 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
                 "source_revision": release.source_revision,
                 "checksum": release.executable_digest,
             }
+        )
+
+    @app.get(
+        prefix + "/projects/{project_id}/releases/{release_id}/package",
+        response_class=Response,
+        responses={
+            200: {
+                "content": {"application/zip": {"schema": {"type": "string", "format": "binary"}}}
+            }
+        },
+    )
+    def export_project_package(
+        project_id: Identifier, release_id: Identifier, context: SessionDependency
+    ) -> Response:
+        package = backend.project_package_service(context.authorization).export(
+            context.scope, project_id, release_id
+        )
+        return Response(
+            package.archive,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": 'attachment; filename="nexus-flow-project.zip"',
+                "X-Content-Type-Options": "nosniff",
+                "Cache-Control": "no-store",
+                "X-Package-Digest": package.manifest.package_digest,
+            },
+        )
+
+    @app.post(
+        prefix + "/packages/validation",
+        openapi_extra={
+            "requestBody": {
+                "required": True,
+                "content": {"application/zip": {"schema": {"type": "string", "format": "binary"}}},
+            }
+        },
+    )
+    async def validate_project_package(
+        request: Request, context: SessionDependency
+    ) -> PackageManifest:
+        await run_in_threadpool(
+            context.authorization.authorize, context.scope, "package.import", "packages"
+        )
+        media_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+        if media_type != "application/zip":
+            raise HTTPException(415)
+        archive = await request.body()
+        return await run_in_threadpool(
+            backend.project_package_service(context.authorization).validate, context.scope, archive
         )
 
     @app.post(

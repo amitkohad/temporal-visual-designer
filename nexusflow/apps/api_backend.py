@@ -30,6 +30,7 @@ from nexusflow.modules.human_tasks.types import AssignmentResolver, TaskAuthoriz
 from nexusflow.modules.identity_environments.service import IdentityService
 from nexusflow.modules.identity_environments.types import Environment
 from nexusflow.modules.package_promotion.attachments import DeploymentAttachmentService
+from nexusflow.modules.package_promotion.packages import ProjectPackageService
 from nexusflow.modules.package_promotion.readiness import ProofActivationReadiness
 from nexusflow.modules.package_promotion.repository import SQLiteActivationRepository
 from nexusflow.modules.package_promotion.service import ActivationService
@@ -173,3 +174,8 @@ class ApiBackend:
         self, authorization: RequestAuthorization
     ) -> DeploymentAttachmentService:
         return DeploymentAttachmentService(self.activations, authorization)
+
+    def project_package_service(self, authorization: RequestAuthorization) -> ProjectPackageService:
+        return ProjectPackageService(
+            self.projects, self.catalog_service(authorization), authorization
+        )
