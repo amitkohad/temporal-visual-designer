@@ -3,11 +3,18 @@
 import json
 from typing import Annotated, Literal
 
-from pydantic import Field, JsonValue, model_validator
+from pydantic import (
+    Field,
+    JsonValue,
+    SerializerFunctionWrapHandler,
+    model_serializer,
+    model_validator,
+)
 
 from nexusflow.contracts.models import ActivityRef, Contract, Digest, Identifier
 from nexusflow.modules.activity_catalog.types import ActivityManifest
 from nexusflow.modules.designer_forms.templates import TemplateAssignment
+from nexusflow.modules.package_promotion.types import DeploymentEvidence
 
 
 class JsonRequest(Contract):
@@ -111,6 +118,15 @@ class ProjectActivation(Contract):
     checksum: Digest | None = None
     actor_id: str | None = None
     created_at: str | None = None
+    evidence: DeploymentEvidence | None = None
+
+    @model_serializer(mode="wrap")
+    def serialize(self, handler: SerializerFunctionWrapHandler):  # type: ignore[no-untyped-def]
+        # A return schema override would hide the model's typed OpenAPI properties.
+        result: dict[str, object] = handler(self)
+        if self.evidence is None:
+            result.pop("evidence", None)
+        return result
 
 
 class ExecutionAccepted(Contract):

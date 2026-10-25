@@ -12,9 +12,11 @@ from nexusflow.modules.package_promotion.repository import SQLiteActivationRepos
 from nexusflow.modules.package_promotion.types import (
     ActivationError,
     ActivationEvent,
+    ActivationHistory,
     ActivationReadiness,
     ActivationRecord,
     ActivationRequest,
+    ActivationSummary,
 )
 from nexusflow.modules.project_versioning.canonical import digest, executable
 from nexusflow.modules.project_versioning.types import (
@@ -82,6 +84,47 @@ class ActivationService:
         self.releases = releases
         self.authorization = authorization
         self.readiness = readiness
+
+    def _read_identifiers(
+        self, scope: Scope, project_id: str, operation_id: str | None = None
+    ) -> None:
+        self.authorization.authorize(scope, "run.read", project_id)
+        try:
+            TypeAdapter(Identifier).validate_python(project_id)
+            if operation_id is not None:
+                TypeAdapter(Identifier).validate_python(operation_id)
+        except ValidationError:
+            raise ActivationError("invalid_request", "Invalid deployment identifier") from None
+
+    def history_page(
+        self,
+        scope: Scope,
+        project_id: str,
+        *,
+        limit: int = 50,
+        before_revision: int | None = None,
+    ) -> ActivationHistory:
+        self._read_identifiers(scope, project_id)
+        if (
+            type(limit) is not int
+            or not 1 <= limit <= 100
+            or (
+                before_revision is not None
+                and (type(before_revision) is not int or not 1 <= before_revision < 2**63)
+            )
+        ):
+            raise ActivationError("invalid_request", "Invalid deployment history pagination")
+        try:
+            return self.repository.history_page(scope, project_id, limit, before_revision)
+        except (OSError, RuntimeError, sqlite3.Error, ValidationError, ValueError):
+            raise ActivationError("unavailable", "Deployment history is unavailable") from None
+
+    def operation(self, scope: Scope, project_id: str, operation_id: str) -> ActivationSummary:
+        self._read_identifiers(scope, project_id, operation_id)
+        try:
+            return self.repository.operation(scope, project_id, operation_id)
+        except (OSError, RuntimeError, sqlite3.Error, ValidationError, ValueError):
+            raise ActivationError("unavailable", "Deployment operation is unavailable") from None
 
     def apply(self, scope: Scope, request: ActivationRequest) -> ActivationRecord:
         actor = self.authorization.authorize(scope, "package." + request.action, request.project_id)
