@@ -18,6 +18,7 @@ Implementation in progress. `[P]` tasks can run concurrently after their scope-s
 - [ ] **F04-T006** Wire module, Designer catalog, project dependency, identity, Python worker and runtime-capability adapters in `nexusflow/modules/04-activity-catalog/integration/`; execute acceptance and applicable lint. Prerequisites: F04-T002–T005, F04-T007 and available sibling adapters for cross-feature tests; fake-port suite remains standalone. Maps: F04-A01–A08. Record results in `nexusflow/modules/04-activity-catalog/tests/verification.md`.
 
   - [x] **F04-T006a** Wire actual catalog/intake/project providers through the authoring adapter and verify signed-token palette/publisher policy.
+  - [x] **F04-T006c** Expose signed private ZIP intake/read/download and catalog publish/pinned-metadata/lifecycle HTTP operations through actual local providers; verify upload limits, strict bodies, non-execution, authorization/revocation, scope isolation and retry/concurrency semantics ([evidence](../../implementation-activity-admin-api.md)).
   - [ ] **F04-T006b** Complete Admin/Designer UI, actual worker/capability providers and automatic transactional release/run retention orchestration; verify F04-A01–A08.
 
 ## Intake evidence

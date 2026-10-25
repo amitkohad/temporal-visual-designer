@@ -7,8 +7,9 @@ from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
 from temporalio.exceptions import ApplicationError
 from temporalio.service import RPCError
@@ -21,6 +22,7 @@ from nexusflow.apps.api_backend import (
 )
 from nexusflow.apps.api_boundary import ApiBoundary, error_response
 from nexusflow.apps.api_models import (
+    ActivityImport,
     CreateProject,
     ExecutionAccepted,
     ProjectActivation,
@@ -30,6 +32,7 @@ from nexusflow.apps.api_models import (
     ProjectRelease,
     ProjectRevision,
     ProjectRevisionMetadata,
+    PublishActivity,
     PublishProject,
     ReassignTask,
     RestoreProject,
@@ -37,12 +40,13 @@ from nexusflow.apps.api_models import (
     StartWorkflow,
     SubmitTaskForm,
     TaskFormSubmission,
+    TransitionActivity,
     ValidateProject,
 )
-from nexusflow.contracts.models import Identifier, Scope
+from nexusflow.contracts.models import ActivityRef, Digest, Identifier, Scope
 from nexusflow.contracts.validation import ValidationIssue
 from nexusflow.modules.activity_catalog.catalog_types import CatalogEntry
-from nexusflow.modules.activity_catalog.types import CatalogError
+from nexusflow.modules.activity_catalog.types import ActivityManifest, CatalogError, ImportedBundle
 from nexusflow.modules.designer_forms.form_types import FormError, FormView
 from nexusflow.modules.durable_runtime.starts import AsyncStartService, StartError, StartRequest
 from nexusflow.modules.durable_runtime.types import Snapshot
@@ -91,6 +95,16 @@ def revision_view(revision: Revision) -> ProjectRevision:
             "created_at": revision.created_at,
             "content": json.loads(revision.content_json),
         }
+    )
+
+
+def import_view(imported: ImportedBundle) -> ActivityImport:
+    return ActivityImport(
+        digest=imported.digest,
+        manifest=ActivityManifest.model_validate_json(imported.manifest_json),
+        state=imported.state,
+        author_id=imported.author_id,
+        created_at=imported.created_at,
     )
 
 
@@ -426,6 +440,71 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
                 "source_revision": release.source_revision,
                 "checksum": release.executable_digest,
             }
+        )
+
+    @app.post(
+        prefix + "/activity-imports",
+        status_code=201,
+        openapi_extra={
+            "requestBody": {
+                "required": True,
+                "content": {"application/zip": {"schema": {"type": "string", "format": "binary"}}},
+            }
+        },
+    )
+    async def import_activity(request: Request, context: SessionDependency) -> ActivityImport:
+        # Authorization precedes media validation and reading the boundary-buffered archive.
+        await run_in_threadpool(context.authorization.authorize, context.scope, "activity.import")
+        media_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+        if media_type != "application/zip":
+            raise HTTPException(415)
+        archive = await request.body()
+        imported = await run_in_threadpool(
+            backend.intake_service(context.authorization).import_bundle, context.scope, archive
+        )
+        return import_view(imported)
+
+    @app.get(prefix + "/activity-imports/{digest}")
+    def read_activity_import(digest: Digest, context: SessionDependency) -> ActivityImport:
+        return import_view(
+            backend.intake_service(context.authorization).read_import(context.scope, digest)
+        )
+
+    @app.get(
+        prefix + "/activity-imports/{digest}/archive",
+        response_class=Response,
+        responses={
+            200: {
+                "content": {"application/zip": {"schema": {"type": "string", "format": "binary"}}}
+            }
+        },
+    )
+    def download_activity_import(digest: Digest, context: SessionDependency) -> Response:
+        archive = backend.intake_service(context.authorization).download_import(
+            context.scope, digest
+        )
+        return Response(
+            archive,
+            media_type="application/zip",
+            headers={"Content-Disposition": 'attachment; filename="activity-bundle.zip"'},
+        )
+
+    @app.post(prefix + "/activities/publish", status_code=201)
+    def publish_activity(payload: PublishActivity, context: SessionDependency) -> CatalogEntry:
+        return backend.catalog_service(context.authorization).publish(
+            context.scope, payload.artifact_digest
+        )
+
+    @app.post(prefix + "/activities/resolve")
+    def read_activity(payload: ActivityRef, context: SessionDependency) -> CatalogEntry:
+        return backend.catalog_service(context.authorization).get(context.scope, payload)
+
+    @app.post(prefix + "/activities/transitions")
+    def transition_activity(
+        payload: TransitionActivity, context: SessionDependency
+    ) -> CatalogEntry:
+        return backend.catalog_service(context.authorization).transition(
+            context.scope, payload.reference, payload.target, payload.expected_generation
         )
 
     @app.get(prefix + "/activities")

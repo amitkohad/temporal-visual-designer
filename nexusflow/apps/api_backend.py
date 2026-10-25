@@ -13,6 +13,7 @@ from nexusflow.apps.catalog_adapters import ScopedCatalog
 from nexusflow.contracts.models import Scope
 from nexusflow.modules.activity_catalog.catalog import CatalogService
 from nexusflow.modules.activity_catalog.catalog_types import CatalogRepository, RuntimeCapabilities
+from nexusflow.modules.activity_catalog.service import IntakeService
 from nexusflow.modules.activity_catalog.types import IntakeRepository
 from nexusflow.modules.designer_forms.validation import AuthoringValidator
 from nexusflow.modules.durable_runtime.starts import AsyncStartDispatcher, SQLiteStartRepository
@@ -148,6 +149,9 @@ class ApiBackend:
             yield service
         finally:
             service.close()
+
+    def intake_service(self, authorization: RequestAuthorization) -> IntakeService:
+        return IntakeService(self.intake, authorization)
 
     def catalog_service(self, authorization: RequestAuthorization) -> CatalogService:
         return CatalogService(self.catalog, self.intake, authorization, self.capabilities)

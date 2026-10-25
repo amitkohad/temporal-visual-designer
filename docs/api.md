@@ -41,6 +41,12 @@ All routes below are relative to `/api/v1/organizations/{organization_id}/enviro
 | POST | `/projects/{id}/validation` | Validate authoring content without saving |
 | POST | `/projects/{id}/releases` | Publish a whole-project immutable release |
 | GET | `/activities?query=&limit=50&offset=0` | Search readable published catalog metadata |
+| POST | `/activity-imports` | Import a private Python source ZIP, returning metadata |
+| GET | `/activity-imports/{digest}` | Read authorized private import metadata |
+| GET | `/activity-imports/{digest}/archive` | Download the original private import ZIP |
+| POST | `/activities/publish` | Publish a validated import after capability approval |
+| POST | `/activities/resolve` | Read lifecycle metadata for a complete pinned activity reference |
+| POST | `/activities/transitions` | Deprecate or withdraw with expected-generation concurrency |
 | GET | `/projects/{id}/activation` | Read current project activation summary |
 | POST | `/projects/{id}/activation` | Activate or roll back using `ActivationRequest` |
 | POST | `/projects/{id}/executions` | Start an active workflow with an idempotency key |
@@ -78,3 +84,11 @@ Project history requires fresh `project.read` permission and returns metadata on
 Comparison requires two revision numbers and defaults to excluding top-level layout. Changes contain JSON Pointer `path`, `before_json` and `after_json`: absent values are null, while an existing JSON null is the string `"null"`. Arrays are compared atomically. Responses stop at 1,000 changes or 262,144 UTF-8 bytes of encoded change objects and return sanitized 422 without partial results when exceeded.
 
 Restore accepts only `source_revision`, `expected_revision` and a nonblank `summary` (at most 1,000 characters). It requires fresh Dev `project.write`, appends a new revision and returns 201. It preserves history, release snapshots, activation and running executions. It does not publish or activate. Stale or duplicate retries return 409; after a lost response, reload the head before retrying. See [ADR 0027](decisions/0027-project-history-api.md).
+
+Activity administration uses the existing scoped `activity_publisher` role; no new grants are implied. Import, private metadata and archive download require fresh `activity.import`. Publication and lifecycle transitions require `activity.publish`; pinned catalog lookup requires `activity.read`. The local demo profile does not grant publisher rights by default.
+
+Import sends raw ZIP bytes with `Content-Type: application/zip`, without multipart or base64. The response is 201 with `digest`, normalized `manifest`, `state` (`validated`), `author_id` and `created_at`. Validation never executes or installs Python. The default HTTP body ceiling is 6,000,000 bytes, below the domain archive maximum of 8 MiB; hosts must account for both limits. Encoded bodies and unsupported media types return 415, oversized HTTP bodies 413, invalid archives 422. Metadata/download responses are private and never expose another scope's artifacts. Archive download returns the first accepted original bytes, `application/zip`, fixed attachment filename `activity-bundle.zip`, and `Cache-Control: no-store`.
+
+Publish accepts only `{"artifact_digest":"sha256:..."}` and returns 201 with the existing `CatalogEntry` structure. It requires an explicitly configured compatible worker-capability provider; metadata validation alone does not establish worker execution. Candidates remain absent from the palette until publication. Resolve accepts an `ActivityRef` object (`activity_id`, `version`, `artifact_digest`) and returns catalog metadata including lifecycle state, even for withdrawn versions. This inspection route uses `CatalogService.get`; the domain new-use resolver retains its withdrawal checks.
+
+Transitions accept only `reference` (a complete `ActivityRef`), `target` (`deprecated` or `withdrawn`) and positive signed-int64 `expected_generation`. They return the updated catalog entry. Wrong generations for a new transition return 409; backward transitions return 422. Repeating a transition whose target is already the current state returns the existing entry without adding audit events, as specified by the domain contract. All retries require fresh permission. Identical logical imports retain the original archive/actor, and repeated publication retains the original catalog entry. There are no source execution, deletion, arbitrary retention or published-package export endpoints in this increment. See [ADR 0028](decisions/0028-activity-admin-api.md).

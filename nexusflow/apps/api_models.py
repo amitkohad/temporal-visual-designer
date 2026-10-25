@@ -5,7 +5,8 @@ from typing import Annotated, Literal
 
 from pydantic import Field, JsonValue, model_validator
 
-from nexusflow.contracts.models import Contract, Digest, Identifier
+from nexusflow.contracts.models import ActivityRef, Contract, Digest, Identifier
+from nexusflow.modules.activity_catalog.types import ActivityManifest
 
 
 class JsonRequest(Contract):
@@ -137,3 +138,21 @@ class ProjectComparison(Contract):
     after_revision: int
     include_layout: bool
     changes: tuple[ProjectChange, ...]
+
+
+class ActivityImport(Contract):
+    digest: Digest
+    manifest: ActivityManifest
+    state: Literal["validated"]
+    author_id: str
+    created_at: str
+
+
+class PublishActivity(Contract):
+    artifact_digest: Digest
+
+
+class TransitionActivity(Contract):
+    reference: ActivityRef
+    target: Literal["deprecated", "withdrawn"]
+    expected_generation: Annotated[int, Field(ge=1, le=2**63 - 1)]
