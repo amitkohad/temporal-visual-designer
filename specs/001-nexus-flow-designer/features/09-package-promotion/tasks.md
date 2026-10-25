@@ -7,20 +7,24 @@ Program gate: NF-T003 and later implementation authorization are required before
 - [ ] F09-T01 Freeze `nexusflow/modules/09-package-promotion/contracts/` against `specs/001-nexus-flow-designer/contracts.md`; prerequisites: release/registry/runtime/authorization review; acceptance: F09-A01–A06 mapped, evidence optional.
   - [x] F09-T01a Freeze target-local activation/rollback requests, revisions, operation receipts, readiness/configuration and audit contracts (ADR 0011).
   - [x] F09-T01c Freeze optional change-request/notes metadata, legacy request identity and bounded successful-operation history contracts (ADR 0030).
-  - [ ] F09-T01b Freeze archive import/export, evidence/attachment and remaining cross-environment contracts.
+  - [x] F09-T01d Freeze bounded optional evidence-file uploads, immutable attachment identity, authorization, safe binary download and quota contracts (ADR 0031).
+  - [ ] F09-T01b Freeze archive import/export, production artifact-provider and remaining cross-environment contracts.
 - [ ] F09-T02 [P] Build lifecycle and audit in `nexusflow/modules/09-package-promotion/backend/`; prerequisites: F09-T01; acceptance: F09-A01–A06 through fake ports.
   - [x] F09-T02a Implement local SQLite whole-project activation/rollback, fresh authorization, exact compatibility checks, conservative retention, atomic success audit and idempotent operation recovery.
   - [x] F09-T02c Persist optional immutable evidence text in the existing activation transaction and expose scoped metadata-only history/operation lookup with stable pagination and legacy receipt recovery ([evidence](../../implementation-deployment-traceability.md)).
-  - [ ] F09-T02b Implement portable package import/export, evidence attachment storage, target binding persistence and remaining lifecycle/recovery operations.
+  - [x] F09-T02d Implement local atomic evidence-file storage with scoped operation linkage, per-operation quotas, original-actor retry receipts and verified downloads ([evidence](../../implementation-deployment-attachments.md)).
+  - [ ] F09-T02b Implement portable package import/export, production artifact providers, target binding persistence and remaining lifecycle/recovery operations.
 - [ ] F09-T03 [P] Build Admin screens in `nexusflow/modules/09-package-promotion/ui/`; prerequisites: F09-T01; acceptance: F09-A01/A02/A04/A06 using stubs.
 - [ ] F09-T04 [P] Build fixtures and acceptance suites in `nexusflow/modules/09-package-promotion/tests/`; prerequisites: F09-T01; acceptance: F09-A01–A06 including post-commit retry.
   - [x] F09-T04a Verify backend activation, concurrent/duplicate requests, lost-commit-response recovery, rollback incompatibility, no-evidence Prod activation authorization, immutable start binding and source/artifact retention.
   - [x] F09-T04c Verify optional evidence metadata, exact/conflicting retries, legacy serialization, SQL metadata bounds, signed Prod policy, scoped reads and independent HTTP acceptance ([evidence](../../implementation-deployment-traceability.md)).
+  - [x] F09-T04d Verify evidence-file scope/revocation, size/quota races, lost-commit recovery, additive local schema, metadata-only listing, opaque download safety and no activation side effects ([evidence](../../implementation-deployment-attachments.md)).
   - [ ] F09-T04b Complete full package transfer, evidence attachment, UI and F09-A01–A06 end-to-end acceptance.
 - [ ] F09-T05 Assemble real provider ports in `nexusflow/modules/09-package-promotion/integration/`; prerequisites: F09-T02/F09-T03/F09-T04 and registry/runtime/identity providers ready; acceptance: F09-A01–A06 across environments.
   - [x] F09-T05a Compose actual local project/catalog/identity stores and start resolver; verify activation/rollback coexistence and replay against real local Temporal with explicit configuration/capability fakes.
   - [x] F09-T05c Compose authenticated activation/current-state HTTP routes using actual local providers, explicit readiness ports and safe receipt summaries; verify activation through the signed HTTP-to-Temporal start path (ADR 0012).
   - [x] F09-T05d Compose optional evidence and bounded history/detail HTTP routes through actual local identity/SQLite providers, preserving typed OpenAPI and existing no-evidence responses ([evidence](../../implementation-deployment-traceability.md)).
+  - [x] F09-T05e Compose signed attachment upload/list/download through actual local providers and verify original deployment receipts and pinned Temporal execution remain unchanged ([evidence](../../implementation-deployment-attachments.md)).
   - [ ] F09-T05b Complete secure package transfer, actual configuration/capability providers, Admin UI and cross-environment acceptance.
 - [ ] F09-T06 Record acceptance and applicable lint in `nexusflow/modules/09-package-promotion/integration/verification.md`; prerequisites: F09-T05; acceptance: no mixed activation or secret export, all scenarios pass.
 

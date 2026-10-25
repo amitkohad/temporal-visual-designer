@@ -68,6 +68,7 @@ from nexusflow.modules.human_tasks.types import (
     TaskView,
 )
 from nexusflow.modules.identity_environments.types import IdentityError
+from nexusflow.modules.package_promotion.attachments import AttachmentMetadata
 from nexusflow.modules.package_promotion.service import ActivatedReleaseResolver
 from nexusflow.modules.package_promotion.types import (
     ActivationError,
@@ -159,6 +160,8 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
             "unavailable": 503,
             "assignment_unavailable": 503,
             "delivery_unavailable": 503,
+            "attachment_too_large": 413,
+            "attachment_limit": 409,
         }.get(code, 422)
         normalized = {
             401: "unauthenticated",
@@ -572,6 +575,80 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
     ) -> ActivationSummary:
         return backend.activation_service(context.authorization).operation(
             context.scope, project_id, operation_id
+        )
+
+    @app.put(
+        prefix + "/projects/{project_id}/activations/{operation_id}/attachments/{attachment_id}",
+        status_code=201,
+        openapi_extra={
+            "requestBody": {
+                "required": True,
+                "content": {
+                    "application/octet-stream": {"schema": {"type": "string", "format": "binary"}}
+                },
+            }
+        },
+    )
+    async def upload_deployment_attachment(
+        request: Request,
+        project_id: Identifier,
+        operation_id: Identifier,
+        attachment_id: Identifier,
+        context: SessionDependency,
+        display_name: Annotated[str, Query(min_length=1, max_length=128)] = "Approval evidence",
+    ) -> AttachmentMetadata:
+        await run_in_threadpool(
+            context.authorization.authorize, context.scope, "package.activate", project_id
+        )
+        media_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+        if media_type != "application/octet-stream":
+            raise HTTPException(415)
+        content = await request.body()
+        return await run_in_threadpool(
+            backend.attachment_service(context.authorization).upload,
+            context.scope,
+            project_id,
+            operation_id,
+            attachment_id,
+            content,
+            display_name,
+        )
+
+    @app.get(prefix + "/projects/{project_id}/activations/{operation_id}/attachments")
+    def deployment_attachments(
+        project_id: Identifier, operation_id: Identifier, context: SessionDependency
+    ) -> tuple[AttachmentMetadata, ...]:
+        return backend.attachment_service(context.authorization).list(
+            context.scope, project_id, operation_id
+        )
+
+    @app.get(
+        prefix + "/projects/{project_id}/activations/{operation_id}/attachments/{attachment_id}",
+        response_class=Response,
+        responses={
+            200: {
+                "content": {
+                    "application/octet-stream": {"schema": {"type": "string", "format": "binary"}}
+                }
+            }
+        },
+    )
+    def download_deployment_attachment(
+        project_id: Identifier,
+        operation_id: Identifier,
+        attachment_id: Identifier,
+        context: SessionDependency,
+    ) -> Response:
+        download = backend.attachment_service(context.authorization).download(
+            context.scope, project_id, operation_id, attachment_id
+        )
+        return Response(
+            download.content,
+            media_type="application/octet-stream",
+            headers={
+                "Content-Disposition": 'attachment; filename="deployment-evidence.bin"',
+                "X-Content-Type-Options": "nosniff",
+            },
         )
 
     @app.get(prefix + "/projects/{project_id}/activation")
