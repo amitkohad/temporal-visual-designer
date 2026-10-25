@@ -55,6 +55,7 @@ Foundation implementation was authorized on 2026-10-23. See [implementation-foun
   - [x] NF-T013d Verify optional local evidence-file persistence and signed upload/list/download, including quota concurrency, retry recovery, scope and activation/runtime isolation ([evidence](implementation-deployment-attachments.md)).
   - [x] NF-T013e Verify portable whole-project release export and non-activating package inspection, including exact source closure, integrity/budgets and signed scope permissions ([evidence](implementation-project-package-export.md)).
   - [x] NF-T013f Verify durable target package staging, immutable logical import receipts, quotas, scoped reads and local CLI restart recovery without creating executable target state ([evidence](implementation-project-package-intake.md)).
+  - [x] NF-T013g Verify atomic staged-package target release materialization, approved catalog identity/readiness, durable retries and explicit activation/execution through local Temporal ([evidence](implementation-package-materialization.md)).
   - [ ] NF-T013b Complete executable target release/artifact materialization, production binding/artifact providers, Admin UI and full F09 acceptance.
 - [ ] NF-T014 [P] Deliver feature 10 adapter/telemetry tests against synthetic providers. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/10-operations-portability/`. Infrastructure provisioning is outside the current specification scope.
 
