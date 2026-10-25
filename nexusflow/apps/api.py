@@ -71,8 +71,10 @@ from nexusflow.modules.identity_environments.types import IdentityError
 from nexusflow.modules.package_promotion.service import ActivatedReleaseResolver
 from nexusflow.modules.package_promotion.types import (
     ActivationError,
+    ActivationHistory,
     ActivationRecord,
     ActivationRequest,
+    ActivationSummary,
 )
 from nexusflow.modules.project_versioning.types import ProjectRecord, Revision, VersioningError
 
@@ -130,6 +132,7 @@ def activation_view(record: ActivationRecord | None) -> ProjectActivation:
             "checksum": record.release.executable_digest,
             "actor_id": record.actor_id,
             "created_at": record.created_at,
+            "evidence": record.request.evidence,
         }
     )
 
@@ -550,6 +553,25 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
     ) -> tuple[CatalogEntry, ...]:
         return backend.catalog_service(context.authorization).search(
             context.scope, query=query, limit=limit, offset=offset
+        )
+
+    @app.get(prefix + "/projects/{project_id}/activations")
+    def activation_history(
+        project_id: Identifier,
+        context: SessionDependency,
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        before_revision: Annotated[int | None, Query(ge=1, le=2**63 - 1)] = None,
+    ) -> ActivationHistory:
+        return backend.activation_service(context.authorization).history_page(
+            context.scope, project_id, limit=limit, before_revision=before_revision
+        )
+
+    @app.get(prefix + "/projects/{project_id}/activations/{operation_id}")
+    def activation_operation(
+        project_id: Identifier, operation_id: Identifier, context: SessionDependency
+    ) -> ActivationSummary:
+        return backend.activation_service(context.authorization).operation(
+            context.scope, project_id, operation_id
         )
 
     @app.get(prefix + "/projects/{project_id}/activation")

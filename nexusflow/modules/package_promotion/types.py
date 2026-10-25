@@ -3,11 +3,23 @@
 from dataclasses import dataclass
 from typing import Annotated, Literal, Protocol
 
-from pydantic import Field
+from pydantic import Field, SerializerFunctionWrapHandler, field_validator, model_serializer
 
-from nexusflow.contracts.models import Contract, DataSchema, Identifier, Scope
+from nexusflow.contracts.models import Contract, DataSchema, Digest, Identifier, Scope
 from nexusflow.contracts.validation import ValidationIssue
 from nexusflow.modules.project_versioning.types import Release
+
+
+class DeploymentEvidence(Contract):
+    change_request_number: Annotated[str | None, Field(max_length=128)] = None
+    notes: Annotated[str | None, Field(max_length=2000)] = None
+
+    @field_validator("change_request_number", "notes")
+    @classmethod
+    def nonblank(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("Evidence must not be blank")
+        return value
 
 
 class ActivationRequest(Contract):
@@ -18,6 +30,37 @@ class ActivationRequest(Contract):
     expected_revision: Annotated[int, Field(ge=0, lt=2**63 - 1)]
     runtime_version: Identifier = "proof.v1"
     action: Literal["activate", "rollback"] = "activate"
+    evidence: DeploymentEvidence | None = None
+
+    @model_serializer(mode="wrap")
+    def serialize(self, handler: SerializerFunctionWrapHandler):  # type: ignore[no-untyped-def]
+        # A return annotation replaces the model's serialization schema with a
+        # generic mapping, hiding the explicit request fields from OpenAPI.
+        result: dict[str, object] = handler(self)
+        if self.evidence is None:
+            result.pop("evidence", None)
+        return result
+
+
+class ActivationSummary(Contract):
+    project_id: Identifier
+    operation_id: Identifier
+    release_id: Identifier
+    revision: Annotated[int, Field(ge=1, lt=2**63)]
+    previous_release_id: Identifier | None
+    action: Literal["activate", "rollback"]
+    runtime_version: Identifier
+    configuration_revision: Identifier
+    checksum: Digest
+    actor_id: str
+    created_at: str
+    evidence: DeploymentEvidence | None = None
+
+
+class ActivationHistory(Contract):
+    project_id: Identifier
+    items: tuple[ActivationSummary, ...]
+    next_before_revision: int | None
 
 
 class ActivationError(Exception):

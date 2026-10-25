@@ -5,6 +5,7 @@ from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 from threading import RLock
+from typing import cast
 
 from pydantic import TypeAdapter
 
@@ -12,14 +13,94 @@ from nexusflow.contracts.models import Scope
 from nexusflow.modules.package_promotion.types import (
     ActivationError,
     ActivationEvent,
+    ActivationHistory,
     ActivationRecord,
     ActivationRequest,
+    ActivationSummary,
+    DeploymentEvidence,
 )
 from nexusflow.modules.project_versioning.canonical import canonical
 from nexusflow.modules.project_versioning.types import Release
 
 
 class SQLiteActivationRepository:
+    # Select only immutable deployment metadata, never the executable snapshot.
+    _SUMMARY_COLUMNS = """project, operation, revision,
+        json_extract(record,'$.request.release_id'),
+        json_extract(record,'$.previous_release_id'),
+        json_extract(record,'$.request.action'),
+        json_extract(record,'$.request.runtime_version'),
+        json_extract(record,'$.request.configuration_revision'),
+        json_extract(record,'$.release.executable_digest'),
+        json_extract(record,'$.actor_id'), json_extract(record,'$.created_at'),
+        json_extract(record,'$.request.evidence')"""
+
+    @staticmethod
+    def _summary(row: tuple[object, ...]) -> ActivationSummary:
+        return ActivationSummary.model_validate(
+            dict(
+                zip(
+                    (
+                        "project_id",
+                        "operation_id",
+                        "revision",
+                        "release_id",
+                        "previous_release_id",
+                        "action",
+                        "runtime_version",
+                        "configuration_revision",
+                        "checksum",
+                        "actor_id",
+                        "created_at",
+                    ),
+                    row[:11],
+                    strict=True,
+                ),
+                evidence=None
+                if row[11] is None
+                else DeploymentEvidence.model_validate_json(cast(str, row[11])),
+            )
+        )
+
+    def history_page(
+        self,
+        scope: Scope,
+        project_id: str,
+        limit: int = 50,
+        before_revision: int | None = None,
+    ) -> ActivationHistory:
+        with self._lock:
+            predicate = "" if before_revision is None else " AND revision < ?"
+            parameters: tuple[object, ...] = (*self._key(scope, project_id),)
+            if before_revision is not None:
+                parameters += (before_revision,)
+            rows = self._db.execute(
+                "SELECT "
+                + self._SUMMARY_COLUMNS
+                + " FROM activation_operations WHERE org=? AND env=? AND project=?"
+                + predicate
+                + " ORDER BY revision DESC LIMIT ?",
+                (*parameters, limit + 1),
+            ).fetchall()
+            items = tuple(self._summary(row) for row in rows[:limit])
+            return ActivationHistory(
+                project_id=project_id,
+                items=items,
+                next_before_revision=items[-1].revision if len(rows) > limit else None,
+            )
+
+    def operation(self, scope: Scope, project_id: str, operation_id: str) -> ActivationSummary:
+        with self._lock:
+            row = self._db.execute(
+                "SELECT "
+                + self._SUMMARY_COLUMNS
+                + " FROM activation_operations WHERE org=? AND env=? AND project=? AND operation=?",
+                (*self._key(scope, project_id), operation_id),
+            ).fetchone()
+            if row is None:
+                raise ActivationError("not_found", "Deployment operation was not found")
+            return self._summary(row)
+
     def __init__(self, database: str | Path) -> None:
         self._db = sqlite3.connect(str(database), check_same_thread=False, timeout=30)
         self._lock = RLock()
