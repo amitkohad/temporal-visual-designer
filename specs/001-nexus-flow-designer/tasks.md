@@ -23,6 +23,7 @@ Foundation implementation was authorized on 2026-10-23. See [implementation-foun
   - [ ] NF-T005b Complete HTTP/download/stream acceptance required by F01-T004; UI/provider integration has separate feature gates.
 - [x] NF-T006 [P] Deliver feature 02 isolated suite with identity fake. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/02-project-versioning/`.
 - [ ] NF-T007 [P] Deliver feature 03 isolated UI suite with project/catalog fixtures. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/03-designer-forms/`.
+  - [x] NF-T007a Deliver independently testable backend onboarding/requisition starter factories and signed Dev project-creation APIs using the supported managed-approval subset ([evidence](implementation-business-process-templates.md)). React/descriptor-backed authoring and full reference-process conformance remain open.
 - [x] NF-T008 [P] Deliver feature 04 catalog/import suite with isolated compatibility/capability fakes. The approved preassembled source format (ADR 0007) performs no builds or installation during intake; executable worker acceptance remains F04-T007. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/04-activity-catalog/`.
   - [x] NF-T008a Validated Python source-bundle intake and independent security/recovery suite are delivered (F04-T001a/T002/T005a).
   - [x] NF-T008b Catalog publication/lifecycle/export acceptance is complete (F04-T003/T005). Isolated execution remains explicitly open under F04-T007; it is not inferred from metadata/capability fakes.

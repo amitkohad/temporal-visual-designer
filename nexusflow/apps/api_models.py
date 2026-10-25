@@ -7,6 +7,7 @@ from pydantic import Field, JsonValue, model_validator
 
 from nexusflow.contracts.models import ActivityRef, Contract, Digest, Identifier
 from nexusflow.modules.activity_catalog.types import ActivityManifest
+from nexusflow.modules.designer_forms.templates import TemplateAssignment
 
 
 class JsonRequest(Contract):
@@ -23,6 +24,28 @@ class CreateProject(JsonRequest):
     project_id: Identifier
     name: Annotated[str, Field(min_length=1, max_length=200)]
     content: dict[str, JsonValue]
+
+
+class TemplateAssignmentRequest(Contract):
+    rule: Literal["any_one", "all_approvers"] = "any_one"
+    user_ids: Annotated[list[Identifier], Field(max_length=1000)] = Field(default_factory=list)
+    group_ids: Annotated[list[Identifier], Field(max_length=1000)] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def valid_assignment(self) -> "TemplateAssignmentRequest":
+        self.to_assignment()
+        return self
+
+    def to_assignment(self) -> TemplateAssignment:
+        return TemplateAssignment(
+            rule=self.rule, user_ids=tuple(self.user_ids), group_ids=tuple(self.group_ids)
+        )
+
+
+class CreateTemplateProject(Contract):
+    project_id: Identifier
+    name: Annotated[str, Field(min_length=1, max_length=200)]
+    assignments: Annotated[dict[str, TemplateAssignmentRequest], Field(max_length=20)]
 
 
 class ReassignTask(JsonRequest):
