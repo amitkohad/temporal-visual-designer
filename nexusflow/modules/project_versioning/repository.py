@@ -10,9 +10,11 @@ from uuid import uuid4
 
 from nexusflow.contracts.models import Scope
 from nexusflow.modules.project_versioning.types import (
+    HistoryPage,
     ProjectRecord,
     Release,
     Revision,
+    RevisionMetadata,
     VersioningError,
 )
 
@@ -208,6 +210,37 @@ class SQLiteProjectRepository:
                 self._key(scope, project_id),
             ).fetchall()
             return tuple(self._revision(scope, row) for row in rows)
+
+    def history_page(
+        self, scope: Scope, project_id: str, limit: int = 50, before_revision: int | None = None
+    ) -> HistoryPage:
+        with self._lock:
+            self.project(scope, project_id)
+            cursor_clause = "" if before_revision is None else " AND number<?"
+            parameters: tuple[object, ...] = self._key(scope, project_id)
+            if before_revision is not None:
+                parameters += (before_revision,)
+            rows = self._db.execute(
+                "SELECT project,number,parent,summary,author,created FROM revisions "
+                "WHERE org=? AND env=? AND project=?"
+                + cursor_clause
+                + " ORDER BY number DESC LIMIT ?",
+                (*parameters, limit + 1),
+            ).fetchall()
+            revisions = tuple(
+                RevisionMetadata(
+                    row["project"],
+                    row["number"],
+                    row["parent"],
+                    row["summary"],
+                    row["author"],
+                    row["created"],
+                )
+                for row in rows[:limit]
+            )
+            return HistoryPage(
+                project_id, revisions, revisions[-1].number if len(rows) > limit else None
+            )
 
     def published(self, scope: Scope, project_id: str, idempotency_key: str) -> Release | None:
         with self._lock:

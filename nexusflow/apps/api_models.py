@@ -103,3 +103,37 @@ class SubmitTaskForm(JsonRequest):
 
 class TaskFormSubmission(Contract):
     revision: Annotated[int, Field(ge=1)]
+
+
+class RestoreProject(Contract):
+    source_revision: Annotated[int, Field(ge=1, le=2**63 - 1)]
+    expected_revision: Annotated[int, Field(ge=1, le=2**63 - 1)]
+    summary: Annotated[str, Field(min_length=1, max_length=1000)]
+
+
+class ProjectRevisionMetadata(Contract):
+    revision: int
+    parent_revision: int | None
+    summary: str
+    author_id: str
+    created_at: str
+
+
+class ProjectHistory(Contract):
+    project_id: Identifier
+    revisions: tuple[ProjectRevisionMetadata, ...]
+    next_before_revision: int | None
+
+
+class ProjectChange(Contract):
+    path: str
+    before_json: str | None
+    after_json: str | None
+
+
+class ProjectComparison(Contract):
+    project_id: Identifier
+    before_revision: int
+    after_revision: int
+    include_layout: bool
+    changes: tuple[ProjectChange, ...]
