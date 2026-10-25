@@ -9,6 +9,15 @@ from threading import RLock
 from uuid import uuid4
 
 from nexusflow.contracts.models import Scope
+from nexusflow.modules.package_promotion.materialization_types import (
+    MaterializationReceipt,
+    MaterializationRecord,
+    MaterializationRequest,
+    materialization_release_id,
+)
+from nexusflow.modules.package_promotion.package_format import PackageManifest
+from nexusflow.modules.package_promotion.types import ActivationError
+from nexusflow.modules.project_versioning.canonical import canonical
 from nexusflow.modules.project_versioning.types import (
     HistoryPage,
     ProjectRecord,
@@ -56,6 +65,14 @@ class SQLiteProjectRepository:
                 UNIQUE (org, env, project, request_key),
                 FOREIGN KEY (org, env, project, source)
                     REFERENCES revisions(org, env, project, number));
+            CREATE TABLE IF NOT EXISTS package_materializations (
+                org TEXT NOT NULL, env TEXT NOT NULL, operation TEXT NOT NULL,
+                import_operation TEXT NOT NULL, request TEXT NOT NULL,
+                package_digest TEXT NOT NULL, receipt TEXT NOT NULL,
+                project TEXT NOT NULL, release TEXT NOT NULL,
+                PRIMARY KEY (org, env, operation),
+                FOREIGN KEY (org, env, project, release)
+                    REFERENCES releases(org, env, project, id));
             CREATE TABLE IF NOT EXISTS publication_tombstones (
                 org TEXT NOT NULL, env TEXT NOT NULL, project TEXT NOT NULL,
                 request_key TEXT NOT NULL,
@@ -339,4 +356,136 @@ class SQLiteProjectRepository:
             self._db.execute(
                 "DELETE FROM releases WHERE org=? AND env=? AND project=? AND id=?",
                 (*self._key(scope, project_id), release_id),
+            )
+
+    def materialization_receipt(
+        self, scope: Scope, operation_id: str
+    ) -> MaterializationRecord | None:
+        with self._lock:
+            row = self._db.execute(
+                "SELECT * FROM package_materializations WHERE org=? AND env=? AND operation=?",
+                (scope.organization_id, scope.environment_id, operation_id),
+            ).fetchone()
+            if row is None:
+                return None
+            return MaterializationRecord(
+                MaterializationRequest.model_validate_json(row["request"]),
+                row["import_operation"],
+                row["package_digest"],
+                MaterializationReceipt.model_validate_json(row["receipt"]),
+                self.release(scope, row["project"], row["release"]),
+            )
+
+    def commit_materialization(
+        self,
+        scope: Scope,
+        import_operation_id: str,
+        request: MaterializationRequest,
+        manifest: PackageManifest,
+        release: Release,
+    ) -> MaterializationRecord:
+        with self._transaction():
+            existing = self.materialization_receipt(scope, request.operation_id)
+            if existing is not None:
+                if (
+                    existing.request != request
+                    or existing.import_operation_id != import_operation_id
+                    or existing.package_digest != manifest.package_digest
+                ):
+                    raise ActivationError(
+                        "conflict", "Materialization operation has already been used"
+                    )
+                return existing
+            number = request.expected_project_revision + 1
+            if (
+                release.scope != scope
+                or manifest.organization_id != scope.organization_id
+                or release.project_id != manifest.project_id
+                or release.release_id != materialization_release_id(scope, request.operation_id)
+                or release.source_revision != number
+                or release.content_digest != manifest.content_digest
+                or release.executable_digest != manifest.executable_digest
+                or request.runtime_version != manifest.runtime_version
+            ):
+                raise ActivationError(
+                    "invalid_release", "Materialization release does not match package"
+                )
+            key = self._key(scope, release.project_id)
+            current = self._db.execute(
+                "SELECT head FROM projects WHERE org=? AND env=? AND project=?", key
+            ).fetchone()
+            head = 0 if current is None else current["head"]
+            if head != request.expected_project_revision:
+                raise ActivationError("conflict", "Target project revision has changed")
+            if current is None:
+                self._db.execute(
+                    "INSERT INTO projects VALUES (?, ?, ?, ?, ?)",
+                    (*key, release.project_id, number),
+                )
+            else:
+                self._db.execute(
+                    "UPDATE projects SET head=? WHERE org=? AND env=? AND project=?",
+                    (number, *key),
+                )
+            self._db.execute(
+                "INSERT INTO revisions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    *key,
+                    number,
+                    head or None,
+                    release.content_json,
+                    "Imported project package",
+                    release.author_id,
+                    release.created_at,
+                ),
+            )
+            self._db.execute(
+                "INSERT INTO releases VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    *key,
+                    release.release_id,
+                    number,
+                    "package-materialization:" + request.operation_id,
+                    release.content_json,
+                    release.artifacts_json,
+                    release.content_digest,
+                    release.executable_digest,
+                    release.author_id,
+                    release.created_at,
+                ),
+            )
+            self._db.execute(
+                "INSERT INTO release_references VALUES (?, ?, ?, ?, ?)",
+                (*key, release.release_id, "materialization:" + request.operation_id),
+            )
+            receipt = MaterializationReceipt(
+                operation_id=request.operation_id,
+                import_operation_id=import_operation_id,
+                project_id=release.project_id,
+                package_digest=manifest.package_digest,
+                source_release_id=manifest.release_id,
+                source_revision=manifest.source_revision,
+                release_id=release.release_id,
+                revision=number,
+                configuration_revision=request.configuration_revision,
+                runtime_version=request.runtime_version,
+                actor_id=release.author_id,
+                created_at=release.created_at,
+            )
+            self._db.execute(
+                "INSERT INTO package_materializations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    scope.organization_id,
+                    scope.environment_id,
+                    request.operation_id,
+                    import_operation_id,
+                    canonical(request.model_dump(mode="json")),
+                    manifest.package_digest,
+                    canonical(receipt.model_dump(mode="json")),
+                    release.project_id,
+                    release.release_id,
+                ),
+            )
+            return MaterializationRecord(
+                request, import_operation_id, manifest.package_digest, receipt, release
             )

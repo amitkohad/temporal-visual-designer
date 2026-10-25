@@ -30,6 +30,8 @@ from nexusflow.modules.human_tasks.types import AssignmentResolver, TaskAuthoriz
 from nexusflow.modules.identity_environments.service import IdentityService
 from nexusflow.modules.identity_environments.types import Environment
 from nexusflow.modules.package_promotion.attachments import DeploymentAttachmentService
+from nexusflow.modules.package_promotion.materialization_types import MaterializationRepository
+from nexusflow.modules.package_promotion.materializations import PackageMaterializationService
 from nexusflow.modules.package_promotion.package_imports import (
     PackageImportRepository,
     PackageImportService,
@@ -144,6 +146,20 @@ class ApiBackend:
         if self.package_imports is None:
             raise ActivationError("unavailable", "Package import provider is not configured")
         return PackageImportService(self.package_imports, authorization)
+
+    def materialization_service(
+        self, authorization: RequestAuthorization, scope: Scope
+    ) -> PackageMaterializationService:
+        authorization.authorize(scope, "package.import", "package-imports")
+        if self.package_imports is None or not isinstance(self.projects, MaterializationRepository):
+            raise ActivationError("unavailable", "Materialization provider is not configured")
+        return PackageMaterializationService(
+            self.package_imports,
+            self.projects,
+            self.catalog,
+            authorization,
+            ProofActivationReadiness(self.catalog, self.capabilities, self.configurations),
+        )
 
     @contextmanager
     def task_form_service(self, authorization: TaskAuthorization) -> Iterator[TaskFormService]:

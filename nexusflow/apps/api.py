@@ -69,6 +69,10 @@ from nexusflow.modules.human_tasks.types import (
 )
 from nexusflow.modules.identity_environments.types import IdentityError
 from nexusflow.modules.package_promotion.attachments import AttachmentMetadata
+from nexusflow.modules.package_promotion.materialization_types import (
+    MaterializationReceipt,
+    MaterializationRequest,
+)
 from nexusflow.modules.package_promotion.package_format import PackageManifest
 from nexusflow.modules.package_promotion.package_imports import (
     PackageImportMetadata,
@@ -535,6 +539,24 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
             raise HTTPException(415)
         archive = await request.body()
         return await run_in_threadpool(service.stage, context.scope, operation_id, archive)
+
+    @app.post(prefix + "/package-imports/{import_operation_id}/materializations", status_code=201)
+    def materialize_package_import(
+        import_operation_id: Identifier,
+        request: MaterializationRequest,
+        context: SessionDependency,
+    ) -> MaterializationReceipt:
+        return backend.materialization_service(context.authorization, context.scope).materialize(
+            context.scope, import_operation_id, request
+        )
+
+    @app.get(prefix + "/package-imports/{import_operation_id}/materializations/{operation_id}")
+    def get_package_materialization(
+        import_operation_id: Identifier, operation_id: Identifier, context: SessionDependency
+    ) -> MaterializationReceipt:
+        return backend.materialization_service(context.authorization, context.scope).receipt(
+            context.scope, import_operation_id, operation_id
+        )
 
     @app.get(prefix + "/package-imports")
     def list_package_imports(

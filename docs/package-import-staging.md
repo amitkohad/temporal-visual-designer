@@ -26,4 +26,4 @@ Reads require fresh permission and remain organization/environment scoped. Missi
 
 Generic hosts must configure the import repository explicitly. The local demo configures persistent `package-imports.db` automatically when opening its backend; existing installations do not need reinitialization. Preserve this file with the rest of the installation during backup/recovery. Staged imports survive server restart and remain independent of current drafts, releases and active runs.
 
-Target release materialization, artifact trust, configuration/worker readiness, activation of imported packages, retention/deletion and Admin UI are not available in this increment. Existing activation endpoints continue to accept only existing target releases; a staged package ID is not a release ID.
+Use the separate [materialization operation](package-materialization.md) to create a destination release after approved-artifact and readiness checks, then explicitly activate that release. A staged package ID is not a release ID. Automatic artifact publication, production trust/provider integrations, retention/deletion and Admin UI remain separate work.
