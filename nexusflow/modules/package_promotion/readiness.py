@@ -11,7 +11,7 @@ from nexusflow.modules.activity_catalog.types import ActivityManifest, CatalogEr
 from nexusflow.modules.durable_runtime.preflight import (
     MAX_DEFINITION_BYTES,
     PlanError,
-    compile_plan,
+    validate_plan_structure,
 )
 from nexusflow.modules.durable_runtime.types import ReleaseBinding
 from nexusflow.modules.package_promotion.types import ActivationRequest, ConfigurationCompatibility
@@ -93,9 +93,8 @@ class ProofActivationReadiness:
                 )
             # Activation checks structure without inventing inputs for schemas
             # requiring business data. Actual starts validate the original schema.
-            structural = workflow.model_copy(update={"input_schema": {}})
             try:
-                compile_plan(structural.model_dump_json(), binding, scope)
+                validate_plan_structure(original_json, binding, scope)
             except PlanError:
                 issues.append(
                     ValidationIssue(

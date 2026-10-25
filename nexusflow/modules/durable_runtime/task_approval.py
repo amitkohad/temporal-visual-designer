@@ -22,6 +22,15 @@ class ManagedApprovalForm(Contract):
 
     @model_validator(mode="after")
     def valid_form(self) -> "ManagedApprovalForm":
+        pending: list[JsonValue] = [self.initial_values]
+        while pending:
+            value = pending.pop()
+            if isinstance(value, dict):
+                if "$binding" in value:
+                    raise ValueError("Unresolved form input bindings are not executable")
+                pending.extend(value.values())
+            elif isinstance(value, list):
+                pending.extend(value)
         prepare_task_form(
             json.dumps(self.definition.model_dump(mode="json"), allow_nan=False),
             json.dumps(self.initial_values, allow_nan=False),
