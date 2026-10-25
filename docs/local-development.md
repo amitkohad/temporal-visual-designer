@@ -99,6 +99,23 @@ The background dispatcher resumes the workflow; query status again until it repo
 
 This profile resolves only synthetic user `22222222-2222-4222-8222-222222222222`; groups and unknown users fail closed. No browser inbox, live Entra adapter or form-binding UI is added. Task forms still require separate explicit providers and bindings. See [ADR 0024](decisions/0024-local-managed-approvals.md).
 
+## Managed approval forms
+
+With `enable-tasks` already configured, the local profile also supplies field access for the synthetic user. Publish the separate [form project](../examples/local-approval-form-project.json) using the same create/release/activation sequence above, substituting project ID `welcome-approval-form`, workflow ID `approval-form-demo` and the new JSON file. Its `human_task.form` contains a full immutable `definition` and literal `initial_values`.
+
+Start that workflow with a new key, then query its inbox as above. The task first appears at revision 2 because creation and form binding commit together. It cannot be approved until the form is submitted successfully. After setting `$localFormTask` to the returned task, preview and submit it:
+
+```powershell
+$localFormPreview = Invoke-RestMethod "$localDemoBase/tasks/$($localFormTask.task_id)/form" -Headers $localDemoHeaders
+$localFormPreview
+$localFormBody = @{ expected_revision = $localFormPreview.revision; values = @{ employee = "Ada" } } | ConvertTo-Json
+$localFormSubmitted = Invoke-RestMethod "$localDemoBase/tasks/$($localFormTask.task_id)/form" -Method Post -Headers $localDemoHeaders -ContentType "application/json" -Body $localFormBody
+$localFormApproval = @{ command_id = "approve-form-1"; expected_revision = $localFormSubmitted.revision; decision = "approve" } | ConvertTo-Json
+Invoke-RestMethod "$localDemoBase/tasks/$($localFormTask.task_id)/decisions" -Method Post -Headers $localDemoHeaders -ContentType "application/json" -Body $localFormApproval
+```
+
+The required `employee` field must be nonempty. Initial `department` is `Engineering`; `reference` is read-only, and the initial `token` value is write-only and omitted from previews. Invalid submissions leave the revision unchanged. Forms become read-only after the first vote, and rejection remains available without form submission. Existing runs retain the same form snapshot and submitted values across source edits and launcher restarts. Submissions are stored with the task; returning form values to workflow variables is future work. See [ADR 0025](decisions/0025-managed-approval-forms.md).
+
 Local access is Dev-only. Existing repository provisioning also records UAT/Prod placements, but synthetic credentials receive no grants there. Custom Python execution is explicitly unavailable and cannot be enabled by publishing a bundle in this profile. The initial catalog is empty; the welcome workflow uses interpreter builtins. Windows file access follows workstation ACLs; Unix key creation requests mode 0600. This is a trusted-workstation demo, not hardened production key management or network deployment.
 
 Checks:

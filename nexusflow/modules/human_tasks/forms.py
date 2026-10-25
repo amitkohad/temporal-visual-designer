@@ -49,6 +49,64 @@ def _object(payload: str, limit: int) -> dict[str, Any]:
         raise FormError("invalid_input", "Form content must be a bounded JSON object") from None
 
 
+def prepare_task_form(definition_json: str, values_json: str = "{}") -> tuple[str, str]:
+    """Validate and pin bounded immutable form content without accessing storage."""
+    raw = _object(definition_json, 1048576)
+    try:
+        definition = FormDefinition.model_validate_json(canonical(raw))
+    except ValueError:
+        raise FormError("invalid_definition", "Invalid form definition") from None
+    issues = validate_form_definition(definition)
+    if issues:
+        raise FormError("invalid_definition", "Unsupported form definition", issues)
+    pinned = canonical(definition.model_dump(mode="json"))
+    initial = canonical(_object(values_json, 262144))
+    if len(pinned.encode("utf-8")) > 1048576:
+        raise FormError("invalid_definition", "Form definition exceeds the supported size")
+    return pinned, initial
+
+
+def bind_task_form(
+    tasks: TaskService,
+    scope: Scope,
+    task_id: str,
+    definition_json: str,
+    values_json: str = "{}",
+) -> int:
+    """Bind using the caller's task transaction; never open or commit another writer."""
+    if not tasks._db.in_transaction:
+        raise RuntimeError("Task form binding requires an active task transaction")
+    try:
+        actor = tasks._actor(scope, "task.create", task_id)
+    except (TaskError, IdentityError):
+        raise
+    except Exception:
+        raise FormError("unavailable", "Task authorization is unavailable") from None
+    task = tasks._get(scope, task_id)
+    pinned, initial = prepare_task_form(definition_json, values_json)
+    key = (scope.organization_id, scope.environment_id, task_id)
+    row = tasks._db.execute(
+        "SELECT definition,initial_values FROM human_task_forms WHERE org=? AND env=? AND task=?",
+        key,
+    ).fetchone()
+    if row:
+        if row != (pinned, initial):
+            raise FormError("conflict", "Task form binding already has different content")
+        return task.revision
+    TaskFormService._mutable(task)
+    tasks._db.execute(
+        "INSERT INTO human_task_forms(org,env,task,definition,initial_values,values_json,validated) VALUES(?,?,?,?,?,?,0)",
+        (*key, pinned, initial, initial),
+    )
+    updated = task.model_copy(update={"revision": task.revision + 1})
+    tasks._db.execute(
+        "UPDATE human_tasks SET view=? WHERE org=? AND env=? AND id=?",
+        (updated.model_dump_json(), *key),
+    )
+    tasks._event(updated, "form_bound", actor)
+    return updated.revision
+
+
 class TaskFormService:
     def __init__(
         self,
@@ -122,35 +180,7 @@ class TaskFormService:
         self, scope: Scope, task_id: str, definition_json: str, values_json: str = "{}"
     ) -> int:
         with self.tasks._transaction():
-            actor = self._actor(scope, "task.create", task_id)
-            task = self.tasks._get(scope, task_id)
-            raw = _object(definition_json, 1048576)
-            try:
-                definition = FormDefinition.model_validate_json(canonical(raw))
-            except ValueError:
-                raise FormError("invalid_definition", "Invalid form definition") from None
-            issues = validate_form_definition(definition)
-            if issues:
-                raise FormError("invalid_definition", "Unsupported form definition", issues)
-            pinned = canonical(definition.model_dump(mode="json"))
-            initial = canonical(_object(values_json, 262144))
-            if len(pinned.encode("utf-8")) > 1048576:
-                raise FormError("invalid_definition", "Form definition exceeds the supported size")
-            key = (scope.organization_id, scope.environment_id, task_id)
-            row = self.tasks._db.execute(
-                "SELECT definition,initial_values FROM human_task_forms WHERE org=? AND env=? AND task=?",
-                key,
-            ).fetchone()
-            if row:
-                if row != (pinned, initial):
-                    raise FormError("conflict", "Task form binding already has different content")
-                return task.revision
-            self._mutable(task)
-            self.tasks._db.execute(
-                "INSERT INTO human_task_forms(org,env,task,definition,initial_values,values_json,validated) VALUES(?,?,?,?,?,?,0)",
-                (*key, pinned, initial, initial),
-            )
-            return self._save(task, actor, "form_bound")
+            return bind_task_form(self.tasks, scope, task_id, definition_json, values_json)
 
     def preview(self, scope: Scope, task_id: str) -> FormView:
         return FormService(_Gateway(self)).preview(scope, task_id)

@@ -1,0 +1,13 @@
+# ADR 0025: Pinned forms on managed approvals
+
+Status: accepted for inline managed approval forms in the bounded proof runtime.
+
+An optional `human_task.form` object contains a complete `definition` and literal `initial_values`. Reuse the existing authoritative form contract, validation limits and supported rule subset. Validate during preflight and again in the trusted creation activity before writing destination state. The inline definition is part of the immutable workflow/release and execution plan; no mutable project form lookup or general expression evaluation is introduced. Preserve exact no-form approval serialization by omitting the absent optional field.
+
+Refactor binding into a pure validation/canonicalization helper and a transaction-only same-connection binding primitive. The creation callback registers its exact completion route and inserts the form on the existing task transaction before commit. Do not call the standalone form service from inside task creation: its second SQLite writer would deadlock and separate commits would expose an approval before its form gate existed. Task, form, revision and audits commit together. Journal-first orphan records remain safe under the existing deterministic task IDs and retry contract.
+
+Newly bound forms require an explicit successful submission even when initial values would satisfy the schema. Approval remains blocked until validation; rejection remains allowed. Exact binding retries compare canonical definition and original initial values, while preserving current submitted values, validation, decisions and terminal state. Changed bindings conflict. Standalone binding retains its transaction, fresh authorization and safe provider-error behavior.
+
+The local task profile supplies an explicit single-user field policy that reads the pinned field names through a read-only scoped database connection. It grants no task access: API requests still recheck signed identity, membership, participant grants and current task eligibility. Shared form validation applies read-only schema/field flags, write-only redaction, conditional rules and revision checks. A generic host without an explicit field provider continues to fail closed.
+
+Forms use the current pinned shared-task behavior: edits freeze after the first vote, and sequential stages share one form. Inputs and results are not added to completion payloads or workflow outputs. Dynamic input/output mapping, reusable project-form references, attachments, live field authorization and the React form builder/renderer remain separate work. This increment establishes configurable forms through the local HTTP workflow path, not full business-user UI or production-provider acceptance.

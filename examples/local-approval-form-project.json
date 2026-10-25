@@ -1,0 +1,120 @@
+{
+  "project_id": "welcome-approval-form",
+  "name": "Local managed approval with form",
+  "content": {
+    "schema_version": "0.1",
+    "workflows": [
+      {
+        "schema_version": "0.1",
+        "workflow_id": "approval-form-demo",
+        "input_schema": {
+          "type": "object"
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "nodes": [
+          {
+            "node_id": "start",
+            "kind": "start",
+            "named_ports": {
+              "inputs": [],
+              "outputs": [
+                "out"
+              ]
+            },
+            "input_mapping": {}
+          },
+          {
+            "node_id": "approval",
+            "kind": "approval",
+            "named_ports": {
+              "inputs": [
+                "in"
+              ],
+              "outputs": [
+                "out"
+              ]
+            },
+            "input_mapping": {
+              "human_task": {
+                "rule": "any_one",
+                "user_ids": [
+                  "22222222-2222-4222-8222-222222222222"
+                ],
+                "form": {
+                  "definition": {
+                    "schema_version": "0.1",
+                    "form_id": "employee-approval",
+                    "data_schema": {
+                      "type": "object",
+                      "properties": {
+                        "employee": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "department": {
+                          "type": "string"
+                        },
+                        "reference": {
+                          "type": "string",
+                          "readOnly": true
+                        },
+                        "token": {
+                          "type": "string",
+                          "writeOnly": true
+                        }
+                      },
+                      "required": [
+                        "employee"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "initial_values": {
+                    "department": "Engineering",
+                    "reference": "HR-LOCAL",
+                    "token": "demo-hidden-value"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "node_id": "end",
+            "kind": "end",
+            "named_ports": {
+              "inputs": [
+                "in"
+              ],
+              "outputs": []
+            },
+            "input_mapping": {}
+          }
+        ],
+        "start_definitions": [
+          {
+            "start_id": "manual",
+            "node_id": "start",
+            "kind": "manual"
+          }
+        ],
+        "edges": [
+          {
+            "source_node_id": "start",
+            "source_port": "out",
+            "target_node_id": "approval",
+            "target_port": "in"
+          },
+          {
+            "source_node_id": "approval",
+            "source_port": "out",
+            "target_node_id": "end",
+            "target_port": "in"
+          }
+        ],
+        "error_routes": []
+      }
+    ]
+  }
+}
