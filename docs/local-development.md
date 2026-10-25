@@ -116,6 +116,20 @@ Invoke-RestMethod "$localDemoBase/tasks/$($localFormTask.task_id)/decisions" -Me
 
 The required `employee` field must be nonempty. Initial `department` is `Engineering`; `reference` is read-only, and the initial `token` value is write-only and omitted from previews. Invalid submissions leave the revision unchanged. Forms become read-only after the first vote, and rejection remains available without form submission. Existing runs retain the same form snapshot and submitted values across source edits and launcher restarts. Submissions are stored with the task; returning form values to workflow variables is future work. See [ADR 0025](decisions/0025-managed-approval-forms.md).
 
+## Initialize forms from workflow input
+
+Publish the [input-binding project](../examples/local-approval-input-project.json) using the earlier create/release/activation sequence with project ID `welcome-approval-input`. Its workflow `approval-input-demo` selects `/employee/name` and `/department` from required input properties. Start it with:
+
+```powershell
+$localInputStart = @{ workflow_id = "approval-input-demo"; idempotency_key = "input-form-run-1"; input = @{ employee = @{ name = "Ada" }; department = "Engineering" } } | ConvertTo-Json -Depth 10
+$localInputRun = Invoke-RestMethod "$localDemoBase/projects/welcome-approval-input/executions" -Method Post -Headers $localDemoHeaders -ContentType "application/json" -Body $localInputStart
+Invoke-RestMethod "$localDemoBase/tasks?run_id=$($localInputRun.execution_id)" -Headers $localDemoHeaders
+```
+
+The form preview contains the selected values once its task appears. Use the same preview/submission/decision sequence as above. An empty `values` object can explicitly validate already-valid initial values; prepopulation alone does not unlock approval. A new start key with different input creates a separate snapshot. Reusing a key with changed input conflicts. Draft edits and restart do not alter existing task values.
+
+Selectors must occupy an entire initial field, use `schema_version: "0.1"`, `source: "input"` and a strict JSON Pointer to required object properties. Optional fields, array traversal, step outputs and expressions are unsupported. Referenced input types must match the form field; invalid runtime values fail before execution is accepted. Existing field permissions and write-only redaction still apply. General activity mappings and workflow output bindings remain future work. See [ADR 0026](decisions/0026-form-input-bindings.md).
+
 Local access is Dev-only. Existing repository provisioning also records UAT/Prod placements, but synthetic credentials receive no grants there. Custom Python execution is explicitly unavailable and cannot be enabled by publishing a bundle in this profile. The initial catalog is empty; the welcome workflow uses interpreter builtins. Windows file access follows workstation ACLs; Unix key creation requests mode 0600. This is a trusted-workstation demo, not hardened production key management or network deployment.
 
 Checks:

@@ -10,6 +10,11 @@ from pydantic import JsonValue, ValidationError
 
 from nexusflow.contracts import Scope, WorkflowDefinition, validate_contract
 from nexusflow.modules.designer_forms.form_types import FormError
+from nexusflow.modules.durable_runtime.form_inputs import (
+    FormInputError,
+    resolve_form_inputs,
+    validate_form_input_bindings,
+)
 from nexusflow.modules.durable_runtime.task_approval import parse_task_approval
 from nexusflow.modules.durable_runtime.types import ExecutionPlan, ReleaseBinding, Step
 
@@ -28,6 +33,34 @@ def compile_plan(
     inputs: dict[str, JsonValue] | None = None,
     debug: bool = False,
     breakpoints: tuple[str, ...] = (),
+) -> ExecutionPlan:
+    return _compile_plan(
+        definition_json,
+        binding,
+        authorized_scope,
+        inputs=inputs,
+        debug=debug,
+        breakpoints=breakpoints,
+        structure_only=False,
+    )
+
+
+def validate_plan_structure(
+    definition_json: str, binding: ReleaseBinding, authorized_scope: Scope
+) -> None:
+    """Validate an original definition without inventing workflow business inputs."""
+    _compile_plan(definition_json, binding, authorized_scope, structure_only=True)
+
+
+def _compile_plan(
+    definition_json: str,
+    binding: ReleaseBinding,
+    authorized_scope: Scope,
+    *,
+    inputs: dict[str, JsonValue] | None = None,
+    debug: bool = False,
+    breakpoints: tuple[str, ...] = (),
+    structure_only: bool,
 ) -> ExecutionPlan:
     if (binding.organization_id, binding.environment_id) != (
         authorized_scope.organization_id,
@@ -56,9 +89,20 @@ def compile_plan(
         raise PlanError("Proof supports at most 100 nodes and one start")
     if definition.error_routes:
         raise PlanError("Error routes are not supported by this proof")
-    # The authoring binding contract is not executable by proof.v1. Never pass
-    # reserved syntax through as a literal activity argument.
-    pending_values: list[JsonValue] = [node.input_mapping for node in definition.nodes]
+    # Strip only validated whole-field input bindings from the reserved-syntax
+    # scan. Every other binding remains unsupported by this interpreter.
+    pending_values: list[JsonValue] = []
+    for node in definition.nodes:
+        mapping = dict(node.input_mapping)
+        configuration = mapping.get("human_task")
+        if isinstance(configuration, dict):
+            try:
+                mapping["human_task"] = validate_form_input_bindings(
+                    configuration, definition.input_schema
+                )
+            except FormInputError:
+                raise PlanError("Invalid human task form input binding") from None
+        pending_values.append(mapping)
     while pending_values:
         value = pending_values.pop()
         if isinstance(value, dict):
@@ -84,7 +128,8 @@ def compile_plan(
         input_json = json.dumps(
             inputs if inputs is not None else {}, allow_nan=False, sort_keys=True
         )
-        Draft202012Validator(definition.input_schema).validate(json.loads(input_json))
+        if not structure_only:
+            Draft202012Validator(definition.input_schema).validate(json.loads(input_json))
     except (ValueError, SchemaValidationError):
         raise PlanError("Workflow input does not match its schema") from None
     if len(input_json.encode()) > 65536:
@@ -111,7 +156,12 @@ def compile_plan(
             if set(configuration) - {"rule", "user_ids", "group_ids", "stages", "form"}:
                 raise PlanError("Human task configuration contains unsupported fields")
             try:
-                request = parse_task_approval(json.dumps(configuration, allow_nan=False))
+                materialized = (
+                    validate_form_input_bindings(configuration, definition.input_schema)
+                    if structure_only
+                    else resolve_form_inputs(configuration, definition.input_schema, inputs or {})
+                )
+                request = parse_task_approval(json.dumps(materialized, allow_nan=False))
             except (ValueError, ValidationError, FormError):
                 raise PlanError("Invalid human task approval configuration") from None
             task_approval_json = json.dumps(
