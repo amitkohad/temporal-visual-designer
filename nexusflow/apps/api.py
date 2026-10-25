@@ -69,6 +69,11 @@ from nexusflow.modules.human_tasks.types import (
 )
 from nexusflow.modules.identity_environments.types import IdentityError
 from nexusflow.modules.package_promotion.attachments import AttachmentMetadata
+from nexusflow.modules.package_promotion.configuration_types import (
+    ConfigurationMetadata,
+    ConfigurationPage,
+    ConfigurationWrite,
+)
 from nexusflow.modules.package_promotion.materialization_types import (
     MaterializationReceipt,
     MaterializationRequest,
@@ -385,6 +390,40 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
             backend.project_service(context.authorization, context.scope).read(
                 context.scope, project_id, revision
             )
+        )
+
+    @app.put(
+        prefix + "/projects/{project_id}/configurations/{configuration_revision}", status_code=201
+    )
+    def put_configuration(
+        project_id: Identifier,
+        configuration_revision: Identifier,
+        payload: ConfigurationWrite,
+        context: SessionDependency,
+    ) -> ConfigurationMetadata:
+        return backend.configuration_service(context.authorization, context.scope).put(
+            context.scope, project_id, configuration_revision, payload
+        )
+
+    @app.get(prefix + "/projects/{project_id}/configurations/{configuration_revision}")
+    def get_configuration(
+        project_id: Identifier,
+        configuration_revision: Identifier,
+        context: SessionDependency,
+    ) -> ConfigurationMetadata:
+        return backend.configuration_service(context.authorization, context.scope).get(
+            context.scope, project_id, configuration_revision
+        )
+
+    @app.get(prefix + "/projects/{project_id}/configurations")
+    def list_configurations(
+        project_id: Identifier,
+        context: SessionDependency,
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        before_revision: Annotated[int | None, Query(ge=1, le=2**63 - 1)] = None,
+    ) -> ConfigurationPage:
+        return backend.configuration_service(context.authorization, context.scope).list(
+            context.scope, project_id, limit=limit, before_revision=before_revision
         )
 
     @app.get(prefix + "/projects/{project_id}/history")

@@ -11,6 +11,7 @@ Program gate: NF-T003 and later implementation authorization are required before
   - [x] F09-T01e Freeze portable release ZIP inventory/digests, source closure, limits and non-activating inspection contracts (ADR 0032).
   - [x] F09-T01f Freeze target package staging, logical operation identity, immutable receipts/archive, scoped quotas and metadata history (ADR 0033).
   - [x] F09-T01g Freeze scoped materialization requests/receipts, target project revision CAS, approved-artifact prerequisite and separate activation boundary (ADR 0034).
+  - [x] F09-T01h Freeze immutable scoped destination configuration revisions, metadata-only administration and stored-value schema compatibility contracts (ADR 0035).
   - [ ] F09-T01b Freeze executable target release/artifact materialization, production provider and remaining cross-environment trust/binding contracts.
 - [ ] F09-T02 [P] Build lifecycle and audit in `nexusflow/modules/09-package-promotion/backend/`; prerequisites: F09-T01; acceptance: F09-A01–A06 through fake ports.
   - [x] F09-T02a Implement local SQLite whole-project activation/rollback, fresh authorization, exact compatibility checks, conservative retention, atomic success audit and idempotent operation recovery.
@@ -19,6 +20,7 @@ Program gate: NF-T003 and later implementation authorization are required before
   - [x] F09-T02e Implement deterministic whole-project export with exact activity bundles, strict ZIP/JSON/integrity checks and side-effect-free package inspection ([evidence](../../implementation-project-package-export.md)).
   - [x] F09-T02f Persist structurally inspected target packages and first archives atomically with scoped revisions/quotas, immutable logical retries and integrity-checked reads ([evidence](../../implementation-project-package-intake.md)).
   - [x] F09-T02g Materialize approved staged snapshots into atomic target revisions/releases with immutable receipts, compatibility checks, conservative retention and durable retries ([evidence](../../implementation-package-materialization.md)).
+  - [x] F09-T02h Persist bounded immutable non-secret configuration snapshots with atomic quotas/sequences, canonical retries, verified reads and no-reference local schema validation ([evidence](../../implementation-destination-configurations.md)).
   - [ ] F09-T02b Implement executable target release/artifact materialization, production artifact providers, target binding persistence and remaining lifecycle/recovery operations.
 - [ ] F09-T03 [P] Build Admin screens in `nexusflow/modules/09-package-promotion/ui/`; prerequisites: F09-T01; acceptance: F09-A01/A02/A04/A06 using stubs.
 - [ ] F09-T04 [P] Build fixtures and acceptance suites in `nexusflow/modules/09-package-promotion/tests/`; prerequisites: F09-T01; acceptance: F09-A01–A06 including post-commit retry.
@@ -28,6 +30,7 @@ Program gate: NF-T003 and later implementation authorization are required before
   - [x] F09-T04e Verify portable package roundtrip, whole-resource/source preservation, strict archive/JSON adversarial cases, early budgets, signed export/import permissions and non-activating inspection ([evidence](../../implementation-project-package-export.md)).
   - [x] F09-T04f Verify staging retry/quota races, loss-of-ack recovery, strict scope/permissions, metadata-only pagination, stored integrity and no target release/activation mutation ([evidence](../../implementation-project-package-intake.md)).
   - [x] F09-T04g Verify materialization CAS/rollback/restart, exact retries, signed scope/Prod policy, readiness rejection and no implicit activation ([evidence](../../implementation-package-materialization.md)).
+  - [x] F09-T04h Verify configuration retries/restart, concurrency/quota, integrity/bounds, fresh administrator authorization, metadata-only APIs and actual configuration readiness ([evidence](../../implementation-destination-configurations.md)).
   - [ ] F09-T04b Complete full package transfer, evidence attachment, UI and F09-A01–A06 end-to-end acceptance.
 - [ ] F09-T05 Assemble real provider ports in `nexusflow/modules/09-package-promotion/integration/`; prerequisites: F09-T02/F09-T03/F09-T04 and registry/runtime/identity providers ready; acceptance: F09-A01–A06 across environments.
   - [x] F09-T05a Compose actual local project/catalog/identity stores and start resolver; verify activation/rollback coexistence and replay against real local Temporal with explicit configuration/capability fakes.
@@ -37,6 +40,7 @@ Program gate: NF-T003 and later implementation authorization are required before
   - [x] F09-T05f Compose release-package download and offline-validation HTTP routes through actual local project/catalog/identity providers; retain immutable release bytes and non-mutating inspection ([evidence](../../implementation-project-package-export.md)).
   - [x] F09-T05g Compose signed staging APIs and additive local persistent storage; verify Dev-to-UAT staging, immutable archives/receipts across real CLI restart and unchanged original execution ([evidence](../../implementation-project-package-intake.md)).
   - [x] F09-T05h Compose signed materialization with actual local project/catalog/identity stores and verify explicit target activation/execution/replay through real Temporal, using explicit configuration/capability fixtures ([evidence](../../implementation-package-materialization.md)).
+  - [x] F09-T05i Compose configuration administration and compatibility through the same actual local SQLite provider; verify missing-config refusal then UAT materialization/activation/execution/replay against real Temporal ([evidence](../../implementation-destination-configurations.md)).
   - [ ] F09-T05b Complete secure package transfer, actual configuration/capability providers, Admin UI and cross-environment acceptance.
 - [ ] F09-T06 Record acceptance and applicable lint in `nexusflow/modules/09-package-promotion/integration/verification.md`; prerequisites: F09-T05; acceptance: no mixed activation or secret export, all scenarios pass.
 
