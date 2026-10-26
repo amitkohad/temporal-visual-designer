@@ -147,7 +147,7 @@ Receipt fields are `project_id`, `configuration_revision`, project-local `revisi
 
 ## Dev debugger sessions
 
-Generic hosts explicitly configure both `ApiBackend.debug_sessions` and `debug_runtime`. Fresh `debug.execute`, an explicit Dev-only guard and session ownership govern every operation; permission checks precede provider availability. The standalone local demo does not yet supply these providers.
+Generic hosts explicitly configure both `ApiBackend.debug_sessions` and `debug_runtime`. Fresh `debug.execute`, an explicit Dev-only guard and session ownership govern every operation; permission checks precede provider availability. The standalone local demo supplies these providers after the explicit [enable-debugger command](local-development.md#enable-dev-debugging).
 
 - `POST /projects/{project_id}/debug-sessions`: strict `operation_id`, `source_revision`, `workflow_id`, `configuration_revision`, optional `input`/`breakpoints`, and required `mode: "real"`; 202 session metadata. No activation is needed or changed. Exact retries reuse the frozen plan/execution; changed requests conflict.
 - `GET /projects/{project_id}/debug-sessions/{session_id}`: session metadata and payload-free runtime snapshot, targeting the saved exact run.

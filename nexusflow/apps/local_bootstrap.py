@@ -16,7 +16,12 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from jsonschema import Draft202012Validator
 from pydantic import field_validator
 
-from nexusflow.apps.api_backend import ApiBackend, RequestAuthorization, RuntimeGateway
+from nexusflow.apps.api_backend import (
+    ApiBackend,
+    RequestAuthorization,
+    RuntimeGateway,
+    TemporalRuntimeGateway,
+)
 from nexusflow.contracts.models import Contract, DataSchema, Identifier, Scope, check_data_schema
 from nexusflow.modules.activity_catalog.catalog_repository import SQLiteCatalogRepository
 from nexusflow.modules.activity_catalog.repository import SQLiteIntakeRepository
@@ -221,10 +226,17 @@ def _backend(
     runtime: RuntimeGateway,
     *,
     tasks_enabled: bool = False,
+    debug_enabled: bool = False,
 ) -> Iterator[ApiBackend]:
+    from nexusflow.apps.local_debug import load_debug_profile
     from nexusflow.apps.local_tasks import LocalTaskAssignments, LocalTaskFields, load_task_profile
+    from nexusflow.modules.designer_debugger.repository import SQLiteDebugSessionRepository
+    from nexusflow.modules.designer_debugger.temporal import TemporalDebugRuntime
 
     profile = load_task_profile(directory, settings) if tasks_enabled else None
+    debug_profile = load_debug_profile(directory, settings) if debug_enabled else None
+    if debug_profile is not None and not isinstance(runtime, TemporalRuntimeGateway):
+        raise ValueError("Local debugger requires the owned Temporal runtime")
     with ExitStack() as stack:
         identity = SQLiteIdentityRepository(directory / "identity.db")
         stack.callback(identity.close)
@@ -238,6 +250,15 @@ def _backend(
         stack.callback(activations.close)
         starts = SQLiteStartRepository(directory / "starts.db")
         stack.callback(starts.close)
+        debug_sessions = None
+        debug_runtime = None
+        if debug_profile is not None:
+            assert isinstance(runtime, TemporalRuntimeGateway)
+            debug_sessions = SQLiteDebugSessionRepository(
+                directory / debug_profile.sessions_database
+            )
+            stack.callback(debug_sessions.close)
+            debug_runtime = TemporalDebugRuntime(runtime.clients, runtime.journal)
         package_imports = SQLitePackageImportRepository(directory / "package-imports.db")
         stack.callback(package_imports.close)
         yield ApiBackend(
@@ -254,13 +275,15 @@ def _backend(
             task_assignments=LocalTaskAssignments(profile.scope) if profile else None,
             task_fields=LocalTaskFields(directory, profile.scope) if profile else None,
             package_imports=package_imports,
+            debug_sessions=debug_sessions,
+            debug_runtime=debug_runtime,
         )
 
 
 @contextmanager
 def open_backend(directory: Path, runtime: RuntimeGateway) -> Iterator[ApiBackend]:
     settings = load_settings(directory)
-    with _backend(directory, settings, runtime, tasks_enabled=True) as backend:
+    with _backend(directory, settings, runtime, tasks_enabled=True, debug_enabled=True) as backend:
         yield backend
 
 

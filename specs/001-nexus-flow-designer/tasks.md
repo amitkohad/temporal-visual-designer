@@ -48,6 +48,7 @@ Foundation implementation was authorized on 2026-10-23. See [implementation-foun
   - [x] NF-T010n Verify bounded workflow-input selectors for managed form initial values, structural activation validation, pinned materialization, worker literal guards and actual local restart/idempotency acceptance; general mappings and UI remain open ([evidence](implementation-form-input-bindings.md)).
   - [ ] NF-T010b Complete remaining form integrations/attachments, timers/escalation/notifications, remaining conditional rules, task lifecycle, remaining inbox filters/UI and full HT-A1–A7 acceptance with actual adapters.
 - [ ] NF-T011 [P] Deliver feature 07 debugger suite with event fixtures. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/07-designer-debugger/`.
+  - [x] NF-T011c Verify opt-in local debugger profiles, safe CLI/bootstrap composition and full launcher paused-session restart with exact receipts and actual Temporal replay ([evidence](implementation-local-debugger.md)).
   - [x] NF-T011a Verify immutable owner-scoped Dev debug sessions, payload-free status, durable step/continue command receipts and actual Temporal pause/restart/replay through signed APIs ([evidence](implementation-designer-debug-sessions.md)).
   - [ ] NF-T011b Complete inspection/redaction, cancellation/expiry, events, mock connections, parallel stepping, Designer UI and full DB acceptance.
 - [ ] NF-T012 [P] Deliver feature 08 connector suite with local transports. Prerequisite: NF-T003. Owner paths: `nexusflow/modules/08-connectors/`.
@@ -65,6 +66,7 @@ Foundation implementation was authorized on 2026-10-23. See [implementation-foun
 ## Integration and convergence
 
 - [ ] NF-T015 Integrate module composition, migrations and navigation under `nexusflow/apps/`, ordered by provider graph in plan.md. Prerequisites: NF-T005–014 and NF-T004. Owner: integration lead. Acceptance: same conformance fixtures pass against actual providers; no fake in deployment configuration.
+  - [x] NF-T015e Compose explicitly enabled persistent local debugging with the owned API/Temporal runtime; verify disabled defaults, readonly recovery checks, revocation preservation and normal execution isolation ([evidence](implementation-local-debugger.md)).
   - [x] NF-T015a Compose initial authenticated Python HTTP project/catalog/activation/start/status API using actual local module providers and an actual Temporal gateway; verify signed request isolation and HTTP-to-Temporal acceptance ([evidence](implementation-application-api.md)).
   - [ ] NF-T015b Complete remaining provider/HTTP/download/stream composition, production migrations, React navigation and full feature conformance. NF-T015a/c are bounded provider-subset integrations, not full NF-T005–014 completion.
   - [x] NF-T015c Deliver explicit persistent local-demo init/token/serve/stop composition, actual loopback API/Temporal proof worker, safe seed and exclusive lifecycle ownership; verify socket/restart and isolated bootstrap/runtime acceptance ([evidence](implementation-local-launcher.md)).
