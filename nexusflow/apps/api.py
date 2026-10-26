@@ -48,6 +48,13 @@ from nexusflow.contracts.models import ActivityRef, Digest, Identifier, Scope
 from nexusflow.contracts.validation import ValidationIssue
 from nexusflow.modules.activity_catalog.catalog_types import CatalogEntry
 from nexusflow.modules.activity_catalog.types import ActivityManifest, CatalogError, ImportedBundle
+from nexusflow.modules.designer_debugger.types import (
+    DebugControl,
+    DebugError,
+    DebugSession,
+    DebugStart,
+    DebugStatus,
+)
 from nexusflow.modules.designer_forms.form_types import FormError, FormView
 from nexusflow.modules.designer_forms.templates import (
     TemplateInfo,
@@ -56,7 +63,7 @@ from nexusflow.modules.designer_forms.templates import (
     list_templates,
 )
 from nexusflow.modules.durable_runtime.starts import AsyncStartService, StartError, StartRequest
-from nexusflow.modules.durable_runtime.types import Snapshot
+from nexusflow.modules.durable_runtime.types import CommandReceipt, Snapshot
 from nexusflow.modules.human_tasks.types import (
     DecisionRequest,
     DelegationRequest,
@@ -202,6 +209,7 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
         StartError,
         TaskError,
         FormError,
+        DebugError,
         RPCError,
         OSError,
         sqlite3.Error,
@@ -853,6 +861,33 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
             raise VersioningError("invalid_request", "Project identity mismatch")
         return activation_view(
             backend.activation_service(context.authorization).apply(context.scope, payload)
+        )
+
+    @app.post(prefix + "/projects/{project_id}/debug-sessions", status_code=202)
+    async def start_debug(
+        project_id: Identifier, payload: DebugStart, context: SessionDependency
+    ) -> DebugSession:
+        return await backend.debug_service(context.authorization, context.scope).start(
+            context.scope, project_id, payload
+        )
+
+    @app.get(prefix + "/projects/{project_id}/debug-sessions/{session_id}")
+    async def debug_status(
+        project_id: Identifier, session_id: Identifier, context: SessionDependency
+    ) -> DebugStatus:
+        return await backend.debug_service(context.authorization, context.scope).status(
+            context.scope, project_id, session_id
+        )
+
+    @app.post(prefix + "/projects/{project_id}/debug-sessions/{session_id}/commands")
+    async def debug_control(
+        project_id: Identifier,
+        session_id: Identifier,
+        payload: DebugControl,
+        context: SessionDependency,
+    ) -> CommandReceipt:
+        return await backend.debug_service(context.authorization, context.scope).control(
+            context.scope, project_id, session_id, payload
         )
 
     @app.post(prefix + "/projects/{project_id}/executions", status_code=202)

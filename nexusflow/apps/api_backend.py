@@ -15,6 +15,9 @@ from nexusflow.modules.activity_catalog.catalog import CatalogService
 from nexusflow.modules.activity_catalog.catalog_types import CatalogRepository, RuntimeCapabilities
 from nexusflow.modules.activity_catalog.service import IntakeService
 from nexusflow.modules.activity_catalog.types import IntakeRepository
+from nexusflow.modules.designer_debugger.repository import SQLiteDebugSessionRepository
+from nexusflow.modules.designer_debugger.service import DebugSessionService
+from nexusflow.modules.designer_debugger.types import DebugError, DebugRuntime
 from nexusflow.modules.designer_forms.validation import AuthoringValidator
 from nexusflow.modules.durable_runtime.starts import AsyncStartDispatcher, SQLiteStartRepository
 from nexusflow.modules.durable_runtime.temporal_starts import (
@@ -140,6 +143,31 @@ class ApiBackend:
     task_assignments: AssignmentResolver | None = None
     task_fields: TaskFieldPolicy | None = None
     package_imports: PackageImportRepository | None = None
+    debug_sessions: SQLiteDebugSessionRepository | None = None
+    debug_runtime: DebugRuntime | None = None
+
+    def debug_service(
+        self, authorization: RequestAuthorization, scope: Scope
+    ) -> DebugSessionService:
+        authorization.authorize(scope, "debug.execute")
+        if scope.environment_id != "dev":
+            raise DebugError("forbidden", "Debugging requires Dev")
+        if self.debug_sessions is None or self.debug_runtime is None:
+            raise DebugError("unavailable", "Debug provider is not configured")
+        placement = self.identity.placement(
+            authorization.token,
+            scope,
+            request_id=authorization.request_id,
+            correlation_id=authorization.request_id,
+        )
+        return DebugSessionService(
+            self.debug_sessions,
+            self.projects,
+            authorization,
+            self.debug_runtime,
+            placement,
+            ProofActivationReadiness(self.catalog, self.capabilities, self.configurations),
+        )
 
     def configuration_service(
         self, authorization: RequestAuthorization, scope: Scope
