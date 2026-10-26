@@ -1,6 +1,6 @@
 # Debug an immutable Dev project revision
 
-An explicitly configured host supplies a `SQLiteDebugSessionRepository` as `ApiBackend.debug_sessions` and `TemporalDebugRuntime` as `ApiBackend.debug_runtime`. The adapter uses the existing permanent start journal and trusted environment placement. The standalone local-demo launcher does not yet configure these providers.
+An explicitly configured host supplies a `SQLiteDebugSessionRepository` as `ApiBackend.debug_sessions` and `TemporalDebugRuntime` as `ApiBackend.debug_runtime`. The adapter uses the existing permanent start journal and trusted environment placement. The standalone local-demo launcher configures these providers after the explicit [enable-debugger command](local-development.md#enable-dev-debugging).
 
 Create a session with Dev-scoped signed headers and `debug.execute`:
 

@@ -53,6 +53,7 @@ By default all state is under `.nexusflow-local/`, which is ignored by Git. Ever
 | `projects.db`, `catalog.db`, `intake.db` | Projects/releases and catalog/intake state |
 | `activations.db`, `starts.db` | Active project snapshots and start intents |
 | `runtime-identity.json` | Exact persistent runtime destination identity |
+| `debugger.json`, `debug-sessions.db` | Optional installation-bound debugger profile, frozen sessions and command receipts |
 | `temporal.db`, `dispatch.db` | Real Temporal history and permanent dispatch journal |
 | `.launcher.lock` | Exclusive init/serve ownership lock |
 | `.stop-request` | Transient installation-bound stop request |
@@ -146,3 +147,37 @@ Default tests use isolated local fixtures and do not start servers. The marked r
 Using the signed headers and scoped API base from the walkthrough above, request `GET /projects/{project_id}/history?limit=10`. Pass the returned `next_before_revision` as `before_revision` for the next page. Compare using `GET /projects/{project_id}/compare?before_revision=1&after_revision=2`; add `include_layout=true` to include canvas positions.
 
 To restore in Dev, send `POST /projects/{project_id}/restore` with `{"source_revision":1,"expected_revision":2,"summary":"Restore reviewed draft"}`. Substitute the current head for expected_revision. The response is a new revision; publication and activation remain explicit separate operations. A 409 means reload the head, including after an ambiguous retry. These operations are available through the API; React controls are not implemented yet.
+
+
+## Enable Dev debugging
+
+Stop the launcher, then enable the optional debugger under its installation lock:
+
+```sh
+uv run nexusflow-local enable-debugger
+uv run nexusflow-local serve
+```
+
+Use the same `--state-dir` and ports throughout. Enabling creates an installation-bound `debugger.json` and `debug-sessions.db`; it does not add grants or change keys, projects, activation or normal runs. Existing installations remain disabled until explicitly enabled. The current synthetic Dev author can use debug.execute; re-enabling does not restore revoked access.
+
+With the token/headers/base above, debug the seeded timer workflow without activating a new version:
+
+```powershell
+$localDebugBody = @{ operation_id = "welcome-debug-001"; source_revision = 1; workflow_id = "welcome"; configuration_revision = "local-v1"; input = @{}; breakpoints = @("wait"); mode = "real" } | ConvertTo-Json
+$localDebugSession = Invoke-RestMethod "$localDemoBase/projects/welcome/debug-sessions" -Method Post -Headers $localDemoHeaders -ContentType "application/json" -Body $localDebugBody
+$localDebugStatus = Invoke-RestMethod "$localDemoBase/projects/welcome/debug-sessions/$($localDebugSession.session_id)" -Headers $localDemoHeaders
+$localDebugStatus.snapshot
+```
+
+Query until the snapshot is `paused` before sending a command. Use its actual node and revision:
+
+```powershell
+$localDebugStep = @{ command_id = "welcome-step-001"; node_id = $localDebugStatus.snapshot.node_id; action = "step_over"; expected_revision = $localDebugStatus.snapshot.revision } | ConvertTo-Json
+Invoke-RestMethod "$localDemoBase/projects/welcome/debug-sessions/$($localDebugSession.session_id)/commands" -Method Post -Headers $localDemoHeaders -ContentType "application/json" -Body $localDebugStep
+```
+
+The one-second timer remains a real wait; stepping does not skip it. Query again for completion. Repeat the same create/command request to recover its original session/receipt; changed content under a reused ID conflicts. Use a new operation ID for a new debug run.
+
+You can stop while paused, restart with the same state/ports and query the same session before continuing. Preserve `debugger.json`, `debug-sessions.db`, `dispatch.db`, `temporal.db` and the rest of the directory together. Missing enabled state, orphan databases or a mismatched profile fail before startup rather than recreating history. Profiles and payloads are not credentials to bypass permission checks.
+
+The API remains the testing surface; the React Designer panel, variable inspection, cancellation and parallel stepping are not available yet. Real mode is explicit and can have normal Dev side effects. See [session API walkthrough](designer-debug-sessions.md) and [ADR 0037](decisions/0037-local-debugger.md).
