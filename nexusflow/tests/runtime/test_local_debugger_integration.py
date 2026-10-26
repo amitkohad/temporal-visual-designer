@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-import time
 
 import pytest
 from temporalio.client import Client
@@ -16,15 +15,29 @@ from nexusflow.tests.runtime.test_local_launcher_integration import _cli, _ports
 pytestmark = pytest.mark.integration
 
 
-def _debug_state(client, path, expected):
-    deadline = time.monotonic() + 30
-    while time.monotonic() < deadline:
-        response = client.get(path)
-        assert response.status_code == 200, response.text
-        if response.json()["snapshot"]["state"] == expected:
-            return response.json()["snapshot"]
-        time.sleep(0.1)
-    pytest.fail("Local debugger did not reach expected state")
+async def _observe_state(port, namespace, session, expected):
+    temporal = await Client.connect(f"127.0.0.1:{port}", namespace=namespace)
+    handle = temporal.get_workflow_handle(
+        session["execution_id"], run_id=session["temporal_run_id"]
+    )
+    async with asyncio.timeout(30):
+        while True:
+            snapshot = await handle.query(ProofWorkflow.snapshot)
+            assert snapshot.release_id == session["session_id"]
+            assert snapshot.definition_digest == session["definition_digest"]
+            if snapshot.state == expected:
+                return
+            await asyncio.sleep(0.1)
+
+
+def _debug_state(client, path, expected, port, namespace, session):
+    # Observe the exact run directly rather than spending the public API's
+    # admission budget repeatedly while a real timer/worker is progressing.
+    asyncio.run(_observe_state(port, namespace, session, expected))
+    response = client.get(path)
+    assert response.status_code == 200, response.text
+    assert response.json()["snapshot"]["state"] == expected
+    return response.json()["snapshot"]
 
 
 async def _replay(port, namespace, session):
@@ -77,7 +90,9 @@ def test_local_cli_debugger_preserves_paused_session_and_receipts_on_restart(tmp
         assert accepted.status_code == 202, accepted.text
         session = accepted.json()
         session_path = path + "/" + session["session_id"]
-        paused = _debug_state(client, session_path, "paused")
+        paused = _debug_state(
+            client, session_path, "paused", temporal_port, placement.temporal_namespace, session
+        )
         assert paused["node_id"] == "wait" and paused["revision"] == 0
         assert "debug-request-not-for-logs" not in accepted.text + json.dumps(paused)
         assert (
@@ -89,7 +104,12 @@ def test_local_cli_debugger_preserves_paused_session_and_receipts_on_restart(tmp
     # Restart the actual launcher, Temporal server and worker with original state/ports/token.
     with _serve(state, executable, api_port, temporal_port, log) as client:
         client.headers.update(headers)
-        assert _debug_state(client, session_path, "paused") == paused
+        assert (
+            _debug_state(
+                client, session_path, "paused", temporal_port, placement.temporal_namespace, session
+            )
+            == paused
+        )
         assert client.post(path, json=request).json() == session
         assert client.get(base + "/projects/welcome/activation").json() == activation.json()
         command = {
@@ -100,7 +120,9 @@ def test_local_cli_debugger_preserves_paused_session_and_receipts_on_restart(tmp
         }
         receipt = client.post(session_path + "/commands", json=command)
         assert receipt.status_code == 200, receipt.text
-        finished = _debug_state(client, session_path, "completed")
+        finished = _debug_state(
+            client, session_path, "completed", temporal_port, placement.temporal_namespace, session
+        )
         assert finished["release_id"] == session["session_id"]
         assert client.post(session_path + "/commands", json=command).json() == receipt.json()
         changed = client.post(session_path + "/commands", json={**command, "action": "continue"})
@@ -110,13 +132,27 @@ def test_local_cli_debugger_preserves_paused_session_and_receipts_on_restart(tmp
         next_session = client.post(path, json={**request, "operation_id": "continue-debug"})
         assert next_session.status_code == 202, next_session.text
         next_path = path + "/" + next_session.json()["session_id"]
-        _debug_state(client, next_path, "paused")
+        _debug_state(
+            client,
+            next_path,
+            "paused",
+            temporal_port,
+            placement.temporal_namespace,
+            next_session.json(),
+        )
         continuation = client.post(
             next_path + "/commands",
             json={**command, "command_id": "continue-wait", "action": "continue"},
         )
         assert continuation.status_code == 200, continuation.text
-        _debug_state(client, next_path, "completed")
+        _debug_state(
+            client,
+            next_path,
+            "completed",
+            temporal_port,
+            placement.temporal_namespace,
+            next_session.json(),
+        )
         normal = client.post(
             base + "/projects/welcome/executions",
             json={"workflow_id": "welcome", "idempotency_key": "normal-after-debug"},
