@@ -143,3 +143,14 @@ Explicit hosts can configure `SQLiteConfigurationRepository` as `ApiBackend.conf
 - `GET /projects/{project_id}/configurations?limit=50&before_revision=100`: metadata-only descending history, limit 1–100, exclusive sequence cursor through `next_before_revision`.
 
 Receipt fields are `project_id`, `configuration_revision`, project-local `revision`, `values_digest`, `actor_id` and `created_at`. Responses never include stored values. Values are non-secret configuration objects, limited to 32 KiB, depth 16 and 1,000 aggregate container entries. The default scoped-project quota is 1,000 revisions. Configuration writes never activate or modify projects. The provider validates the actual immutable values against local release schemas during materialization/activation, rejects reference-dependent schemas, and keeps configuration outside packages. See [walkthrough](destination-configurations.md) and [ADR 0035](decisions/0035-destination-configurations.md).
+
+
+## Dev debugger sessions
+
+Generic hosts explicitly configure both `ApiBackend.debug_sessions` and `debug_runtime`. Fresh `debug.execute`, an explicit Dev-only guard and session ownership govern every operation; permission checks precede provider availability. The standalone local demo does not yet supply these providers.
+
+- `POST /projects/{project_id}/debug-sessions`: strict `operation_id`, `source_revision`, `workflow_id`, `configuration_revision`, optional `input`/`breakpoints`, and required `mode: "real"`; 202 session metadata. No activation is needed or changed. Exact retries reuse the frozen plan/execution; changed requests conflict.
+- `GET /projects/{project_id}/debug-sessions/{session_id}`: session metadata and payload-free runtime snapshot, targeting the saved exact run.
+- `POST /projects/{project_id}/debug-sessions/{session_id}/commands`: `command_id`, `node_id`, `action` (`step_over`/`continue`) and `expected_revision`; durable command receipt. Changed command identity conflicts; exact successful retries preserve the original receipt.
+
+A pending dispatch is resumed through the original create request before status/control. The default retained-session quota is 1,000 per scoped project, with up to 1,000 control commands per session. Invalid source/readiness, changed placement, stale controls and quota failures are safe errors. Variables, output payloads, cancellation, expiry, mock connections, parallel stepping and browser controls remain separate work. See [walkthrough](designer-debug-sessions.md) and [ADR 0036](decisions/0036-designer-debug-sessions.md).

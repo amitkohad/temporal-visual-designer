@@ -53,6 +53,14 @@ class SQLiteDispatchJournal:
                 raise StartError("conflict", "Execution ID has another plan or destination")
             return inserted, row[2]
 
+    def run_id(self, execution_id: str) -> str | None:
+        """Read the exact acknowledged run without issuing another start."""
+        with self._lock:
+            row = self._db.execute(
+                "SELECT run_id FROM temporal_dispatches WHERE execution=?", (execution_id,)
+            ).fetchone()
+            return None if row is None else row[0]
+
     def acknowledge(self, execution: str, run_id: str) -> None:
         if not run_id:
             raise StartError("unavailable", "Temporal did not return a run ID")
