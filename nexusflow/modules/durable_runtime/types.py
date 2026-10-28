@@ -109,6 +109,13 @@ class Snapshot:
 
 
 @dataclass(frozen=True)
+class DebugStepOutput:
+    snapshot: Snapshot
+    node_id: str
+    output_json: str
+
+
+@dataclass(frozen=True)
 class ExecutionResult:
     binding: ReleaseBinding
     definition_digest: str

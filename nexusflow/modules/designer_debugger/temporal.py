@@ -6,7 +6,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import asdict
 from datetime import timedelta
 
-from temporalio.client import Client, WorkflowUpdateFailedError
+from temporalio.client import Client, WorkflowQueryFailedError, WorkflowUpdateFailedError
 from temporalio.exceptions import ApplicationError
 
 from nexusflow.modules.designer_debugger.types import DebugError
@@ -18,6 +18,7 @@ from nexusflow.modules.durable_runtime.temporal_starts import (
 from nexusflow.modules.durable_runtime.types import (
     CommandReceipt,
     DebugCommand,
+    DebugStepOutput,
     ExecutionPlan,
     Snapshot,
 )
@@ -75,6 +76,33 @@ class TemporalDebugRuntime:
             raise
         except Exception:
             raise DebugError("unavailable", "Debug snapshot is unavailable") from None
+
+    async def step_output(
+        self, placement: Environment, execution_id: str, run_id: str, node_id: str
+    ) -> DebugStepOutput:
+        try:
+            client = await self._client(placement)
+            if not run_id:
+                raise DebugError("conflict", "A pinned run is required")
+            result = await client.get_workflow_handle(execution_id, run_id=run_id).query(
+                ProofWorkflow.step_output, node_id, rpc_timeout=self.rpc_timeout
+            )
+            if (
+                not isinstance(result, DebugStepOutput)
+                or not isinstance(result.snapshot, Snapshot)
+                or result.node_id != node_id
+                or node_id not in result.snapshot.completed_nodes
+                or type(result.output_json) is not str
+                or len(result.output_json.encode("utf-8")) > 65536
+            ):
+                raise DebugError("unavailable", "Debug runtime returned an invalid output")
+            return result
+        except DebugError:
+            raise
+        except WorkflowQueryFailedError:
+            raise DebugError("conflict", "Debug step output is unavailable") from None
+        except Exception:
+            raise DebugError("unavailable", "Debug step output is unavailable") from None
 
     async def control(
         self, placement: Environment, execution_id: str, run_id: str, command: DebugCommand

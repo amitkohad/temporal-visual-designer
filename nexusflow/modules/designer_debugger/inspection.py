@@ -93,6 +93,13 @@ def inspect_inputs(record: DebugRecord, input_schema: DataSchema) -> DebugInputI
         raise DebugError("unavailable", "Frozen debug inputs are unavailable") from None
 
 
+def inspect_values(
+    record: DebugRecord, source: dict[str, JsonValue], schema: DataSchema
+) -> DebugInputInspection:
+    """Project caller-validated object values using the same conservative policy."""
+    return _inspect(record, source, schema)
+
+
 def _inspect(
     record: DebugRecord, source: dict[str, JsonValue], input_schema: DataSchema
 ) -> DebugInputInspection:
