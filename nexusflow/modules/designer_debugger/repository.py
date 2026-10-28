@@ -6,7 +6,7 @@ from threading import RLock
 
 from pydantic import TypeAdapter
 
-from nexusflow.contracts.models import Scope
+from nexusflow.contracts.models import Identifier, Scope
 from nexusflow.modules.designer_debugger.listing import (
     decode_cursor,
     encode_cursor,
@@ -44,6 +44,11 @@ class SQLiteDebugSessionRepository:
             "CREATE TABLE IF NOT EXISTS debug_commands (org TEXT, env TEXT, project TEXT, "
             "session_id TEXT, command_id TEXT, request TEXT NOT NULL, receipt TEXT, "
             "PRIMARY KEY(org,env,project,session_id,command_id))"
+        )
+        self.connection.execute(
+            "CREATE TABLE IF NOT EXISTS debug_reruns (org TEXT, env TEXT, project TEXT, "
+            "operation_id TEXT, parent_session_id TEXT NOT NULL, checksum TEXT NOT NULL, "
+            "PRIMARY KEY(org,env,project,operation_id))"
         )
         self.connection.commit()
 
@@ -197,15 +202,78 @@ class SQLiteDebugSessionRepository:
             raise DebugError("unavailable", "Debug session scope is invalid")
         return record
 
-    def prepare(self, record: DebugRecord) -> DebugRecord:
+    @staticmethod
+    def _origin_checksum(record: DebugRecord, parent_session_id: str) -> str:
+        return digest(
+            [
+                record.placement.scope.organization_id,
+                record.placement.scope.environment_id,
+                record.session.project_id,
+                record.request.operation_id,
+                parent_session_id,
+            ]
+        )
+
+    def _parent(self, record: DebugRecord, parent_session_id: str) -> None:
+        try:
+            TypeAdapter(Identifier).validate_python(parent_session_id, strict=True)
+            parent = self.get(record.placement.scope, record.session.project_id, parent_session_id)
+        except (ValueError, DebugError):
+            raise DebugError("unavailable", "Debug rerun parent is unavailable") from None
+        if (
+            parent.session.state != "started"
+            or parent.session.temporal_run_id is None
+            or parent.session.actor_id != record.session.actor_id
+            or parent.session.workflow_id != record.session.workflow_id
+            or parent.placement != record.placement
+            or parent.request.operation_id == record.request.operation_id
+        ):
+            raise DebugError("unavailable", "Debug rerun parent binding is invalid")
+
+    def assert_origin(self, record: DebugRecord, parent_session_id: str | None = None) -> None:
+        """Validate saved lineage before a retry can dispatch or return a receipt."""
+        scope = record.placement.scope
+        with self.lock:
+            row = self.connection.execute(
+                "SELECT parent_session_id,checksum FROM debug_reruns "
+                "WHERE org=? AND env=? AND project=? AND operation_id=?",
+                (
+                    scope.organization_id,
+                    scope.environment_id,
+                    record.session.project_id,
+                    record.request.operation_id,
+                ),
+            ).fetchone()
+            if row is not None:
+                if row[1] != self._origin_checksum(record, row[0]):
+                    raise DebugError("unavailable", "Debug rerun integrity check failed")
+                self._parent(record, row[0])
+            if (None if row is None else row[0]) != parent_session_id:
+                raise DebugError("conflict", "Debug operation already has another origin")
+
+    def prepare(self, record: DebugRecord, parent_session_id: str | None = None) -> DebugRecord:
         scope, project = record.placement.scope, record.session.project_id
         with self.lock:
             self.connection.execute("BEGIN IMMEDIATE")
             try:
                 existing = self.operation(scope, project, record.request.operation_id)
                 if existing is not None:
+                    self.assert_origin(existing, parent_session_id)
                     self.connection.rollback()
                     return existing
+                orphan = self.connection.execute(
+                    "SELECT 1 FROM debug_reruns WHERE org=? AND env=? AND project=? AND operation_id=?",
+                    (
+                        scope.organization_id,
+                        scope.environment_id,
+                        project,
+                        record.request.operation_id,
+                    ),
+                ).fetchone()
+                if orphan is not None:
+                    raise DebugError("unavailable", "Debug rerun intent is unavailable")
+                if parent_session_id is not None:
+                    self._parent(record, parent_session_id)
                 count = self.connection.execute(
                     "SELECT count(*) FROM debug_sessions WHERE org=? AND env=? AND project=?",
                     (scope.organization_id, scope.environment_id, project),
@@ -227,6 +295,18 @@ class SQLiteDebugSessionRepository:
                         self._checksum(record),
                     ),
                 )
+                if parent_session_id is not None:
+                    self.connection.execute(
+                        "INSERT INTO debug_reruns VALUES(?,?,?,?,?,?)",
+                        (
+                            scope.organization_id,
+                            scope.environment_id,
+                            project,
+                            record.request.operation_id,
+                            parent_session_id,
+                            self._origin_checksum(record, parent_session_id),
+                        ),
+                    )
                 self.connection.commit()
                 return record
             except BaseException:
