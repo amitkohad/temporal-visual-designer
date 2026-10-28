@@ -167,6 +167,7 @@ class ApiBackend:
             self.debug_runtime,
             placement,
             ProofActivationReadiness(self.catalog, self.capabilities, self.configurations),
+            self.catalog,
         )
 
     def configuration_service(

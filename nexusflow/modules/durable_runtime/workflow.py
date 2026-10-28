@@ -12,6 +12,7 @@ from nexusflow.modules.durable_runtime.types import (
     ApprovalCommand,
     CommandReceipt,
     DebugCommand,
+    DebugStepOutput,
     ExecutionPlan,
     ExecutionResult,
     Snapshot,
@@ -36,6 +37,7 @@ class ProofWorkflow:
         self.managed_approval = False
         self.managed_task_id = ""
         self.cancellation_requested = False
+        self.activity_outputs: dict[str, str] = {}
 
     @workflow.run
     async def run(self, plan: ExecutionPlan) -> ExecutionResult:
@@ -44,7 +46,7 @@ class ProofWorkflow:
         if plan.debug and plan.binding.environment_id != "dev":
             raise ApplicationError("Debug is restricted to Dev", non_retryable=True)
         self.plan = plan
-        outputs: dict[str, str] = {}
+        outputs = self.activity_outputs
         try:
             for step in plan.steps:
                 self.node_id = step.node_id
@@ -265,6 +267,20 @@ class ProofWorkflow:
         self.stepping = command.action == "step_over"
         self.permit = command.node_id
         return self._accept(command)
+
+    @workflow.query
+    def step_output(self, node_id: str) -> DebugStepOutput:
+        plan = self.plan
+        if (
+            plan is None
+            or not plan.debug
+            or plan.binding.environment_id != "dev"
+            or node_id not in self.completed
+            or not any(step.node_id == node_id and step.kind == "activity" for step in plan.steps)
+            or node_id not in self.activity_outputs
+        ):
+            raise ApplicationError("Debug step output is unavailable", type="Conflict")
+        return DebugStepOutput(self.snapshot(), node_id, self.activity_outputs[node_id])
 
     @workflow.query
     def snapshot(self) -> Snapshot:

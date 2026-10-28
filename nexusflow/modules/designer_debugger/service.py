@@ -2,16 +2,22 @@
 
 import hashlib
 import json
+import math
 import sqlite3
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from pydantic import TypeAdapter, ValidationError
+from pydantic import JsonValue, TypeAdapter, ValidationError
 
-from nexusflow.contracts.models import Identifier, Scope
+from nexusflow.contracts.models import Identifier, Scope, WorkflowDefinition
+from nexusflow.modules.activity_catalog.catalog_types import CatalogEntry, CatalogRepository
+from nexusflow.modules.activity_catalog.digests import bundle_digest
+from nexusflow.modules.activity_catalog.types import ActivityManifest, CatalogError
+from nexusflow.modules.designer_debugger.inspection import MAX_RESPONSE_BYTES, inspect_values
 from nexusflow.modules.designer_debugger.inspection import inspect_inputs as inspect_debug_inputs
 from nexusflow.modules.designer_debugger.inspection_types import DebugInputInspection
 from nexusflow.modules.designer_debugger.listing_types import DebugSessionPage
+from nexusflow.modules.designer_debugger.output_types import DebugOutputInspection
 from nexusflow.modules.designer_debugger.repository import SQLiteDebugSessionRepository
 from nexusflow.modules.designer_debugger.types import (
     DebugControl,
@@ -26,6 +32,7 @@ from nexusflow.modules.durable_runtime.preflight import PlanError, compile_plan
 from nexusflow.modules.durable_runtime.types import (
     CommandReceipt,
     DebugCommand,
+    DebugStepOutput,
     ReleaseBinding,
     Snapshot,
 )
@@ -55,9 +62,11 @@ class DebugSessionService:
         runtime: DebugRuntime,
         placement: Environment,
         readiness: ActivationReadiness,
+        catalog: CatalogRepository | None = None,
     ) -> None:
         self.repository, self.projects, self.authorization = repository, projects, authorization
         self.runtime, self.placement, self.readiness = runtime, placement, readiness
+        self.catalog = catalog
 
     def _authorize(self, scope: Scope, project_id: str, session_id: str | None = None) -> str:
         actor = self.authorization.authorize(scope, "debug.execute", project_id)
@@ -339,39 +348,41 @@ class DebugSessionService:
         ):
             raise DebugError("unavailable", "Debug provider is unavailable") from None
 
+    def _source_workflow(
+        self, scope: Scope, project_id: str, record: DebugRecord
+    ) -> WorkflowDefinition:
+        revision = self.projects.revision(scope, project_id, record.session.source_revision)
+        if (revision.scope, revision.project_id, revision.number) != (
+            scope,
+            project_id,
+            record.session.source_revision,
+        ) or len(revision.content_json.encode()) > 4_000_000:
+            raise DebugError("unavailable", "Debug source binding is unavailable")
+        content = ProjectContent.model_validate_json(revision.content_json)
+        workflow = next(
+            (item for item in content.workflows if item.workflow_id == record.session.workflow_id),
+            None,
+        )
+        if workflow is None:
+            raise DebugError("unavailable", "Debug source binding is unavailable")
+        encoded = json.dumps(
+            workflow.model_dump(mode="json"),
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+        checksum = "sha256:" + hashlib.sha256(encoded.encode()).hexdigest()
+        if checksum != record.plan.definition_digest:
+            raise DebugError("unavailable", "Debug source binding is unavailable")
+        return workflow
+
     async def inspect_inputs(
         self, scope: Scope, project_id: str, session_id: str
     ) -> DebugInputInspection:
         """Inspect frozen inputs under the exact original schema without touching runtime."""
         try:
             record = self._record(scope, project_id, session_id)
-            revision = self.projects.revision(scope, project_id, record.session.source_revision)
-            if (revision.scope, revision.project_id, revision.number) != (
-                scope,
-                project_id,
-                record.session.source_revision,
-            ) or len(revision.content_json.encode()) > 4_000_000:
-                raise DebugError("unavailable", "Debug source binding is unavailable")
-            content = ProjectContent.model_validate_json(revision.content_json)
-            workflow = next(
-                (
-                    item
-                    for item in content.workflows
-                    if item.workflow_id == record.session.workflow_id
-                ),
-                None,
-            )
-            if workflow is None:
-                raise DebugError("unavailable", "Debug source binding is unavailable")
-            encoded = json.dumps(
-                workflow.model_dump(mode="json"),
-                sort_keys=True,
-                separators=(",", ":"),
-                allow_nan=False,
-            )
-            checksum = "sha256:" + hashlib.sha256(encoded.encode()).hexdigest()
-            if checksum != record.plan.definition_digest:
-                raise DebugError("unavailable", "Debug source binding is unavailable")
+            workflow = self._source_workflow(scope, project_id, record)
             return inspect_debug_inputs(record, workflow.input_schema)
         except (
             OSError,
@@ -384,3 +395,125 @@ class DebugSessionService:
             VersioningError,
         ):
             raise DebugError("unavailable", "Debug inspection is unavailable") from None
+
+    @staticmethod
+    def _output_object(encoded: str) -> dict[str, JsonValue]:
+        def unique(pairs: list[tuple[str, JsonValue]]) -> dict[str, JsonValue]:
+            value: dict[str, JsonValue] = {}
+            for key, item in pairs:
+                if key in value:
+                    raise ValueError("Duplicate output key")
+                value[key] = item
+            return value
+
+        def finite(value: str) -> float:
+            number = float(value)
+            if not math.isfinite(number):
+                raise ValueError("Non-finite output number")
+            return number
+
+        def reject_constant(value: str) -> None:
+            raise ValueError("Invalid output constant")
+
+        result = json.loads(
+            encoded, object_pairs_hook=unique, parse_float=finite, parse_constant=reject_constant
+        )
+        if type(result) is not dict:
+            raise ValueError("Output root must be an object")
+        return result
+
+    async def inspect_output(
+        self, scope: Scope, project_id: str, session_id: str, node_id: str
+    ) -> DebugOutputInspection:
+        """Project one completed output using its digest-bound activity schema."""
+        try:
+            record = self._record(scope, project_id, session_id)
+            try:
+                TypeAdapter(Identifier).validate_python(node_id, strict=True)
+            except ValidationError:
+                raise DebugError("invalid_request", "Invalid debug node identifier") from None
+            workflow = self._source_workflow(scope, project_id, record)
+            node = next((item for item in workflow.nodes if item.node_id == node_id), None)
+            if node is None:
+                raise DebugError("not_found", "Debug node was not found")
+            if node.kind != "activity" or node.activity_ref is None:
+                raise DebugError("conflict", "Debug node has no activity output")
+            reference = node.activity_ref
+            step = next((item for item in record.plan.steps if item.node_id == node_id), None)
+            if step is None or (
+                step.kind,
+                step.activity_id,
+                step.activity_version,
+                step.artifact_digest,
+            ) != ("activity", reference.activity_id, reference.version, reference.artifact_digest):
+                raise DebugError("unavailable", "Debug activity binding is unavailable")
+            if self.catalog is None:
+                raise DebugError("unavailable", "Debug output schema is unavailable")
+            entry = self.catalog.get(scope, reference)
+            if (
+                not isinstance(entry, CatalogEntry)
+                or entry.scope != scope
+                or entry.reference != reference
+                or type(entry.manifest_json) is not str
+                or len(entry.manifest_json.encode("utf-8")) > 262144
+            ):
+                raise DebugError("unavailable", "Debug output schema binding is unavailable")
+            manifest = ActivityManifest.model_validate_json(entry.manifest_json)
+            if (
+                manifest.descriptor.activity_ref != reference
+                or bundle_digest(manifest) != reference.artifact_digest
+            ):
+                raise DebugError("unavailable", "Debug output schema binding is unavailable")
+            if not callable(getattr(self.runtime, "step_output", None)):
+                raise DebugError("unavailable", "Debug output runtime is unavailable")
+            assert record.session.temporal_run_id is not None
+            output = await self.runtime.step_output(
+                record.placement,
+                record.session.execution_id,
+                record.session.temporal_run_id,
+                node_id,
+            )
+            if (
+                not isinstance(output, DebugStepOutput)
+                or not isinstance(output.snapshot, Snapshot)
+                or output.node_id != node_id
+                or node_id not in output.snapshot.completed_nodes
+                or type(output.output_json) is not str
+                or len(output.output_json.encode("utf-8")) > 65536
+            ):
+                raise DebugError("unavailable", "Debug output binding is unavailable")
+            self._snapshot(record, output.snapshot)
+            projected = inspect_values(
+                record, self._output_object(output.output_json), manifest.descriptor.output_schema
+            )
+            result = DebugOutputInspection(
+                session_id=record.session.session_id,
+                workflow_id=record.session.workflow_id,
+                source_revision=record.session.source_revision,
+                definition_digest=record.session.definition_digest,
+                node_id=node_id,
+                activity_ref=reference,
+                values=projected.values,
+                redacted_paths=projected.redacted_paths,
+                truncated=projected.truncated,
+            )
+            if len(result.model_dump_json().encode("utf-8")) > MAX_RESPONSE_BYTES:
+                result = result.model_copy(
+                    update={"values": {}, "redacted_paths": ("",), "truncated": True}
+                )
+            return result
+        except PermissionError:
+            raise
+        except (
+            OSError,
+            RuntimeError,
+            sqlite3.Error,
+            ValidationError,
+            ValueError,
+            TypeError,
+            RecursionError,
+            OverflowError,
+            VersioningError,
+            CatalogError,
+        ):
+            raise DebugError("unavailable", "Debug output inspection is unavailable") from None

@@ -9,6 +9,7 @@ from nexusflow.contracts.models import Contract, Digest, Identifier
 from nexusflow.modules.durable_runtime.types import (
     CommandReceipt,
     DebugCommand,
+    DebugStepOutput,
     ExecutionPlan,
     Snapshot,
 )
@@ -65,6 +66,9 @@ class DebugRuntime(Protocol):
     async def control(
         self, placement: Environment, execution_id: str, run_id: str, command: DebugCommand
     ) -> CommandReceipt: ...
+    async def step_output(
+        self, placement: Environment, execution_id: str, run_id: str, node_id: str
+    ) -> DebugStepOutput: ...
 
 
 class DebugError(Exception):
