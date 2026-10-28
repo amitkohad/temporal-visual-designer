@@ -21,7 +21,7 @@ Disclose only deliberately public primitive fields in the workflow input schema:
 }
 ```
 
-For inputs containing all three fields, only `employee_name` appears in `values`. Protected annotations override public annotations. `writeOnly`, `x-sensitive`, `x-secret` set to true and `format: password` hide a subtree. Containers do not expose all descendants; each primitive needs its own public annotation. Arrays, composed/conditional/reference schemas, unclassified values and undeclared dynamic keys remain hidden. Unknown input key names are omitted from redaction paths too.
+For inputs containing all three fields, only `employee_name` appears in `values`. Protected annotations override public annotations. `writeOnly`, `x-sensitive`, `x-secret` set to true and `format: password` hide a subtree. Containers do not expose all descendants; each primitive needs its own public annotation. Arrays without the new explicit array opt-in, composed/conditional/reference schemas, unclassified values and undeclared dynamic keys remain hidden. See [homogeneous array inspection](debug-array-inspection.md) for the additional marker, item classification and position/budget rules. Unknown input key names are omitted from redaction paths too.
 
 The entire response is bounded to 16 KiB. Oversized scalars (over 1,024 JSON bytes), depth beyond eight, traversal beyond 1,000 nodes or redaction metadata beyond 100 paths are omitted and set `truncated`. A redacted JSON Pointer identifies a declared hidden field or parent, not a secret value. No activity outputs or step input payloads are returned. No connection credentials or secret references are resolved.
 
