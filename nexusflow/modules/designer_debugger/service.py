@@ -11,6 +11,7 @@ from pydantic import TypeAdapter, ValidationError
 from nexusflow.contracts.models import Identifier, Scope
 from nexusflow.modules.designer_debugger.inspection import inspect_inputs as inspect_debug_inputs
 from nexusflow.modules.designer_debugger.inspection_types import DebugInputInspection
+from nexusflow.modules.designer_debugger.listing_types import DebugSessionPage
 from nexusflow.modules.designer_debugger.repository import SQLiteDebugSessionRepository
 from nexusflow.modules.designer_debugger.types import (
     DebugControl,
@@ -69,6 +70,29 @@ class DebugSessionService:
         except ValidationError:
             raise DebugError("invalid_request", "Invalid debug identifier") from None
         return actor
+
+    def list_sessions(
+        self,
+        scope: Scope,
+        project_id: str,
+        *,
+        limit: int = 50,
+        cursor: str | None = None,
+    ) -> DebugSessionPage:
+        """Discover only this freshly authorized owner's saved session metadata."""
+        actor = self._authorize(scope, project_id)
+        try:
+            return self.repository.list_sessions(scope, project_id, actor, limit, cursor)
+        except (
+            OSError,
+            RuntimeError,
+            sqlite3.Error,
+            ValidationError,
+            ValueError,
+            TypeError,
+            RecursionError,
+        ):
+            raise DebugError("unavailable", "Debug session history is unavailable") from None
 
     def _bound(self, record: DebugRecord, actor: str) -> None:
         if record.session.actor_id != actor:

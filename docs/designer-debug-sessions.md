@@ -50,3 +50,5 @@ Every operation rechecks permission and ownership. UAT/Prod, another owner and r
 Keep the session database, permanent dispatch journal, project/catalog/configuration stores and Temporal history together during recovery. Sessions and artifact holds are conservative and have no cleanup/expiry operation yet. Browser controls, general runtime variable/step-input/output inspection, cancellation, mock connections and parallel stepping remain future increments.
 
 Read [frozen workflow inputs](debug-input-inspection.md) through the separate `/inputs` route. Only explicitly public primitive fields are disclosed. Inspection does not advance the workflow or require a running worker. Runtime outputs and general variables remain planned.
+
+Use [owner-scoped session discovery](debug-session-discovery.md) to reconnect to saved sessions. Listing returns paginated metadata without querying Temporal; use the selected session status route for live state.

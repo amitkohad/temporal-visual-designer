@@ -49,6 +49,7 @@ from nexusflow.contracts.validation import ValidationIssue
 from nexusflow.modules.activity_catalog.catalog_types import CatalogEntry
 from nexusflow.modules.activity_catalog.types import ActivityManifest, CatalogError, ImportedBundle
 from nexusflow.modules.designer_debugger.inspection_types import DebugInputInspection
+from nexusflow.modules.designer_debugger.listing_types import DebugSessionPage
 from nexusflow.modules.designer_debugger.types import (
     DebugControl,
     DebugError,
@@ -870,6 +871,17 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
     ) -> DebugSession:
         return await backend.debug_service(context.authorization, context.scope).start(
             context.scope, project_id, payload
+        )
+
+    @app.get(prefix + "/projects/{project_id}/debug-sessions")
+    def list_debug_sessions(
+        project_id: Identifier,
+        context: SessionDependency,
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        cursor: Annotated[str | None, Query(max_length=2048)] = None,
+    ) -> DebugSessionPage:
+        return backend.debug_service(context.authorization, context.scope).list_sessions(
+            context.scope, project_id, limit=limit, cursor=cursor
         )
 
     @app.get(prefix + "/projects/{project_id}/debug-sessions/{session_id}")

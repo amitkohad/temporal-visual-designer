@@ -161,3 +161,10 @@ A pending dispatch is resumed through the original create request before status/
 `GET /projects/{project_id}/debug-sessions/{session_id}/inputs` requires fresh Dev `debug.execute` and original ownership. It returns session/workflow/source identity, sanitized `values`, bounded `redacted_paths` and `truncated`. It reads frozen input and the digest-verified original schema without querying runtime or changing state.
 
 Only explicitly public (`x-nexusflow-inspect: true`) primitive fields are exposed. Protected flags/password format override public classification. Unknown keys/names, unclassified fields, arrays and unsupported schema compositions/references stay hidden. Limits: 16 KiB entire response, 1,024 JSON bytes per scalar, depth eight/1,000 nodes and 100 redaction paths. Invalid original source returns safe 503; newer drafts cannot widen older sessions. See [guide](debug-input-inspection.md) and [ADR 0038](decisions/0038-debug-input-inspection.md).
+
+
+## Debug session discovery
+
+`GET /projects/{project_id}/debug-sessions?limit=50&cursor=...` returns typed `items` and `next_cursor` under fresh Dev debug.execute and verified-owner filtering. Limits are 1–100; the strict bounded cursor is tied to scope/project/owner. Ordering is immutable creation time descending plus session ID descending, with an exclusive composite seek. An empty authorized project scope returns an empty page.
+
+Only existing public session metadata is selected; no requests, plans, draft/configuration or runtime reads are performed. Dispatch state is not live workflow state. Malformed/context-mismatched cursors fail safely and provider/corruption errors are sanitized. No schema, permissions or lifecycle changes. See [discovery guide](debug-session-discovery.md) and [ADR 0039](decisions/0039-debug-session-discovery.md).
