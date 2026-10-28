@@ -16,6 +16,7 @@ MAX_SCALAR_BYTES = 1024
 MAX_DEPTH = 8
 MAX_VISITED = 1000
 MAX_REDACTED_PATHS = 100
+MAX_ARRAY_ITEMS = 100
 _UNSUPPORTED = frozenset(
     {
         "$ref",
@@ -33,6 +34,12 @@ _UNSUPPORTED = frozenset(
         "patternProperties",
         "propertyNames",
         "unevaluatedProperties",
+        "prefixItems",
+        "additionalItems",
+        "contains",
+        "minContains",
+        "maxContains",
+        "unevaluatedItems",
     }
 )
 _OMIT = object()
@@ -42,11 +49,38 @@ def _pointer(parent: str, name: str) -> str:
     return parent + "/" + name.replace("~", "~0").replace("/", "~1")
 
 
-def inspect_inputs(record: DebugRecord, input_schema: DataSchema) -> DebugInputInspection:
-    """Expose only present, explicitly public primitive fields of the frozen input.
+def _safe_schema(schema: Any) -> bool:
+    if type(schema) is not dict or any(key in schema for key in _UNSUPPORTED):
+        return False
+    if any(schema.get(key, False) is not False for key in ("writeOnly", "x-sensitive", "x-secret")):
+        return False
+    return "format" not in schema or (
+        type(schema["format"]) is str and schema["format"].lower() != "password"
+    )
 
-    Schema declarations are not evaluated and cannot perform network I/O. Arrays,
-    dynamic keys and unsupported schema shapes are deliberately not inspected.
+
+def _supported_items(schema: Any) -> bool:
+    if not _safe_schema(schema):
+        return False
+    kind = schema.get("type")
+    if kind == "object":
+        return type(schema.get("properties")) is dict
+    if kind == "array":
+        return (
+            schema.get("x-nexusflow-inspect") is True
+            and schema.get("x-nexusflow-inspect-array") is True
+            and type(schema.get("items")) is dict
+        )
+    return kind in ("string", "number", "integer", "boolean", "null") and (
+        schema.get("x-nexusflow-inspect") is True
+    )
+
+
+def inspect_inputs(record: DebugRecord, input_schema: DataSchema) -> DebugInputInspection:
+    """Expose explicitly public primitives and homogeneous arrays of frozen input.
+
+    Schema declarations are not evaluated and cannot perform network I/O. Dynamic
+    keys and unsupported schema shapes are deliberately not inspected.
     """
     try:
         if len(record.plan.input_json.encode("utf-8")) > 65536:
@@ -84,15 +118,7 @@ def _inspect(
         visited += 1
         if visited > MAX_VISITED or depth > MAX_DEPTH:
             return redact(path, limited=True)
-        if type(schema) is not dict or any(key in schema for key in _UNSUPPORTED):
-            return redact(path)
-        if any(
-            schema.get(key, False) is not False for key in ("writeOnly", "x-sensitive", "x-secret")
-        ):
-            return redact(path)
-        if "format" in schema and (
-            type(schema["format"]) is not str or schema["format"].lower() == "password"
-        ):
+        if not _safe_schema(schema):
             return redact(path)
         kind = schema.get("type")
         if kind == "object" and type(value) is dict:
@@ -112,6 +138,24 @@ def _inspect(
                 if child is not _OMIT:
                     result[name] = child
             return result
+        if kind == "array" and type(value) is list:
+            items = schema.get("items")
+            if (
+                schema.get("x-nexusflow-inspect") is not True
+                or schema.get("x-nexusflow-inspect-array") is not True
+                or not _supported_items(items)
+            ):
+                return redact(path)
+            sequence: list[JsonValue] = []
+            for index, item in enumerate(value):
+                if index >= MAX_ARRAY_ITEMS or visited >= MAX_VISITED:
+                    redact(path, limited=True)
+                    break
+                child = visit(item, items, _pointer(path, str(index)), depth + 1)
+                # Item positions carry meaning; hidden values must never shift
+                # subsequent public entries to different indices.
+                sequence.append(None if child is _OMIT else child)
+            return sequence
         if schema.get("x-nexusflow-inspect") is not True:
             return redact(path)
         matches = (
