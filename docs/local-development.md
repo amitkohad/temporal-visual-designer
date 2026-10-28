@@ -183,3 +183,5 @@ You can stop while paused, restart with the same state/ports and query the same 
 The API remains the testing surface; the React Designer panel, variable inspection, cancellation and parallel stepping are not available yet. Real mode is explicit and can have normal Dev side effects. See [session API walkthrough](designer-debug-sessions.md) and [ADR 0037](decisions/0037-local-debugger.md).
 
 The enabled debugger supports [redacted frozen input inspection](debug-input-inspection.md). The [sample project](../examples/local-debug-input-project.json) marks a public field and keeps protected/unclassified fields hidden; inspect a created session without publication or activation.
+
+After reconnecting, [list your saved debug sessions](debug-session-discovery.md) through `GET /projects/welcome/debug-sessions` with the same signed Dev headers. Select an ID to resume status or controls after restart.

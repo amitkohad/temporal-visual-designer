@@ -7,6 +7,13 @@ from threading import RLock
 from pydantic import TypeAdapter
 
 from nexusflow.contracts.models import Scope
+from nexusflow.modules.designer_debugger.listing import (
+    decode_cursor,
+    encode_cursor,
+    validate_context,
+    validate_created_at,
+)
+from nexusflow.modules.designer_debugger.listing_types import DebugSessionPage
 from nexusflow.modules.designer_debugger.types import (
     DebugControl,
     DebugError,
@@ -43,6 +50,73 @@ class SQLiteDebugSessionRepository:
     def close(self) -> None:
         with self.lock:
             self.connection.close()
+
+    def list_sessions(
+        self,
+        scope: Scope,
+        project_id: str,
+        actor_id: str,
+        limit: int = 50,
+        cursor: str | None = None,
+    ) -> DebugSessionPage:
+        """Select public metadata only; authorization belongs to the caller."""
+        try:
+            validate_context(scope, project_id, actor_id)
+        except ValueError:
+            raise DebugError("invalid_request", "Invalid debug session context") from None
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise DebugError("invalid_request", "Invalid debug session page limit")
+        before = decode_cursor(scope, project_id, actor_id, cursor)
+        clause = ""
+        parameters: tuple[object, ...] = (
+            scope.organization_id,
+            scope.environment_id,
+            project_id,
+            actor_id,
+        )
+        if before is not None:
+            clause = " AND (json_extract(session,'$.created_at')<? OR (json_extract(session,'$.created_at')=? AND session_id<?))"
+            parameters += (before[0], before[0], before[1])
+        try:
+            with self.lock:
+                rows = self.connection.execute(
+                    "SELECT session_id,session FROM debug_sessions WHERE org=? AND env=? "
+                    "AND project=? AND json_extract(session,'$.actor_id')=?"
+                    + clause
+                    + " ORDER BY json_extract(session,'$.created_at') DESC,session_id DESC LIMIT ?",
+                    (*parameters, limit + 1),
+                ).fetchall()
+            sessions: list[DebugSession] = []
+            for session_id, metadata in rows:
+                session = DebugSession.model_validate_json(metadata)
+                validate_created_at(session.created_at)
+                if (
+                    session.session_id != session_id
+                    or session.project_id != project_id
+                    or session.actor_id != actor_id
+                    or not 1 <= session.source_revision < 2**63
+                    or (session.state == "started") != bool(session.temporal_run_id)
+                    or (
+                        session.temporal_run_id is not None
+                        and (
+                            session.state != "started"
+                            or not 1 <= len(session.temporal_run_id) <= 256
+                        )
+                    )
+                ):
+                    raise ValueError("Invalid metadata binding")
+                sessions.append(session)
+            items = tuple(sessions[:limit])
+            return DebugSessionPage(
+                items=items,
+                next_cursor=(
+                    encode_cursor(scope, project_id, actor_id, items[-1])
+                    if len(sessions) > limit
+                    else None
+                ),
+            )
+        except (sqlite3.Error, ValueError, TypeError, UnicodeError, RecursionError):
+            raise DebugError("unavailable", "Debug session discovery is unavailable") from None
 
     @staticmethod
     def _decode(row: tuple[str, ...] | None) -> DebugRecord | None:
