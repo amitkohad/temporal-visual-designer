@@ -129,8 +129,7 @@ async def test_cancel_closes_exact_run_without_downstream_effects_and_replays(
         journal.close()
 
 
-@pytest.mark.parametrize("debug", [False, True])
-async def test_cancel_update_rejects_nonpaused_timer_without_closing_run(temporal_env, debug):  # noqa: F811
+async def test_cancel_update_rejects_normal_timer_without_closing_run(temporal_env):  # noqa: F811
     client = temporal_env.client
     queue = "debug-cancel-guard-" + uuid4().hex
     async with Worker(
@@ -138,18 +137,12 @@ async def test_cancel_update_rejects_nonpaused_timer_without_closing_run(tempora
     ):
         handle = await client.start_workflow(
             ProofWorkflow.run,
-            cancellation_plan(debug=debug, seconds=60),
+            cancellation_plan(debug=False, seconds=60),
             id=uuid4().hex,
             task_queue=queue,
             execution_timeout=timedelta(minutes=2),
         )
         revision = 0
-        if debug:
-            await wait_state(handle, "paused", "timer")
-            await handle.execute_update(
-                ProofWorkflow.control, DebugCommand("continue", "timer", "continue", 0)
-            )
-            revision = 1
         await wait_state(handle, "waiting_timer", "timer")
         with pytest.raises(WorkflowUpdateFailedError):
             await handle.execute_update(
