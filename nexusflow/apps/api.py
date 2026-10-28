@@ -873,6 +873,17 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
             context.scope, project_id, payload
         )
 
+    @app.post(prefix + "/projects/{project_id}/debug-sessions/{session_id}/reruns", status_code=202)
+    async def rerun_debug(
+        project_id: Identifier,
+        session_id: Identifier,
+        payload: DebugStart,
+        context: SessionDependency,
+    ) -> DebugSession:
+        return await backend.debug_service(context.authorization, context.scope).rerun(
+            context.scope, project_id, session_id, payload
+        )
+
     @app.get(prefix + "/projects/{project_id}/debug-sessions")
     def list_debug_sessions(
         project_id: Identifier,

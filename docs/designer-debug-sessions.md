@@ -54,3 +54,5 @@ Keep the session database, permanent dispatch journal, project/catalog/configura
 Read [frozen workflow inputs](debug-input-inspection.md) through the separate `/inputs` route. Only explicitly public primitive fields are disclosed. Inspection does not advance the workflow or require a running worker. Runtime outputs and general variables remain planned.
 
 Use [owner-scoped session discovery](debug-session-discovery.md) to reconnect to saved sessions. Listing returns paginated metadata without querying Temporal; use the selected session status route for live state.
+
+Use [explicit rerun](debug-rerun.md) to start a new revision or fresh inputs from an acknowledged session. Supply the full start request and a new operation ID. The original execution remains unchanged; exact retries recover the same child.

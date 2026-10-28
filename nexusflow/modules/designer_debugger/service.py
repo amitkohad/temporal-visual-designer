@@ -101,6 +101,41 @@ class DebugSessionService:
             raise DebugError("conflict", "Debug session placement has changed")
 
     async def start(self, scope: Scope, project_id: str, request: DebugStart) -> DebugSession:
+        return await self._start(scope, project_id, request)
+
+    async def rerun(
+        self, scope: Scope, project_id: str, session_id: str, request: DebugStart
+    ) -> DebugSession:
+        """Start an explicit fresh snapshot while keeping the selected session unchanged."""
+        try:
+            parent = self._record(scope, project_id, session_id)
+            if request.operation_id == parent.request.operation_id:
+                raise DebugError("conflict", "A rerun requires a new operation identifier")
+            if request.workflow_id != parent.session.workflow_id:
+                raise DebugError("conflict", "A rerun must select the original workflow")
+            return await self._start(scope, project_id, request, parent.session.session_id)
+        except PermissionError:
+            # Keep an authorization port's explicit denial distinct from a
+            # storage/provider outage, as on the normal start path.
+            raise
+        except (
+            OSError,
+            RuntimeError,
+            sqlite3.Error,
+            ValidationError,
+            ValueError,
+            TypeError,
+            RecursionError,
+        ):
+            raise DebugError("unavailable", "Debug rerun provider is unavailable") from None
+
+    async def _start(
+        self,
+        scope: Scope,
+        project_id: str,
+        request: DebugStart,
+        parent_session_id: str | None = None,
+    ) -> DebugSession:
         actor = self._authorize(scope, project_id)
         if self.placement.scope != scope:
             raise DebugError("forbidden", "Debug placement does not match scope")
@@ -108,8 +143,9 @@ class DebugSessionService:
             record = self.repository.operation(scope, project_id, request.operation_id)
             if record is None:
                 record = self._prepare(scope, project_id, request, actor)
-                record = self.repository.prepare(record)
+                record = self.repository.prepare(record, parent_session_id)
             self._bound(record, actor)
+            self.repository.assert_origin(record, parent_session_id)
             if record.request != request:
                 raise DebugError("conflict", "Debug operation already has another request")
             if record.session.state == "started":
