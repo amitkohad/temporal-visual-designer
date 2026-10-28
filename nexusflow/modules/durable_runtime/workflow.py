@@ -236,8 +236,14 @@ class ProofWorkflow:
             or command.node_id != self.node_id
         ):
             raise ApplicationError("Debug command requires a paused Dev step", type="Conflict")
-        if command.action not in {"step_over", "continue"} or self.permit:
+        if command.action not in {"step_over", "continue", "cancel"} or self.permit:
             raise ApplicationError("Invalid or conflicting debug command", type="Conflict")
+        if command.action == "cancel":
+            # Retain the paused wait until the exact-run adapter requests actual
+            # Temporal cancellation. Raising locally without that server request
+            # would fail a workflow task rather than close the execution canceled.
+            self.state = "cancelling"
+            return self._accept(command)
         self.stepping = command.action == "step_over"
         self.permit = command.node_id
         return self._accept(command)

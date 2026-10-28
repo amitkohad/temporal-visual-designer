@@ -78,7 +78,7 @@ Authorized importers can now [materialize staged packages](docs/package-material
 
 Explicit hosts can now [persist destination configuration revisions](docs/destination-configurations.md) and administer them through signed metadata-only APIs. Materialization and activation validate their actual stored values against the release schema. Configuration is immutable and outside exported packages; connection/secret resolution and Admin screens remain planned.
 
-Explicit hosts can now expose [Dev debugger session APIs](docs/designer-debug-sessions.md) for immutable draft snapshots, breakpoints, payload-free status, step-over and continue through the sequential proof runtime. Sessions and command receipts survive retries/restarts. The React debugger panel, variable inspection, cancellation and parallel stepping remain planned.
+Explicit hosts can now expose [Dev debugger session APIs](docs/designer-debug-sessions.md) for immutable draft snapshots, breakpoints, payload-free status, step-over, continue and [paused cancellation](docs/debug-session-cancellation.md) through the sequential proof runtime. Sessions and command receipts survive retries/restarts. The React debugger panel, general runtime variable inspection, cancellation during active waits/operations and parallel stepping remain planned.
 
 The standalone local launcher now supports opt-in debugging with `uv run nexusflow-local enable-debugger`. [Try the seeded workflow](docs/local-development.md#enable-dev-debugging) through the signed API, pause/step it and recover the same session after restart. Existing local installations remain disabled until enabled.
 
