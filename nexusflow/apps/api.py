@@ -48,6 +48,7 @@ from nexusflow.contracts.models import ActivityRef, Digest, Identifier, Scope
 from nexusflow.contracts.validation import ValidationIssue
 from nexusflow.modules.activity_catalog.catalog_types import CatalogEntry
 from nexusflow.modules.activity_catalog.types import ActivityManifest, CatalogError, ImportedBundle
+from nexusflow.modules.designer_debugger.inspection_types import DebugInputInspection
 from nexusflow.modules.designer_debugger.types import (
     DebugControl,
     DebugError,
@@ -876,6 +877,14 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
         project_id: Identifier, session_id: Identifier, context: SessionDependency
     ) -> DebugStatus:
         return await backend.debug_service(context.authorization, context.scope).status(
+            context.scope, project_id, session_id
+        )
+
+    @app.get(prefix + "/projects/{project_id}/debug-sessions/{session_id}/inputs")
+    async def debug_inputs(
+        project_id: Identifier, session_id: Identifier, context: SessionDependency
+    ) -> DebugInputInspection:
+        return await backend.debug_service(context.authorization, context.scope).inspect_inputs(
             context.scope, project_id, session_id
         )
 

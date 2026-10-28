@@ -154,3 +154,10 @@ Generic hosts explicitly configure both `ApiBackend.debug_sessions` and `debug_r
 - `POST /projects/{project_id}/debug-sessions/{session_id}/commands`: `command_id`, `node_id`, `action` (`step_over`/`continue`) and `expected_revision`; durable command receipt. Changed command identity conflicts; exact successful retries preserve the original receipt.
 
 A pending dispatch is resumed through the original create request before status/control. The default retained-session quota is 1,000 per scoped project, with up to 1,000 control commands per session. Invalid source/readiness, changed placement, stale controls and quota failures are safe errors. Variables, output payloads, cancellation, expiry, mock connections, parallel stepping and browser controls remain separate work. See [walkthrough](designer-debug-sessions.md) and [ADR 0036](decisions/0036-designer-debug-sessions.md).
+
+
+## Frozen debug input inspection
+
+`GET /projects/{project_id}/debug-sessions/{session_id}/inputs` requires fresh Dev `debug.execute` and original ownership. It returns session/workflow/source identity, sanitized `values`, bounded `redacted_paths` and `truncated`. It reads frozen input and the digest-verified original schema without querying runtime or changing state.
+
+Only explicitly public (`x-nexusflow-inspect: true`) primitive fields are exposed. Protected flags/password format override public classification. Unknown keys/names, unclassified fields, arrays and unsupported schema compositions/references stay hidden. Limits: 16 KiB entire response, 1,024 JSON bytes per scalar, depth eight/1,000 nodes and 100 redaction paths. Invalid original source returns safe 503; newer drafts cannot widen older sessions. See [guide](debug-input-inspection.md) and [ADR 0038](decisions/0038-debug-input-inspection.md).

@@ -1,6 +1,6 @@
 # Basic Designer debugger
 
-Status: bounded sequential Dev session backend implemented; broader debugger acceptance remains open. See [shared contracts](../../contracts.md) and [implementation evidence](../../implementation-designer-debug-sessions.md).
+Status: bounded sequential Dev session and frozen-input inspection backends implemented; broader debugger acceptance remains open. See [shared contracts](../../contracts.md) and [implementation evidence](../../implementation-designer-debug-sessions.md).
 
 ## Scope and requirements
 
