@@ -1,6 +1,7 @@
 """Authorize, freeze and dispatch Dev snapshots without changing activation pointers."""
 
 import hashlib
+import json
 import sqlite3
 from datetime import UTC, datetime
 from uuid import uuid4
@@ -8,6 +9,8 @@ from uuid import uuid4
 from pydantic import TypeAdapter, ValidationError
 
 from nexusflow.contracts.models import Identifier, Scope
+from nexusflow.modules.designer_debugger.inspection import inspect_inputs as inspect_debug_inputs
+from nexusflow.modules.designer_debugger.inspection_types import DebugInputInspection
 from nexusflow.modules.designer_debugger.repository import SQLiteDebugSessionRepository
 from nexusflow.modules.designer_debugger.types import (
     DebugControl,
@@ -275,3 +278,49 @@ class DebugSessionService:
             RecursionError,
         ):
             raise DebugError("unavailable", "Debug provider is unavailable") from None
+
+    async def inspect_inputs(
+        self, scope: Scope, project_id: str, session_id: str
+    ) -> DebugInputInspection:
+        """Inspect frozen inputs under the exact original schema without touching runtime."""
+        try:
+            record = self._record(scope, project_id, session_id)
+            revision = self.projects.revision(scope, project_id, record.session.source_revision)
+            if (revision.scope, revision.project_id, revision.number) != (
+                scope,
+                project_id,
+                record.session.source_revision,
+            ) or len(revision.content_json.encode()) > 4_000_000:
+                raise DebugError("unavailable", "Debug source binding is unavailable")
+            content = ProjectContent.model_validate_json(revision.content_json)
+            workflow = next(
+                (
+                    item
+                    for item in content.workflows
+                    if item.workflow_id == record.session.workflow_id
+                ),
+                None,
+            )
+            if workflow is None:
+                raise DebugError("unavailable", "Debug source binding is unavailable")
+            encoded = json.dumps(
+                workflow.model_dump(mode="json"),
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+            checksum = "sha256:" + hashlib.sha256(encoded.encode()).hexdigest()
+            if checksum != record.plan.definition_digest:
+                raise DebugError("unavailable", "Debug source binding is unavailable")
+            return inspect_debug_inputs(record, workflow.input_schema)
+        except (
+            OSError,
+            RuntimeError,
+            sqlite3.Error,
+            ValidationError,
+            ValueError,
+            TypeError,
+            RecursionError,
+            VersioningError,
+        ):
+            raise DebugError("unavailable", "Debug inspection is unavailable") from None

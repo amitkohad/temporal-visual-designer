@@ -81,3 +81,5 @@ Explicit hosts can now [persist destination configuration revisions](docs/destin
 Explicit hosts can now expose [Dev debugger session APIs](docs/designer-debug-sessions.md) for immutable draft snapshots, breakpoints, payload-free status, step-over and continue through the sequential proof runtime. Sessions and command receipts survive retries/restarts. The React debugger panel, variable inspection, cancellation and parallel stepping remain planned.
 
 The standalone local launcher now supports opt-in debugging with `uv run nexusflow-local enable-debugger`. [Try the seeded workflow](docs/local-development.md#enable-dev-debugging) through the signed API, pause/step it and recover the same session after restart. Existing local installations remain disabled until enabled.
+
+Dev sessions support [redacted frozen workflow-input inspection](docs/debug-input-inspection.md). Only explicitly public primitive fields are shown; protected/unclassified values stay hidden and draft edits cannot widen an old session. Runtime outputs and browser controls remain planned.

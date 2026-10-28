@@ -1,0 +1,97 @@
+{
+  "project_id": "debug-input-example",
+  "name": "Public input inspection example",
+  "content": {
+    "schema_version": "0.1",
+    "workflows": [
+      {
+        "schema_version": "0.1",
+        "workflow_id": "inspect-inputs",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "employee_name": {
+              "type": "string",
+              "x-nexusflow-inspect": true
+            },
+            "token": {
+              "type": "string",
+              "writeOnly": true,
+              "x-nexusflow-inspect": true
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "employee_name"
+          ]
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "nodes": [
+          {
+            "node_id": "start",
+            "kind": "start",
+            "named_ports": {
+              "inputs": [],
+              "outputs": [
+                "out"
+              ]
+            },
+            "input_mapping": {}
+          },
+          {
+            "node_id": "wait",
+            "kind": "wait",
+            "named_ports": {
+              "inputs": [
+                "in"
+              ],
+              "outputs": [
+                "out"
+              ]
+            },
+            "input_mapping": {
+              "seconds": 1
+            }
+          },
+          {
+            "node_id": "end",
+            "kind": "end",
+            "named_ports": {
+              "inputs": [
+                "in"
+              ],
+              "outputs": []
+            },
+            "input_mapping": {}
+          }
+        ],
+        "edges": [
+          {
+            "source_node_id": "start",
+            "source_port": "out",
+            "target_node_id": "wait",
+            "target_port": "in"
+          },
+          {
+            "source_node_id": "wait",
+            "source_port": "out",
+            "target_node_id": "end",
+            "target_port": "in"
+          }
+        ],
+        "start_definitions": [
+          {
+            "start_id": "manual",
+            "node_id": "start",
+            "kind": "manual"
+          }
+        ],
+        "error_routes": []
+      }
+    ]
+  }
+}
