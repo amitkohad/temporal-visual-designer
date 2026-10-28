@@ -35,6 +35,7 @@ class ProofWorkflow:
         self.task_receipts: dict[str, tuple[TaskCompletionCommand, CommandReceipt]] = {}
         self.managed_approval = False
         self.managed_task_id = ""
+        self.cancellation_requested = False
 
     @workflow.run
     async def run(self, plan: ExecutionPlan) -> ExecutionResult:
@@ -125,6 +126,11 @@ class ProofWorkflow:
                 elif step.kind == "wait":
                     self.state = "waiting_timer"
                     await workflow.sleep(timedelta(seconds=step.delay_seconds))
+                if self.cancellation_requested:
+                    # A timer may finish after cancel acceptance but before the
+                    # adapter's separate cancellation RPC. Keep its original
+                    # node/state and block completion or any downstream dispatch.
+                    await workflow.wait_condition(lambda: not self.cancellation_requested)
                 self.completed.append(step.node_id)
             self.state = "completed"
             return ExecutionResult(
@@ -232,18 +238,30 @@ class ProofWorkflow:
         if (
             self.plan is None
             or not self.plan.debug
-            or self.state != "paused"
+            or self.plan.binding.environment_id != "dev"
             or command.node_id != self.node_id
         ):
-            raise ApplicationError("Debug command requires a paused Dev step", type="Conflict")
+            raise ApplicationError("Debug command requires a matching Dev step", type="Conflict")
         if command.action not in {"step_over", "continue", "cancel"} or self.permit:
             raise ApplicationError("Invalid or conflicting debug command", type="Conflict")
         if command.action == "cancel":
-            # Retain the paused wait until the exact-run adapter requests actual
-            # Temporal cancellation. Raising locally without that server request
-            # would fail a workflow task rather than close the execution canceled.
+            if self.state not in {"paused", "waiting_timer"} and not (
+                self.state == "waiting_approval"
+                and not self.managed_approval
+                and self.approved is None
+            ):
+                raise ApplicationError("Debug step cannot be cancelled", type="Conflict")
+            if self.state != "paused" and not workflow.patched("debug-wait-cancellation-v1"):
+                # Older histories may contain accepted updates whose handlers
+                # rejected cancellation at waits. Preserve that outcome on replay.
+                raise ApplicationError("Debug step cannot be cancelled", type="Conflict")
+            # Keep this boundary blocked until the exact-run adapter requests
+            # actual Temporal cancellation; never manufacture a human response.
+            self.cancellation_requested = True
             self.state = "cancelling"
             return self._accept(command)
+        if self.state != "paused":
+            raise ApplicationError("Debug command requires a paused Dev step", type="Conflict")
         self.stepping = command.action == "step_over"
         self.permit = command.node_id
         return self._accept(command)
