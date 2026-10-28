@@ -106,6 +106,11 @@ class TemporalDebugRuntime:
                 or receipt.revision < 1
             ):
                 raise DebugError("conflict", "Debug runtime returned an invalid command receipt")
+            if command.action == "cancel":
+                # Acceptance is durable before requesting Temporal cancellation. A lost
+                # RPC/HTTP response retries the same update and exact-run cancellation;
+                # the service saves a receipt only after both have been acknowledged.
+                await handle.cancel(rpc_timeout=self.rpc_timeout)
             return receipt
         except DebugError:
             raise

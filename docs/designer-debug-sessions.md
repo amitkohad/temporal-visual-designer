@@ -47,7 +47,9 @@ Command identities and successful receipts are durable in the session database (
 
 Every operation rechecks permission and ownership. UAT/Prod, another owner and revoked access are refused. Missing providers and runtime/storage failures return safe errors. Pending dispatch must be resumed by retrying the original create request before status/control can proceed. Changed trusted placement conflicts rather than redirecting a persisted session.
 
-Keep the session database, permanent dispatch journal, project/catalog/configuration stores and Temporal history together during recovery. Sessions and artifact holds are conservative and have no cleanup/expiry operation yet. Browser controls, general runtime variable/step-input/output inspection, cancellation, mock connections and parallel stepping remain future increments.
+Use `action: "cancel"` at a paused boundary to request exact-run Temporal cancellation without releasing the next step. See [cancellation and recovery](debug-session-cancellation.md) for the `cancelling` state and retry behavior.
+
+Keep the session database, permanent dispatch journal, project/catalog/configuration stores and Temporal history together during recovery. Sessions and artifact holds are conservative and have no cleanup/expiry operation yet. Browser controls, general runtime variable/step-input/output inspection, cancellation during active waits/operations, mock connections and parallel stepping remain future increments.
 
 Read [frozen workflow inputs](debug-input-inspection.md) through the separate `/inputs` route. Only explicitly public primitive fields are disclosed. Inspection does not advance the workflow or require a running worker. Runtime outputs and general variables remain planned.
 

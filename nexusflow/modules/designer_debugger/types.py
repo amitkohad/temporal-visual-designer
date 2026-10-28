@@ -46,7 +46,7 @@ class DebugSession(Contract):
 class DebugControl(Contract):
     command_id: Identifier
     node_id: Identifier
-    action: Literal["step_over", "continue"]
+    action: Literal["step_over", "continue", "cancel"]
     expected_revision: Annotated[int, Field(ge=0, lt=2**63)]
 
 
