@@ -15,6 +15,8 @@ from nexusflow.modules.activity_catalog.catalog import CatalogService
 from nexusflow.modules.activity_catalog.catalog_types import CatalogRepository, RuntimeCapabilities
 from nexusflow.modules.activity_catalog.service import IntakeService
 from nexusflow.modules.activity_catalog.types import IntakeRepository
+from nexusflow.modules.connectors.service import ConnectionService
+from nexusflow.modules.connectors.types import ConnectionError, ConnectionRepository
 from nexusflow.modules.designer_debugger.repository import SQLiteDebugSessionRepository
 from nexusflow.modules.designer_debugger.service import DebugSessionService
 from nexusflow.modules.designer_debugger.types import DebugError, DebugRuntime
@@ -145,6 +147,15 @@ class ApiBackend:
     package_imports: PackageImportRepository | None = None
     debug_sessions: SQLiteDebugSessionRepository | None = None
     debug_runtime: DebugRuntime | None = None
+    connections: ConnectionRepository | None = None
+
+    def connection_service(
+        self, authorization: RequestAuthorization, scope: Scope
+    ) -> ConnectionService:
+        authorization.authorize(scope, "connection.manage", "connections")
+        if not isinstance(self.connections, ConnectionRepository):
+            raise ConnectionError("unavailable", "Connection provider is not configured")
+        return ConnectionService(self.connections, authorization)
 
     def debug_service(
         self, authorization: RequestAuthorization, scope: Scope

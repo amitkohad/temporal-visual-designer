@@ -48,6 +48,12 @@ from nexusflow.contracts.models import ActivityRef, Digest, Identifier, Scope
 from nexusflow.contracts.validation import ValidationIssue
 from nexusflow.modules.activity_catalog.catalog_types import CatalogEntry
 from nexusflow.modules.activity_catalog.types import ActivityManifest, CatalogError, ImportedBundle
+from nexusflow.modules.connectors.types import (
+    ConnectionError,
+    ConnectionMetadata,
+    ConnectionPage,
+    HTTPConnectionWrite,
+)
 from nexusflow.modules.designer_debugger.breakpoint_types import (
     DebugBreakpointControl,
     DebugBreakpoints,
@@ -195,6 +201,8 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
             "attachment_limit": 409,
             "import_limit": 409,
         }.get(code, 422)
+        if isinstance(error, ConnectionError) and code == "limit_exceeded":
+            status = 409
         normalized = {
             401: "unauthenticated",
             403: "forbidden",
@@ -220,6 +228,7 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
         TaskError,
         FormError,
         DebugError,
+        ConnectionError,
         RPCError,
         OSError,
         sqlite3.Error,
@@ -408,6 +417,53 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
             backend.project_service(context.authorization, context.scope).read(
                 context.scope, project_id, revision
             )
+        )
+
+    @app.put(
+        prefix + "/connections/{connection_id}/revisions/{connection_revision}", status_code=201
+    )
+    def put_connection(
+        connection_id: Identifier,
+        connection_revision: Identifier,
+        payload: HTTPConnectionWrite,
+        request: Request,
+        context: SessionDependency,
+    ) -> ConnectionMetadata:
+        if request.query_params:
+            raise ConnectionError("invalid_request", "Connection query parameters are unsupported")
+        return backend.connection_service(context.authorization, context.scope).put(
+            context.scope, connection_id, connection_revision, payload
+        )
+
+    @app.get(prefix + "/connections/{connection_id}/revisions/{connection_revision}")
+    def get_connection(
+        connection_id: Identifier,
+        connection_revision: Identifier,
+        request: Request,
+        context: SessionDependency,
+    ) -> ConnectionMetadata:
+        if request.query_params:
+            raise ConnectionError("invalid_request", "Connection query parameters are unsupported")
+        return backend.connection_service(context.authorization, context.scope).get(
+            context.scope, connection_id, connection_revision
+        )
+
+    @app.get(prefix + "/connections/{connection_id}/revisions")
+    def list_connections(
+        connection_id: Identifier,
+        request: Request,
+        context: SessionDependency,
+        limit: Annotated[int, Query(ge=1, le=50)] = 25,
+        before_revision: Annotated[int | None, Query(ge=1, le=2**63 - 1)] = None,
+    ) -> ConnectionPage:
+        pairs = list(request.query_params.multi_items())
+        if len({name for name, _ in pairs}) != len(pairs) or any(
+            name not in {"limit", "before_revision"} or not value.isascii() or not value.isdecimal()
+            for name, value in pairs
+        ):
+            raise ConnectionError("invalid_request", "Invalid connection pagination")
+        return backend.connection_service(context.authorization, context.scope).list(
+            context.scope, connection_id, limit=limit, before_revision=before_revision
         )
 
     @app.put(
