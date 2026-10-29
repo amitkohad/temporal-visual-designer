@@ -56,6 +56,7 @@ from nexusflow.modules.designer_debugger.event_types import DebugEvents
 from nexusflow.modules.designer_debugger.inspection_types import DebugInputInspection
 from nexusflow.modules.designer_debugger.listing_types import DebugSessionPage
 from nexusflow.modules.designer_debugger.output_types import DebugOutputInspection
+from nexusflow.modules.designer_debugger.reconnect_types import DebugReconnect
 from nexusflow.modules.designer_debugger.step_input_types import DebugStepInputInspection
 from nexusflow.modules.designer_debugger.types import (
     DebugControl,
@@ -915,6 +916,19 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
         project_id: Identifier, session_id: Identifier, context: SessionDependency
     ) -> DebugInputInspection:
         return await backend.debug_service(context.authorization, context.scope).inspect_inputs(
+            context.scope, project_id, session_id
+        )
+
+    @app.get(prefix + "/projects/{project_id}/debug-sessions/{session_id}/reconnect")
+    async def reconnect_debug(
+        project_id: Identifier,
+        session_id: Identifier,
+        request: Request,
+        context: SessionDependency,
+    ) -> DebugReconnect:
+        if request.query_params:
+            raise DebugError("invalid_request", "Reconnect accepts no query parameters")
+        return await backend.debug_service(context.authorization, context.scope).reconnect(
             context.scope, project_id, session_id
         )
 

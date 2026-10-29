@@ -27,6 +27,7 @@ from nexusflow.modules.durable_runtime.types import (
     DebugEventKind,
     DebugEventQuery,
     DebugEventState,
+    DebugReconnectState,
     DebugRuntimeEvent,
     DebugStepOutput,
     ExecutionPlan,
@@ -86,6 +87,67 @@ class TemporalDebugRuntime:
             raise
         except Exception:
             raise DebugError("unavailable", "Debug snapshot is unavailable") from None
+
+    async def reconnect(
+        self, placement: Environment, execution_id: str, run_id: str
+    ) -> DebugReconnectState:
+        try:
+            client = await self._client(placement)
+            if not run_id:
+                raise DebugError("conflict", "A pinned run is required")
+            result = await client.get_workflow_handle(execution_id, run_id=run_id).query(
+                ProofWorkflow.debug_reconnect, rpc_timeout=self.rpc_timeout
+            )
+            if (
+                not isinstance(result, DebugReconnectState)
+                or not isinstance(result.snapshot, Snapshot)
+                or type(result.snapshot.revision) is not int
+                or not 0 <= result.snapshot.revision < 2**63
+                or result.snapshot.state not in get_args(DebugEventState)
+                or type(result.snapshot.node_id) is not str
+                or len(result.snapshot.node_id) > 128
+                or any(
+                    not (c.isascii() and (c.isalnum() or c in "_.-"))
+                    for c in result.snapshot.node_id
+                )
+                or (not result.snapshot.node_id and result.snapshot.state != "starting")
+                or type(result.snapshot.completed_nodes) is not tuple
+                or len(result.snapshot.completed_nodes) > 100
+                or any(
+                    type(node) is not str
+                    or not 1 <= len(node) <= 128
+                    or any(not (c.isascii() and (c.isalnum() or c in "_.-")) for c in node)
+                    for node in result.snapshot.completed_nodes
+                )
+                or len(set(result.snapshot.completed_nodes)) != len(result.snapshot.completed_nodes)
+                or type(result.breakpoints) is not tuple
+                or len(result.breakpoints) > 100
+                or any(
+                    type(node) is not str
+                    or not 1 <= len(node) <= 128
+                    or any(not (c.isascii() and (c.isalnum() or c in "_.-")) for c in node)
+                    for node in result.breakpoints
+                )
+                or tuple(sorted(set(result.breakpoints))) != result.breakpoints
+                or type(result.earliest_sequence) is not int
+                or type(result.latest_sequence) is not int
+                or not 0 <= result.latest_sequence < 2**63
+                or result.earliest_sequence
+                != (
+                    max(1, result.latest_sequence - DEBUG_EVENT_RETENTION + 1)
+                    if result.latest_sequence
+                    else 0
+                )
+                or result.latest_sequence < result.snapshot.revision
+            ):
+                raise DebugError("unavailable", "Debug runtime returned invalid reconnect state")
+            return result
+        except DebugError:
+            raise
+        except WorkflowQueryFailedError:
+            raise DebugError("conflict", "Debug reconnect is unavailable") from None
+        except Exception:
+            raise DebugError("unavailable", "Debug reconnect is unavailable") from None
 
     async def step_output(
         self, placement: Environment, execution_id: str, run_id: str, node_id: str

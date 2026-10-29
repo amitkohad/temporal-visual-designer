@@ -18,13 +18,12 @@ event sequence also advances for workflow transitions, so the two counters have
 different meanings. Reads never advance execution or release a paused step.
 Successful command retries and rejected controls add no duplicate events.
 
-Only the latest 256 events are retained. When `gap` is true, treat the returned
-tail as historical information and refresh current status and breakpoints. Do
-not apply that old tail over a newer status snapshot. This increment has no
-atomic public snapshot/cursor handoff: a client can read status/breakpoints
-between two event reads and resume from the latest sequence only if it stayed
-unchanged. If it moved, retry with backoff or continue displaying authoritative
-status. Browser reconciliation remains future work.
+Only the latest 256 events are retained. Start with an [atomic reconnect
+baseline](debug-reconnect.md), render its snapshot and breakpoints, then read
+events after its `next_after` cursor. When `gap` is true, fetch another baseline;
+the returned old tail is historical information and must not overwrite newer
+state. The original multi-read procedure in ADR 0047 is a legacy fallback.
+Browser consumers remain future work.
 
 Use the separately authorized input/output inspectors for values. A cursor beyond
 the latest sequence is invalid; reset to zero for a different session. Never mix
