@@ -49,7 +49,7 @@ Every operation rechecks permission and ownership. UAT/Prod, another owner and r
 
 Use `action: "cancel"` at a paused boundary, timer wait or undecided unmanaged approval wait to request exact-run Temporal cancellation without releasing the next step. See [cancellation and recovery](debug-session-cancellation.md) for the `cancelling` state and retry behavior.
 
-Keep the session database, permanent dispatch journal, project/catalog/configuration stores and Temporal history together during recovery. Sessions and artifact holds are conservative and have no cleanup/expiry operation yet. Browser controls, general runtime variables, step inputs and in-flight/failed attempt output inspection, managed-task/active-activity cancellation, mock connections and parallel stepping remain future increments.
+Keep the session database, permanent dispatch journal, project/catalog/configuration stores and Temporal history together during recovery. Sessions and artifact holds are conservative and have no cleanup/expiry operation yet. Browser controls, general runtime variables, dynamic inputs and in-flight/failed attempt output inspection, managed-task/active-activity cancellation, mock connections and parallel stepping remain future increments.
 
 Read [frozen workflow inputs](debug-input-inspection.md) through the separate `/inputs` route. Only explicitly public fields and opted-in collections are disclosed. Inspection does not advance the workflow or require a running worker. Completed activity outputs use the separate runtime-backed inspector below; general variables remain planned.
 
@@ -57,4 +57,6 @@ Use [owner-scoped session discovery](debug-session-discovery.md) to reconnect to
 
 Use [explicit rerun](debug-rerun.md) to start a new revision or fresh inputs from an acknowledged session. Supply the full start request and a new operation ID. The original execution remains unchanged; exact retries recover the same child.
 
-Inspect [completed activity outputs](debug-step-outputs.md) through the selected node's `/steps/{node_id}/output` route. Only fields explicitly public in the digest-verified pinned activity schema are returned. This runtime query does not release a gate; general variables and step-input inspection remain open.
+Inspect [completed activity outputs](debug-step-outputs.md) through the selected node's `/steps/{node_id}/output` route. Only fields explicitly public in the digest-verified pinned activity schema are returned. This runtime query does not release a gate; general variables and dynamic input inspection remain open.
+
+Inspect [frozen activity inputs](debug-step-inputs.md) through `/steps/{node_id}/input`. It shows the saved literal mapping separately from workflow inputs, using the pinned activity input schema. It works without a running worker and does not resolve dynamic expressions or secrets.

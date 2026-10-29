@@ -19,6 +19,7 @@ from nexusflow.modules.designer_debugger.inspection_types import DebugInputInspe
 from nexusflow.modules.designer_debugger.listing_types import DebugSessionPage
 from nexusflow.modules.designer_debugger.output_types import DebugOutputInspection
 from nexusflow.modules.designer_debugger.repository import SQLiteDebugSessionRepository
+from nexusflow.modules.designer_debugger.step_input_types import DebugStepInputInspection
 from nexusflow.modules.designer_debugger.types import (
     DebugControl,
     DebugError,
@@ -421,6 +422,88 @@ class DebugSessionService:
         if type(result) is not dict:
             raise ValueError("Output root must be an object")
         return result
+
+    async def inspect_step_input(
+        self, scope: Scope, project_id: str, session_id: str, node_id: str
+    ) -> DebugStepInputInspection:
+        """Inspect the frozen literal mapping, without consulting or advancing runtime."""
+        try:
+            record = self._record(scope, project_id, session_id)
+            try:
+                TypeAdapter(Identifier).validate_python(node_id, strict=True)
+            except ValidationError:
+                raise DebugError("invalid_request", "Invalid debug node identifier") from None
+            workflow = self._source_workflow(scope, project_id, record)
+            node = next((item for item in workflow.nodes if item.node_id == node_id), None)
+            if node is None:
+                raise DebugError("not_found", "Debug node was not found")
+            if node.kind != "activity" or node.activity_ref is None:
+                raise DebugError("conflict", "Debug node has no activity input")
+            reference = node.activity_ref
+            step = next((item for item in record.plan.steps if item.node_id == node_id), None)
+            if step is None or (
+                step.kind,
+                step.activity_id,
+                step.activity_version,
+                step.artifact_digest,
+            ) != ("activity", reference.activity_id, reference.version, reference.artifact_digest):
+                raise DebugError("unavailable", "Debug activity binding is unavailable")
+            if type(step.input_json) is not str or len(step.input_json.encode("utf-8")) > 65536:
+                raise DebugError("unavailable", "Frozen debug step input is unavailable")
+            # The proof dispatches this literal mapping separately from workflow
+            # inputs. Never merge values or imply dynamic expression resolution.
+            source = self._output_object(step.input_json)
+            if canonical(source) != canonical(node.input_mapping):
+                raise DebugError("unavailable", "Frozen debug step input binding is unavailable")
+            if self.catalog is None:
+                raise DebugError("unavailable", "Debug input schema is unavailable")
+            entry = self.catalog.get(scope, reference)
+            if (
+                not isinstance(entry, CatalogEntry)
+                or entry.scope != scope
+                or entry.reference != reference
+                or type(entry.manifest_json) is not str
+                or len(entry.manifest_json.encode("utf-8")) > 262144
+            ):
+                raise DebugError("unavailable", "Debug input schema binding is unavailable")
+            manifest = ActivityManifest.model_validate_json(entry.manifest_json)
+            if (
+                manifest.descriptor.activity_ref != reference
+                or bundle_digest(manifest) != reference.artifact_digest
+            ):
+                raise DebugError("unavailable", "Debug input schema binding is unavailable")
+            projected = inspect_values(record, source, manifest.descriptor.input_schema)
+            result = DebugStepInputInspection(
+                session_id=record.session.session_id,
+                workflow_id=record.session.workflow_id,
+                source_revision=record.session.source_revision,
+                definition_digest=record.session.definition_digest,
+                node_id=node_id,
+                activity_ref=reference,
+                values=projected.values,
+                redacted_paths=projected.redacted_paths,
+                truncated=projected.truncated,
+            )
+            if len(result.model_dump_json().encode("utf-8")) > MAX_RESPONSE_BYTES:
+                result = result.model_copy(
+                    update={"values": {}, "redacted_paths": ("",), "truncated": True}
+                )
+            return result
+        except PermissionError:
+            raise
+        except (
+            OSError,
+            RuntimeError,
+            sqlite3.Error,
+            ValidationError,
+            ValueError,
+            TypeError,
+            RecursionError,
+            OverflowError,
+            VersioningError,
+            CatalogError,
+        ):
+            raise DebugError("unavailable", "Debug step input inspection is unavailable") from None
 
     async def inspect_output(
         self, scope: Scope, project_id: str, session_id: str, node_id: str

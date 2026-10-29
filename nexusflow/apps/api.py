@@ -51,6 +51,7 @@ from nexusflow.modules.activity_catalog.types import ActivityManifest, CatalogEr
 from nexusflow.modules.designer_debugger.inspection_types import DebugInputInspection
 from nexusflow.modules.designer_debugger.listing_types import DebugSessionPage
 from nexusflow.modules.designer_debugger.output_types import DebugOutputInspection
+from nexusflow.modules.designer_debugger.step_input_types import DebugStepInputInspection
 from nexusflow.modules.designer_debugger.types import (
     DebugControl,
     DebugError,
@@ -910,6 +911,17 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
     ) -> DebugInputInspection:
         return await backend.debug_service(context.authorization, context.scope).inspect_inputs(
             context.scope, project_id, session_id
+        )
+
+    @app.get(prefix + "/projects/{project_id}/debug-sessions/{session_id}/steps/{node_id}/input")
+    async def debug_step_input(
+        project_id: Identifier,
+        session_id: Identifier,
+        node_id: Identifier,
+        context: SessionDependency,
+    ) -> DebugStepInputInspection:
+        return await backend.debug_service(context.authorization, context.scope).inspect_step_input(
+            context.scope, project_id, session_id, node_id
         )
 
     @app.get(prefix + "/projects/{project_id}/debug-sessions/{session_id}/steps/{node_id}/output")

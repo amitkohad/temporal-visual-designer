@@ -82,7 +82,7 @@ Explicit hosts can now expose [Dev debugger session APIs](docs/designer-debug-se
 
 The standalone local launcher now supports opt-in debugging with `uv run nexusflow-local enable-debugger`. [Try the seeded workflow](docs/local-development.md#enable-dev-debugging) through the signed API, pause/step it and recover the same session after restart. Existing local installations remain disabled until enabled.
 
-Dev sessions support [redacted frozen workflow-input inspection](docs/debug-input-inspection.md). Only explicitly public primitive fields are shown; protected/unclassified values stay hidden and draft edits cannot widen an old session. Completed activity outputs are available through the separately authorized [output inspector](docs/debug-step-outputs.md); general variables and browser controls remain planned.
+Dev sessions support [redacted frozen workflow-input inspection](docs/debug-input-inspection.md). Only explicitly public primitive fields are shown; protected/unclassified values stay hidden and draft edits cannot widen an old session. Completed activity outputs and frozen literal activity inputs are available through the separately authorized [output](docs/debug-step-outputs.md) and [step input](docs/debug-step-inputs.md) inspectors; general variables, dynamic inputs and browser controls remain planned.
 
 Dev debugger clients can [discover their saved sessions](docs/debug-session-discovery.md) through an owner-scoped paginated metadata API, including after restart. Inputs and plans stay private; authoritative runtime status remains a separate query.
 
