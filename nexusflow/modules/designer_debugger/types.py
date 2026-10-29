@@ -8,6 +8,8 @@ from pydantic import BeforeValidator, Field, JsonValue
 from nexusflow.contracts.models import Contract, Digest, Identifier
 from nexusflow.modules.durable_runtime.types import (
     CommandReceipt,
+    DebugBreakpointCommand,
+    DebugBreakpointState,
     DebugCommand,
     DebugStepOutput,
     ExecutionPlan,
@@ -69,6 +71,16 @@ class DebugRuntime(Protocol):
     async def step_output(
         self, placement: Environment, execution_id: str, run_id: str, node_id: str
     ) -> DebugStepOutput: ...
+    async def breakpoints(
+        self, placement: Environment, execution_id: str, run_id: str
+    ) -> DebugBreakpointState: ...
+    async def replace_breakpoints(
+        self,
+        placement: Environment,
+        execution_id: str,
+        run_id: str,
+        command: DebugBreakpointCommand,
+    ) -> CommandReceipt: ...
 
 
 class DebugError(Exception):

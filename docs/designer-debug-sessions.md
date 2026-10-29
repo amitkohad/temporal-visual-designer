@@ -60,3 +60,5 @@ Use [explicit rerun](debug-rerun.md) to start a new revision or fresh inputs fro
 Inspect [completed activity outputs](debug-step-outputs.md) through the selected node's `/steps/{node_id}/output` route. Only fields explicitly public in the digest-verified pinned activity schema are returned. This runtime query does not release a gate; general variables and dynamic input inspection remain open.
 
 Inspect [frozen activity inputs](debug-step-inputs.md) through `/steps/{node_id}/input`. It shows the saved literal mapping separately from workflow inputs, using the pinned activity input schema. It works without a running worker and does not resolve dynamic expressions or secrets.
+
+Read or [replace the active breakpoint set](debug-breakpoints.md) through `/breakpoints`. Replacement requires the current paused node/revision and never resumes it. Use a separate step/continue command with the updated revision; the original plan remains unchanged.

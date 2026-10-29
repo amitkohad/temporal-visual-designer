@@ -13,6 +13,10 @@ from nexusflow.contracts.models import Identifier, Scope, WorkflowDefinition
 from nexusflow.modules.activity_catalog.catalog_types import CatalogEntry, CatalogRepository
 from nexusflow.modules.activity_catalog.digests import bundle_digest
 from nexusflow.modules.activity_catalog.types import ActivityManifest, CatalogError
+from nexusflow.modules.designer_debugger.breakpoint_types import (
+    DebugBreakpointControl,
+    DebugBreakpoints,
+)
 from nexusflow.modules.designer_debugger.inspection import MAX_RESPONSE_BYTES, inspect_values
 from nexusflow.modules.designer_debugger.inspection import inspect_inputs as inspect_debug_inputs
 from nexusflow.modules.designer_debugger.inspection_types import DebugInputInspection
@@ -32,6 +36,8 @@ from nexusflow.modules.designer_debugger.types import (
 from nexusflow.modules.durable_runtime.preflight import PlanError, compile_plan
 from nexusflow.modules.durable_runtime.types import (
     CommandReceipt,
+    DebugBreakpointCommand,
+    DebugBreakpointState,
     DebugCommand,
     DebugStepOutput,
     ReleaseBinding,
@@ -376,6 +382,113 @@ class DebugSessionService:
         if checksum != record.plan.definition_digest:
             raise DebugError("unavailable", "Debug source binding is unavailable")
         return workflow
+
+    @staticmethod
+    def _breakpoint_targets(record: DebugRecord, values: tuple[str, ...]) -> bool:
+        eligible = {
+            step.node_id
+            for step in record.plan.steps
+            if step.kind in {"activity", "approval", "wait"}
+        }
+        return (
+            type(values) is tuple
+            and len(values) <= 100
+            and all(type(value) is str and value in eligible for value in values)
+            and values == tuple(sorted(set(values)))
+        )
+
+    async def get_breakpoints(
+        self, scope: Scope, project_id: str, session_id: str
+    ) -> DebugBreakpoints:
+        """Read the active runtime overlay, never the mutable project draft."""
+        try:
+            record = self._record(scope, project_id, session_id)
+            if not callable(getattr(self.runtime, "breakpoints", None)):
+                raise DebugError("unavailable", "Debug breakpoint runtime is unavailable")
+            assert record.session.temporal_run_id is not None
+            state = await self.runtime.breakpoints(
+                record.placement, record.session.execution_id, record.session.temporal_run_id
+            )
+            if (
+                not isinstance(state, DebugBreakpointState)
+                or not isinstance(state.snapshot, Snapshot)
+                or not self._breakpoint_targets(record, state.breakpoints)
+                or type(state.snapshot.revision) is not int
+                or not 0 <= state.snapshot.revision < 2**63
+            ):
+                raise DebugError("unavailable", "Debug breakpoint state is invalid")
+            self._snapshot(record, state.snapshot)
+            return DebugBreakpoints(
+                session_id=record.session.session_id,
+                revision=state.snapshot.revision,
+                breakpoints=state.breakpoints,
+            )
+        except (
+            OSError,
+            RuntimeError,
+            sqlite3.Error,
+            ValidationError,
+            ValueError,
+            TypeError,
+            RecursionError,
+        ):
+            raise DebugError("unavailable", "Debug breakpoint provider is unavailable") from None
+
+    async def replace_breakpoints(
+        self,
+        scope: Scope,
+        project_id: str,
+        session_id: str,
+        request: DebugBreakpointControl,
+    ) -> CommandReceipt:
+        """Reserve a shared command identity before updating a paused exact run."""
+        try:
+            record = self._record(scope, project_id, session_id)
+            previous = self.repository.claim_command(scope, project_id, session_id, request)
+            if previous is not None:
+                if type(previous.revision) is not int or not 1 <= previous.revision < 2**63:
+                    raise DebugError("unavailable", "Debug breakpoint receipt is invalid")
+                return previous
+            if not self._breakpoint_targets(record, request.breakpoints):
+                raise DebugError("invalid_request", "Invalid debug breakpoint targets")
+            if not callable(getattr(self.runtime, "replace_breakpoints", None)):
+                raise DebugError("unavailable", "Debug breakpoint runtime is unavailable")
+            assert record.session.temporal_run_id is not None
+            snapshot = await self.runtime.snapshot(
+                record.placement, record.session.execution_id, record.session.temporal_run_id
+            )
+            self._snapshot(record, snapshot)
+            receipt = await self.runtime.replace_breakpoints(
+                record.placement,
+                record.session.execution_id,
+                record.session.temporal_run_id,
+                DebugBreakpointCommand(
+                    request.command_id,
+                    request.node_id,
+                    request.breakpoints,
+                    request.expected_revision,
+                ),
+            )
+            if (
+                not isinstance(receipt, CommandReceipt)
+                or receipt.command_id != request.command_id
+                or type(receipt.revision) is not int
+                or not 1 <= receipt.revision < 2**63
+            ):
+                raise DebugError("unavailable", "Debug breakpoint receipt is invalid")
+            return self.repository.acknowledge_command(
+                scope, project_id, session_id, request, receipt
+            )
+        except (
+            OSError,
+            RuntimeError,
+            sqlite3.Error,
+            ValidationError,
+            ValueError,
+            TypeError,
+            RecursionError,
+        ):
+            raise DebugError("unavailable", "Debug breakpoint provider is unavailable") from None
 
     async def inspect_inputs(
         self, scope: Scope, project_id: str, session_id: str

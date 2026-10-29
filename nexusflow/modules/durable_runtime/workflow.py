@@ -11,6 +11,8 @@ from nexusflow.modules.durable_runtime.types import (
     ActivityCall,
     ApprovalCommand,
     CommandReceipt,
+    DebugBreakpointCommand,
+    DebugBreakpointState,
     DebugCommand,
     DebugStepOutput,
     ExecutionPlan,
@@ -32,7 +34,10 @@ class ProofWorkflow:
         self.approved: bool | None = None
         self.permit = ""
         self.stepping = True
-        self.receipts: dict[str, tuple[ApprovalCommand | DebugCommand, CommandReceipt]] = {}
+        self.breakpoints: tuple[str, ...] = ()
+        self.receipts: dict[
+            str, tuple[ApprovalCommand | DebugCommand | DebugBreakpointCommand, CommandReceipt]
+        ] = {}
         self.task_receipts: dict[str, tuple[TaskCompletionCommand, CommandReceipt]] = {}
         self.managed_approval = False
         self.managed_task_id = ""
@@ -46,6 +51,7 @@ class ProofWorkflow:
         if plan.debug and plan.binding.environment_id != "dev":
             raise ApplicationError("Debug is restricted to Dev", non_retryable=True)
         self.plan = plan
+        self.breakpoints = plan.breakpoints
         outputs = self.activity_outputs
         try:
             for step in plan.steps:
@@ -55,7 +61,7 @@ class ProofWorkflow:
                 if (
                     plan.debug
                     and step.kind not in {"start", "end"}
-                    and (self.stepping or step.node_id in plan.breakpoints)
+                    and (self.stepping or step.node_id in self.breakpoints)
                 ):
                     self.state = "paused"
                     await workflow.wait_condition(lambda: self.permit == self.node_id)
@@ -145,7 +151,9 @@ class ProofWorkflow:
             self.state = "failed"
             raise
 
-    def _duplicate(self, command: ApprovalCommand | DebugCommand) -> CommandReceipt | None:
+    def _duplicate(
+        self, command: ApprovalCommand | DebugCommand | DebugBreakpointCommand
+    ) -> CommandReceipt | None:
         previous = self.receipts.get(command.command_id)
         if previous is not None:
             if previous[0] != command:
@@ -159,7 +167,9 @@ class ProofWorkflow:
             raise ApplicationError("Stale command revision", type="Conflict")
         return None
 
-    def _accept(self, command: ApprovalCommand | DebugCommand) -> CommandReceipt:
+    def _accept(
+        self, command: ApprovalCommand | DebugCommand | DebugBreakpointCommand
+    ) -> CommandReceipt:
         self.revision += 1
         receipt = CommandReceipt(command.command_id, self.revision)
         self.receipts[command.command_id] = (command, receipt)
@@ -267,6 +277,52 @@ class ProofWorkflow:
         self.stepping = command.action == "step_over"
         self.permit = command.node_id
         return self._accept(command)
+
+    @workflow.update
+    def replace_breakpoints(self, command: DebugBreakpointCommand) -> CommandReceipt:
+        if (
+            type(command.command_id) is not str
+            or not 1 <= len(command.command_id) <= 128
+            or any(not (c.isascii() and (c.isalnum() or c in "_.-")) for c in command.command_id)
+            or type(command.expected_revision) is not int
+            or not 0 <= command.expected_revision < 2**63
+        ):
+            raise ApplicationError("Invalid breakpoint command", type="Conflict")
+        previous = self._duplicate(command)
+        if previous is not None:
+            return previous
+        plan = self.plan
+        if (
+            plan is None
+            or not plan.debug
+            or plan.binding.environment_id != "dev"
+            or self.state != "paused"
+            or self.permit
+            or command.node_id != self.node_id
+        ):
+            raise ApplicationError("Breakpoint change requires a paused Dev step", type="Conflict")
+        executable = {
+            step.node_id for step in plan.steps if step.kind in {"activity", "approval", "wait"}
+        }
+        targets = command.breakpoints
+        if (
+            type(targets) is not tuple
+            or len(targets) > 100
+            or any(type(node) is not str for node in targets)
+            or tuple(sorted(set(targets))) != targets
+            or any(node not in executable for node in targets)
+        ):
+            raise ApplicationError("Invalid breakpoint targets", type="Conflict")
+        # Changing the overlay never releases the current paused invocation.
+        self.breakpoints = targets
+        return self._accept(command)
+
+    @workflow.query
+    def debug_breakpoints(self) -> DebugBreakpointState:
+        plan = self.plan
+        if plan is None or not plan.debug or plan.binding.environment_id != "dev":
+            raise ApplicationError("Debug breakpoints are unavailable", type="Conflict")
+        return DebugBreakpointState(self.snapshot(), tuple(sorted(set(self.breakpoints))))
 
     @workflow.query
     def step_output(self, node_id: str) -> DebugStepOutput:
