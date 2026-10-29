@@ -11,6 +11,8 @@ from nexusflow.modules.durable_runtime.types import (
     DebugBreakpointCommand,
     DebugBreakpointState,
     DebugCommand,
+    DebugEventBatch,
+    DebugEventQuery,
     DebugStepOutput,
     ExecutionPlan,
     Snapshot,
@@ -81,6 +83,9 @@ class DebugRuntime(Protocol):
         run_id: str,
         command: DebugBreakpointCommand,
     ) -> CommandReceipt: ...
+    async def events(
+        self, placement: Environment, execution_id: str, run_id: str, query: DebugEventQuery
+    ) -> DebugEventBatch: ...
 
 
 class DebugError(Exception):

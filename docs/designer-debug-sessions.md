@@ -62,3 +62,5 @@ Inspect [completed activity outputs](debug-step-outputs.md) through the selected
 Inspect [frozen activity inputs](debug-step-inputs.md) through `/steps/{node_id}/input`. It shows the saved literal mapping separately from workflow inputs, using the pinned activity input schema. It works without a running worker and does not resolve dynamic expressions or secrets.
 
 Read or [replace the active breakpoint set](debug-breakpoints.md) through `/breakpoints`. Replacement requires the current paused node/revision and never resumes it. Use a separate step/continue command with the updated revision; the original plan remains unchanged.
+
+Read [ordered debug events](debug-events.md) through `/events?after=0&limit=25` to recover retained progress metadata after reconnecting. Values and error messages are absent. A retention gap requires status reconciliation; the guide documents a stable-sequence baseline procedure, while atomic handoff and browser consumers remain open.

@@ -8,12 +8,17 @@ from temporalio.common import RetryPolicy
 from temporalio.exceptions import ApplicationError
 
 from nexusflow.modules.durable_runtime.types import (
+    DEBUG_EVENT_PAGE_LIMIT,
+    DEBUG_EVENT_RETENTION,
     ActivityCall,
     ApprovalCommand,
     CommandReceipt,
     DebugBreakpointCommand,
     DebugBreakpointState,
     DebugCommand,
+    DebugEventBatch,
+    DebugEventQuery,
+    DebugRuntimeEvent,
     DebugStepOutput,
     ExecutionPlan,
     ExecutionResult,
@@ -43,6 +48,8 @@ class ProofWorkflow:
         self.managed_task_id = ""
         self.cancellation_requested = False
         self.activity_outputs: dict[str, str] = {}
+        self.event_sequence = 0
+        self.event_log: list[DebugRuntimeEvent] = []
 
     @workflow.run
     async def run(self, plan: ExecutionPlan) -> ExecutionResult:
@@ -64,9 +71,11 @@ class ProofWorkflow:
                     and (self.stepping or step.node_id in self.breakpoints)
                 ):
                     self.state = "paused"
+                    self._event("paused")
                     await workflow.wait_condition(lambda: self.permit == self.node_id)
                     self.permit = ""
                 self.state = "running"
+                self._event("step_started")
                 if step.kind == "activity":
                     call = ActivityCall(
                         binding=plan.binding,
@@ -101,6 +110,7 @@ class ProofWorkflow:
                     self.managed_task_id = ""
                     if self.managed_approval:
                         self.state = "creating_task"
+                        self._event("waiting")
                         task_id = await workflow.execute_activity(
                             "nexusflow.tasks.create",
                             TaskCreationCall(
@@ -126,6 +136,7 @@ class ProofWorkflow:
                             raise ApplicationError("Invalid created task ID", non_retryable=True)
                         self.managed_task_id = task_id
                     self.state = "waiting_approval"
+                    self._event("waiting")
                     await workflow.wait_condition(lambda: self.approved is not None)
                     if not self.approved:
                         raise ApplicationError(
@@ -133,6 +144,7 @@ class ProofWorkflow:
                         )
                 elif step.kind == "wait":
                     self.state = "waiting_timer"
+                    self._event("waiting")
                     await workflow.sleep(timedelta(seconds=step.delay_seconds))
                 if self.cancellation_requested:
                     # A timer may finish after cancel acceptance but before the
@@ -140,15 +152,19 @@ class ProofWorkflow:
                     # node/state and block completion or any downstream dispatch.
                     await workflow.wait_condition(lambda: not self.cancellation_requested)
                 self.completed.append(step.node_id)
+                self._event("step_completed", state="running")
             self.state = "completed"
+            self._event("completed")
             return ExecutionResult(
                 plan.binding, plan.definition_digest, tuple(self.completed), outputs
             )
         except asyncio.CancelledError:
             self.state = "cancelled"
+            self._event("cancelled")
             raise
         except Exception:
             self.state = "failed"
+            self._event("failed")
             raise
 
     def _duplicate(
@@ -173,6 +189,7 @@ class ProofWorkflow:
         self.revision += 1
         receipt = CommandReceipt(command.command_id, self.revision)
         self.receipts[command.command_id] = (command, receipt)
+        self._event("command_accepted")
         return receipt
 
     @workflow.update
@@ -234,6 +251,7 @@ class ProofWorkflow:
         self.revision += 1
         receipt = CommandReceipt(command.completion_id, self.revision)
         self.task_receipts[command.completion_id] = (command, receipt)
+        self._event("command_accepted")
         return receipt
 
     @complete_task.validator
@@ -316,6 +334,48 @@ class ProofWorkflow:
         # Changing the overlay never releases the current paused invocation.
         self.breakpoints = targets
         return self._accept(command)
+
+    def _event(self, kind: str, *, state: str | None = None) -> None:
+        plan = self.plan
+        if plan is None or not plan.debug or plan.binding.environment_id != "dev":
+            return
+        self.event_sequence += 1
+        self.event_log.append(
+            DebugRuntimeEvent(
+                self.event_sequence, kind, self.node_id or None, state or self.state, self.revision
+            )
+        )
+        if len(self.event_log) > DEBUG_EVENT_RETENTION:
+            del self.event_log[:-DEBUG_EVENT_RETENTION]
+
+    @workflow.query
+    def debug_events(self, query: DebugEventQuery) -> DebugEventBatch:
+        plan = self.plan
+        if plan is None or not plan.debug or plan.binding.environment_id != "dev":
+            raise ApplicationError("Debug events are unavailable", type="Conflict")
+        if (
+            type(query.after) is not int
+            or not 0 <= query.after < 2**63
+            or type(query.limit) is not int
+            or not 1 <= query.limit <= DEBUG_EVENT_PAGE_LIMIT
+            or query.after > self.event_sequence
+        ):
+            raise ApplicationError("Invalid debug event cursor", type="InvalidArgument")
+        earliest = self.event_log[0].sequence if self.event_log else 0
+        gap = bool(earliest and query.after < earliest - 1)
+        events = tuple(event for event in self.event_log if event.sequence > query.after)[
+            : query.limit
+        ]
+        next_after = events[-1].sequence if events else query.after
+        return DebugEventBatch(
+            self.snapshot(),
+            events,
+            earliest,
+            self.event_sequence,
+            next_after,
+            next_after < self.event_sequence,
+            gap,
+        )
 
     @workflow.query
     def debug_breakpoints(self) -> DebugBreakpointState:

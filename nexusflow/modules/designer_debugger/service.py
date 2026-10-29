@@ -17,6 +17,7 @@ from nexusflow.modules.designer_debugger.breakpoint_types import (
     DebugBreakpointControl,
     DebugBreakpoints,
 )
+from nexusflow.modules.designer_debugger.event_types import DebugEvent, DebugEvents
 from nexusflow.modules.designer_debugger.inspection import MAX_RESPONSE_BYTES, inspect_values
 from nexusflow.modules.designer_debugger.inspection import inspect_inputs as inspect_debug_inputs
 from nexusflow.modules.designer_debugger.inspection_types import DebugInputInspection
@@ -35,10 +36,15 @@ from nexusflow.modules.designer_debugger.types import (
 )
 from nexusflow.modules.durable_runtime.preflight import PlanError, compile_plan
 from nexusflow.modules.durable_runtime.types import (
+    DEBUG_EVENT_PAGE_LIMIT,
+    DEBUG_EVENT_RETENTION,
     CommandReceipt,
     DebugBreakpointCommand,
     DebugBreakpointState,
     DebugCommand,
+    DebugEventBatch,
+    DebugEventQuery,
+    DebugRuntimeEvent,
     DebugStepOutput,
     ReleaseBinding,
     Snapshot,
@@ -382,6 +388,124 @@ class DebugSessionService:
         if checksum != record.plan.definition_digest:
             raise DebugError("unavailable", "Debug source binding is unavailable")
         return workflow
+
+    async def list_events(
+        self,
+        scope: Scope,
+        project_id: str,
+        session_id: str,
+        *,
+        after: int = 0,
+        limit: int = DEBUG_EVENT_PAGE_LIMIT,
+    ) -> DebugEvents:
+        """Read a bounded exact-run metadata page without consulting mutable sources."""
+        try:
+            record = self._record(scope, project_id, session_id)
+            if (
+                type(after) is not int
+                or not 0 <= after < 2**63
+                or type(limit) is not int
+                or not 1 <= limit <= DEBUG_EVENT_PAGE_LIMIT
+            ):
+                raise DebugError("invalid_request", "Invalid debug event page")
+            if not callable(getattr(self.runtime, "events", None)):
+                raise DebugError("unavailable", "Debug event runtime is unavailable")
+            assert record.session.temporal_run_id is not None
+            batch = await self.runtime.events(
+                record.placement,
+                record.session.execution_id,
+                record.session.temporal_run_id,
+                DebugEventQuery(after, limit),
+            )
+            return self._event_page(record, batch, after, limit)
+        except PermissionError:
+            raise
+        except (
+            OSError,
+            RuntimeError,
+            sqlite3.Error,
+            ValidationError,
+            ValueError,
+            TypeError,
+            RecursionError,
+            OverflowError,
+        ):
+            raise DebugError("unavailable", "Debug events are unavailable") from None
+
+    def _event_page(
+        self, record: DebugRecord, batch: DebugEventBatch, after: int, limit: int
+    ) -> DebugEvents:
+        if (
+            not isinstance(batch, DebugEventBatch)
+            or not isinstance(batch.snapshot, Snapshot)
+            or type(batch.snapshot.revision) is not int
+            or not 0 <= batch.snapshot.revision < 2**63
+            or type(batch.events) is not tuple
+            or len(batch.events) > limit
+            or any(
+                type(value) is not int or not 0 <= value < 2**63
+                for value in (batch.earliest_sequence, batch.latest_sequence, batch.next_after)
+            )
+            or type(batch.has_more) is not bool
+            or type(batch.gap) is not bool
+        ):
+            raise DebugError("unavailable", "Debug event page binding is invalid")
+        self._snapshot(record, batch.snapshot)
+        earliest, latest = batch.earliest_sequence, batch.latest_sequence
+        if (latest == 0 and earliest != 0) or (
+            latest > 0 and earliest != max(1, latest - DEBUG_EVENT_RETENTION + 1)
+        ):
+            raise DebugError("unavailable", "Debug event retention window is invalid")
+        if after > latest:
+            raise DebugError("invalid_request", "Debug event cursor is ahead of this run")
+        expected_gap = earliest > 0 and after < earliest - 1
+        start = max(after + 1, earliest)
+        expected_count = min(limit, max(0, latest - start + 1))
+        if batch.gap != expected_gap or len(batch.events) != expected_count:
+            raise DebugError("unavailable", "Debug event page sequence is invalid")
+        nodes = {step.node_id for step in record.plan.steps}
+        events: list[DebugEvent] = []
+        previous_revision = 0
+        for index, event in enumerate(batch.events):
+            if not isinstance(event, DebugRuntimeEvent):
+                raise DebugError("unavailable", "Debug event metadata is invalid")
+            parsed = DebugEvent.model_validate(
+                {
+                    "sequence": event.sequence,
+                    "kind": event.kind,
+                    "node_id": event.node_id,
+                    "state": event.state,
+                    "revision": event.revision,
+                }
+            )
+            if (
+                parsed.sequence != start + index
+                or parsed.revision < previous_revision
+                or parsed.revision > batch.snapshot.revision
+                or (parsed.node_id is not None and parsed.node_id not in nodes)
+                or (
+                    parsed.node_id is None
+                    and parsed.kind not in {"completed", "failed", "cancelled"}
+                )
+            ):
+                raise DebugError("unavailable", "Debug event metadata binding is invalid")
+            previous_revision = parsed.revision
+            events.append(parsed)
+        next_after = events[-1].sequence if events else after
+        if batch.next_after != next_after or batch.has_more != (next_after < latest):
+            raise DebugError("unavailable", "Debug event continuation is invalid")
+        result = DebugEvents(
+            session_id=record.session.session_id,
+            events=tuple(events),
+            earliest_sequence=earliest,
+            latest_sequence=latest,
+            next_after=next_after,
+            has_more=batch.has_more,
+            gap=batch.gap,
+        )
+        if len(result.model_dump_json().encode("utf-8")) > MAX_RESPONSE_BYTES:
+            raise DebugError("unavailable", "Debug event response exceeds limits")
+        return result
 
     @staticmethod
     def _breakpoint_targets(record: DebugRecord, values: tuple[str, ...]) -> bool:
