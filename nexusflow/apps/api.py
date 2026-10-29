@@ -52,6 +52,7 @@ from nexusflow.modules.designer_debugger.breakpoint_types import (
     DebugBreakpointControl,
     DebugBreakpoints,
 )
+from nexusflow.modules.designer_debugger.event_types import DebugEvents
 from nexusflow.modules.designer_debugger.inspection_types import DebugInputInspection
 from nexusflow.modules.designer_debugger.listing_types import DebugSessionPage
 from nexusflow.modules.designer_debugger.output_types import DebugOutputInspection
@@ -915,6 +916,23 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
     ) -> DebugInputInspection:
         return await backend.debug_service(context.authorization, context.scope).inspect_inputs(
             context.scope, project_id, session_id
+        )
+
+    @app.get(prefix + "/projects/{project_id}/debug-sessions/{session_id}/events")
+    async def debug_events(
+        project_id: Identifier,
+        session_id: Identifier,
+        request: Request,
+        context: SessionDependency,
+        after: Annotated[int, Query(ge=0, lt=2**63)] = 0,
+        limit: Annotated[int, Query(ge=1, le=25)] = 25,
+    ) -> DebugEvents:
+        if any(key not in {"after", "limit"} for key in request.query_params) or any(
+            len(request.query_params.getlist(key)) > 1 for key in ("after", "limit")
+        ):
+            raise DebugError("invalid_request", "Invalid debug event query")
+        return await backend.debug_service(context.authorization, context.scope).list_events(
+            context.scope, project_id, session_id, after=after, limit=limit
         )
 
     @app.get(prefix + "/projects/{project_id}/debug-sessions/{session_id}/breakpoints")

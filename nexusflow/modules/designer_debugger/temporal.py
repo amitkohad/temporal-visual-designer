@@ -5,6 +5,7 @@ import json
 from collections.abc import Awaitable, Callable
 from dataclasses import asdict
 from datetime import timedelta
+from typing import get_args
 
 from temporalio.client import Client, WorkflowQueryFailedError, WorkflowUpdateFailedError
 from temporalio.exceptions import ApplicationError
@@ -16,10 +17,17 @@ from nexusflow.modules.durable_runtime.temporal_starts import (
     TemporalStartDispatcher,
 )
 from nexusflow.modules.durable_runtime.types import (
+    DEBUG_EVENT_PAGE_LIMIT,
+    DEBUG_EVENT_RETENTION,
     CommandReceipt,
     DebugBreakpointCommand,
     DebugBreakpointState,
     DebugCommand,
+    DebugEventBatch,
+    DebugEventKind,
+    DebugEventQuery,
+    DebugEventState,
+    DebugRuntimeEvent,
     DebugStepOutput,
     ExecutionPlan,
     Snapshot,
@@ -189,6 +197,83 @@ class TemporalDebugRuntime:
             raise DebugError(code, "Debug breakpoint command could not be applied") from None
         except Exception:
             raise DebugError("unavailable", "Debug breakpoint command is unavailable") from None
+
+    async def events(
+        self, placement: Environment, execution_id: str, run_id: str, query: DebugEventQuery
+    ) -> DebugEventBatch:
+        try:
+            client = await self._client(placement)
+            if not run_id:
+                raise DebugError("conflict", "A pinned run is required")
+            if (
+                type(query.after) is not int
+                or not 0 <= query.after < 2**63
+                or type(query.limit) is not int
+                or not 1 <= query.limit <= DEBUG_EVENT_PAGE_LIMIT
+            ):
+                raise DebugError("invalid_request", "Invalid debug event cursor")
+            result = await client.get_workflow_handle(execution_id, run_id=run_id).query(
+                ProofWorkflow.debug_events, query, rpc_timeout=self.rpc_timeout
+            )
+            if not isinstance(result, DebugEventBatch) or not isinstance(result.snapshot, Snapshot):
+                raise ValueError("Invalid event batch")
+            numbers = (result.earliest_sequence, result.latest_sequence, result.next_after)
+            if (
+                any(type(value) is not int or not 0 <= value < 2**63 for value in numbers)
+                or type(result.events) is not tuple
+                or len(result.events) > query.limit
+                or type(result.has_more) is not bool
+                or type(result.gap) is not bool
+                or result.latest_sequence < query.after
+            ):
+                raise ValueError("Invalid event bounds")
+            earliest = (
+                max(1, result.latest_sequence - DEBUG_EVENT_RETENTION + 1)
+                if result.latest_sequence
+                else 0
+            )
+            expected_start = max(query.after + 1, earliest)
+            expected_count = min(query.limit, max(0, result.latest_sequence - expected_start + 1))
+            if (
+                result.earliest_sequence != earliest
+                or len(result.events) != expected_count
+                or result.gap != bool(earliest and query.after < earliest - 1)
+            ):
+                raise ValueError("Invalid event continuity")
+            for index, event in enumerate(result.events):
+                if (
+                    not isinstance(event, DebugRuntimeEvent)
+                    or type(event.sequence) is not int
+                    or event.sequence != expected_start + index
+                    or event.kind not in get_args(DebugEventKind)
+                    or event.state not in get_args(DebugEventState)
+                    or type(event.revision) is not int
+                    or not 0 <= event.revision < 2**63
+                    or (
+                        event.node_id is not None
+                        and (
+                            type(event.node_id) is not str
+                            or not 1 <= len(event.node_id) <= 128
+                            or any(
+                                not (c.isascii() and (c.isalnum() or c in "_.-"))
+                                for c in event.node_id
+                            )
+                        )
+                    )
+                ):
+                    raise ValueError("Invalid event metadata")
+            next_after = result.events[-1].sequence if result.events else query.after
+            if result.next_after != next_after or result.has_more != (
+                next_after < result.latest_sequence
+            ):
+                raise ValueError("Invalid event continuation")
+            return result
+        except DebugError:
+            raise
+        except WorkflowQueryFailedError:
+            raise DebugError("conflict", "Debug events are unavailable") from None
+        except Exception:
+            raise DebugError("unavailable", "Debug events are unavailable") from None
 
     async def control(
         self, placement: Environment, execution_id: str, run_id: str, command: DebugCommand

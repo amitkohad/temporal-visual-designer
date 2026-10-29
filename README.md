@@ -87,3 +87,5 @@ Dev sessions support [redacted frozen workflow-input inspection](docs/debug-inpu
 Dev debugger clients can [discover their saved sessions](docs/debug-session-discovery.md) through an owner-scoped paginated metadata API, including after restart. Inputs and plans stay private; authoritative runtime status remains a separate query.
 
 The frozen-input inspector supports [explicitly opted-in business arrays](docs/debug-array-inspection.md), including public fields of purchase line items, with protected-field redaction and bounded, position-preserving output. Previously unsupported arrays stay hidden unless a new schema revision adds the array-specific marker.
+
+Dev sessions now expose [ordered metadata events](docs/debug-events.md) with bounded pagination, restart replay and retention-gap detection. Event values and error messages are absent; atomic reconciliation, live streaming and React consumers remain planned.
