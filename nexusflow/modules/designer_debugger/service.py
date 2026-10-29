@@ -5,6 +5,7 @@ import json
 import math
 import sqlite3
 from datetime import UTC, datetime
+from typing import get_args
 from uuid import uuid4
 
 from pydantic import JsonValue, TypeAdapter, ValidationError
@@ -23,6 +24,7 @@ from nexusflow.modules.designer_debugger.inspection import inspect_inputs as ins
 from nexusflow.modules.designer_debugger.inspection_types import DebugInputInspection
 from nexusflow.modules.designer_debugger.listing_types import DebugSessionPage
 from nexusflow.modules.designer_debugger.output_types import DebugOutputInspection
+from nexusflow.modules.designer_debugger.reconnect_types import MAX_RECONNECT_BYTES, DebugReconnect
 from nexusflow.modules.designer_debugger.repository import SQLiteDebugSessionRepository
 from nexusflow.modules.designer_debugger.step_input_types import DebugStepInputInspection
 from nexusflow.modules.designer_debugger.types import (
@@ -44,6 +46,8 @@ from nexusflow.modules.durable_runtime.types import (
     DebugCommand,
     DebugEventBatch,
     DebugEventQuery,
+    DebugEventState,
+    DebugReconnectState,
     DebugRuntimeEvent,
     DebugStepOutput,
     ReleaseBinding,
@@ -388,6 +392,94 @@ class DebugSessionService:
         if checksum != record.plan.definition_digest:
             raise DebugError("unavailable", "Debug source binding is unavailable")
         return workflow
+
+    async def reconnect(self, scope: Scope, project_id: str, session_id: str) -> DebugReconnect:
+        """Read one atomic metadata baseline and resume cursor from the pinned run."""
+        try:
+            record = self._record(scope, project_id, session_id)
+            if not callable(getattr(self.runtime, "reconnect", None)):
+                raise DebugError("unavailable", "Debug reconnect runtime is unavailable")
+            assert record.session.temporal_run_id is not None
+            state = await self.runtime.reconnect(
+                record.placement, record.session.execution_id, record.session.temporal_run_id
+            )
+            if not isinstance(state, DebugReconnectState) or not isinstance(
+                state.snapshot, Snapshot
+            ):
+                raise DebugError("unavailable", "Debug reconnect metadata is invalid")
+            snapshot = state.snapshot
+            self._snapshot(record, snapshot)
+            nodes = tuple(step.node_id for step in record.plan.steps)
+            TypeAdapter(tuple[Identifier, ...]).validate_python(nodes, strict=True)
+            completed = snapshot.completed_nodes
+            if (
+                record.plan.binding.runtime_version != "proof.v1"
+                or not 2 <= len(nodes) <= 100
+                or len(set(nodes)) != len(nodes)
+                or type(snapshot.state) is not str
+                or snapshot.state not in get_args(DebugEventState)
+                or type(snapshot.revision) is not int
+                or not 0 <= snapshot.revision < 2**63
+                or type(snapshot.node_id) is not str
+                or type(completed) is not tuple
+                or len(completed) > len(nodes)
+                or completed != nodes[: len(completed)]
+                or (snapshot.state == "starting" and completed != ())
+                or (
+                    snapshot.node_id == ""
+                    and not (snapshot.state == "starting" and completed == ())
+                )
+                or (snapshot.node_id != "" and snapshot.node_id not in nodes)
+            ):
+                raise DebugError("unavailable", "Debug reconnect snapshot is invalid")
+            if snapshot.state == "completed":
+                if completed != nodes or snapshot.node_id != nodes[-1]:
+                    raise DebugError("unavailable", "Debug reconnect completion is invalid")
+            elif snapshot.node_id and len(completed) != nodes.index(snapshot.node_id):
+                raise DebugError("unavailable", "Debug reconnect position is invalid")
+            if (
+                not self._breakpoint_targets(record, state.breakpoints)
+                or type(state.earliest_sequence) is not int
+                or type(state.latest_sequence) is not int
+                or not 0 <= state.latest_sequence < 2**63
+                or state.latest_sequence < snapshot.revision
+                or state.earliest_sequence
+                != (
+                    max(1, state.latest_sequence - DEBUG_EVENT_RETENTION + 1)
+                    if state.latest_sequence
+                    else 0
+                )
+            ):
+                raise DebugError("unavailable", "Debug reconnect cursor is invalid")
+            if state.latest_sequence == 0:
+                if snapshot.state != "starting" or snapshot.revision != 0 or completed != ():
+                    raise DebugError("unavailable", "Debug reconnect baseline is inconsistent")
+            elif snapshot.state == "starting":
+                raise DebugError("unavailable", "Debug reconnect baseline is inconsistent")
+            result = DebugReconnect(
+                session_id=record.session.session_id,
+                snapshot=snapshot,
+                breakpoints=state.breakpoints,
+                earliest_sequence=state.earliest_sequence,
+                latest_sequence=state.latest_sequence,
+                next_after=state.latest_sequence,
+            )
+            if len(result.model_dump_json().encode("utf-8")) > MAX_RECONNECT_BYTES:
+                raise DebugError("unavailable", "Debug reconnect metadata exceeds limits")
+            return result
+        except PermissionError:
+            raise
+        except (
+            OSError,
+            RuntimeError,
+            sqlite3.Error,
+            ValidationError,
+            ValueError,
+            TypeError,
+            RecursionError,
+            OverflowError,
+        ):
+            raise DebugError("unavailable", "Debug reconnect provider is unavailable") from None
 
     async def list_events(
         self,

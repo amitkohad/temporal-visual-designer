@@ -13,6 +13,7 @@ from nexusflow.modules.durable_runtime.types import (
     DebugCommand,
     DebugEventBatch,
     DebugEventQuery,
+    DebugReconnectState,
     DebugStepOutput,
     ExecutionPlan,
     Snapshot,
@@ -86,6 +87,9 @@ class DebugRuntime(Protocol):
     async def events(
         self, placement: Environment, execution_id: str, run_id: str, query: DebugEventQuery
     ) -> DebugEventBatch: ...
+    async def reconnect(
+        self, placement: Environment, execution_id: str, run_id: str
+    ) -> DebugReconnectState: ...
 
 
 class DebugError(Exception):

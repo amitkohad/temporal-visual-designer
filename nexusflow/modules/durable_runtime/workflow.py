@@ -18,6 +18,7 @@ from nexusflow.modules.durable_runtime.types import (
     DebugCommand,
     DebugEventBatch,
     DebugEventQuery,
+    DebugReconnectState,
     DebugRuntimeEvent,
     DebugStepOutput,
     ExecutionPlan,
@@ -347,6 +348,18 @@ class ProofWorkflow:
         )
         if len(self.event_log) > DEBUG_EVENT_RETENTION:
             del self.event_log[:-DEBUG_EVENT_RETENTION]
+
+    @workflow.query
+    def debug_reconnect(self) -> DebugReconnectState:
+        plan = self.plan
+        if plan is None or not plan.debug or plan.binding.environment_id != "dev":
+            raise ApplicationError("Debug reconnect is unavailable", type="Conflict")
+        return DebugReconnectState(
+            self.snapshot(),
+            tuple(sorted(set(self.breakpoints))),
+            self.event_log[0].sequence if self.event_log else 0,
+            self.event_sequence,
+        )
 
     @workflow.query
     def debug_events(self, query: DebugEventQuery) -> DebugEventBatch:

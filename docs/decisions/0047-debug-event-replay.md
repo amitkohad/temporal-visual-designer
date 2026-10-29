@@ -2,6 +2,10 @@
 
 Status: accepted for the sequential Dev debugger.
 
+Atomic reconnect is now added by [ADR 0048](0048-atomic-debug-reconnect.md).
+The multi-read reconciliation procedure below describes the original event-only
+subset and remains a legacy fallback.
+
 Provide `GET /projects/{project_id}/debug-sessions/{session_id}/events` with an
 exclusive integer `after` sequence (default zero) and `limit` (1–25, default 25).
 Every read requires current owner/Dev permission, acknowledged session and saved

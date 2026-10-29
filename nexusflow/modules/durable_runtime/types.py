@@ -182,6 +182,14 @@ class DebugEventBatch:
 
 
 @dataclass(frozen=True)
+class DebugReconnectState:
+    snapshot: Snapshot
+    breakpoints: tuple[str, ...]
+    earliest_sequence: int
+    latest_sequence: int
+
+
+@dataclass(frozen=True)
 class ExecutionResult:
     binding: ReleaseBinding
     definition_digest: str

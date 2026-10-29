@@ -63,4 +63,6 @@ Inspect [frozen activity inputs](debug-step-inputs.md) through `/steps/{node_id}
 
 Read or [replace the active breakpoint set](debug-breakpoints.md) through `/breakpoints`. Replacement requires the current paused node/revision and never resumes it. Use a separate step/continue command with the updated revision; the original plan remains unchanged.
 
-Read [ordered debug events](debug-events.md) through `/events?after=0&limit=25` to recover retained progress metadata after reconnecting. Values and error messages are absent. A retention gap requires status reconciliation; the guide documents a stable-sequence baseline procedure, while atomic handoff and browser consumers remain open.
+Read [ordered debug events](debug-events.md) through `/events?after=0&limit=25` to recover retained progress metadata after reconnecting. Values and error messages are absent. A retention gap requires status reconciliation; the atomic reconnect endpoint below provides that baseline; browser consumers remain open.
+
+Use [atomic reconnect](debug-reconnect.md) to get status, active breakpoints and replay cursor from one runtime query. This is the preferred initial/gap baseline; apply it before resuming events after `next_after`. Browser consumers remain open.
