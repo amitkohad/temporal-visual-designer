@@ -92,6 +92,14 @@ class DebugCommand:
 
 
 @dataclass(frozen=True)
+class DebugBreakpointCommand:
+    command_id: str
+    node_id: str
+    breakpoints: tuple[str, ...]
+    expected_revision: int
+
+
+@dataclass(frozen=True)
 class CommandReceipt:
     command_id: str
     revision: int
@@ -113,6 +121,12 @@ class DebugStepOutput:
     snapshot: Snapshot
     node_id: str
     output_json: str
+
+
+@dataclass(frozen=True)
+class DebugBreakpointState:
+    snapshot: Snapshot
+    breakpoints: tuple[str, ...]
 
 
 @dataclass(frozen=True)

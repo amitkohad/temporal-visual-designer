@@ -48,6 +48,10 @@ from nexusflow.contracts.models import ActivityRef, Digest, Identifier, Scope
 from nexusflow.contracts.validation import ValidationIssue
 from nexusflow.modules.activity_catalog.catalog_types import CatalogEntry
 from nexusflow.modules.activity_catalog.types import ActivityManifest, CatalogError, ImportedBundle
+from nexusflow.modules.designer_debugger.breakpoint_types import (
+    DebugBreakpointControl,
+    DebugBreakpoints,
+)
 from nexusflow.modules.designer_debugger.inspection_types import DebugInputInspection
 from nexusflow.modules.designer_debugger.listing_types import DebugSessionPage
 from nexusflow.modules.designer_debugger.output_types import DebugOutputInspection
@@ -912,6 +916,25 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
         return await backend.debug_service(context.authorization, context.scope).inspect_inputs(
             context.scope, project_id, session_id
         )
+
+    @app.get(prefix + "/projects/{project_id}/debug-sessions/{session_id}/breakpoints")
+    async def get_debug_breakpoints(
+        project_id: Identifier, session_id: Identifier, context: SessionDependency
+    ) -> DebugBreakpoints:
+        return await backend.debug_service(context.authorization, context.scope).get_breakpoints(
+            context.scope, project_id, session_id
+        )
+
+    @app.post(prefix + "/projects/{project_id}/debug-sessions/{session_id}/breakpoints")
+    async def replace_debug_breakpoints(
+        project_id: Identifier,
+        session_id: Identifier,
+        payload: DebugBreakpointControl,
+        context: SessionDependency,
+    ) -> CommandReceipt:
+        return await backend.debug_service(
+            context.authorization, context.scope
+        ).replace_breakpoints(context.scope, project_id, session_id, payload)
 
     @app.get(prefix + "/projects/{project_id}/debug-sessions/{session_id}/steps/{node_id}/input")
     async def debug_step_input(

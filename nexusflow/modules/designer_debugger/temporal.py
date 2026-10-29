@@ -17,6 +17,8 @@ from nexusflow.modules.durable_runtime.temporal_starts import (
 )
 from nexusflow.modules.durable_runtime.types import (
     CommandReceipt,
+    DebugBreakpointCommand,
+    DebugBreakpointState,
     DebugCommand,
     DebugStepOutput,
     ExecutionPlan,
@@ -103,6 +105,90 @@ class TemporalDebugRuntime:
             raise DebugError("conflict", "Debug step output is unavailable") from None
         except Exception:
             raise DebugError("unavailable", "Debug step output is unavailable") from None
+
+    async def breakpoints(
+        self, placement: Environment, execution_id: str, run_id: str
+    ) -> DebugBreakpointState:
+        try:
+            client = await self._client(placement)
+            if not run_id:
+                raise DebugError("conflict", "A pinned run is required")
+            result = await client.get_workflow_handle(execution_id, run_id=run_id).query(
+                ProofWorkflow.debug_breakpoints, rpc_timeout=self.rpc_timeout
+            )
+            if (
+                not isinstance(result, DebugBreakpointState)
+                or not isinstance(result.snapshot, Snapshot)
+                or type(result.snapshot.revision) is not int
+                or not 0 <= result.snapshot.revision < 2**63
+                or type(result.breakpoints) is not tuple
+                or len(result.breakpoints) > 100
+                or any(
+                    type(node) is not str
+                    or not 1 <= len(node) <= 128
+                    or any(not (c.isascii() and (c.isalnum() or c in "_.-")) for c in node)
+                    for node in result.breakpoints
+                )
+                or tuple(sorted(set(result.breakpoints))) != result.breakpoints
+            ):
+                raise DebugError("unavailable", "Debug runtime returned invalid breakpoints")
+            return result
+        except DebugError:
+            raise
+        except WorkflowQueryFailedError:
+            raise DebugError("conflict", "Debug breakpoints are unavailable") from None
+        except Exception:
+            raise DebugError("unavailable", "Debug breakpoints are unavailable") from None
+
+    async def replace_breakpoints(
+        self,
+        placement: Environment,
+        execution_id: str,
+        run_id: str,
+        command: DebugBreakpointCommand,
+    ) -> CommandReceipt:
+        try:
+            client = await self._client(placement)
+            if not run_id:
+                raise DebugError("conflict", "A pinned run is required")
+            handle = client.get_workflow_handle(execution_id, run_id=run_id)
+            encoded = json.dumps(asdict(command), sort_keys=True, separators=(",", ":"))
+            update_id = (
+                "nexusflow-debug-breakpoints-" + hashlib.sha256(encoded.encode()).hexdigest()
+            )
+            try:
+                receipt = await handle.execute_update(
+                    ProofWorkflow.replace_breakpoints,
+                    command,
+                    id=update_id,
+                    rpc_timeout=self.rpc_timeout,
+                )
+            except WorkflowUpdateFailedError:
+                raise
+            except Exception:
+                receipt = await handle.get_update_handle(
+                    update_id, workflow_run_id=run_id, result_type=CommandReceipt
+                ).result(rpc_timeout=self.rpc_timeout)
+            if (
+                not isinstance(receipt, CommandReceipt)
+                or receipt.command_id != command.command_id
+                or type(receipt.revision) is not int
+                or not 1 <= receipt.revision < 2**63
+            ):
+                raise DebugError("unavailable", "Debug runtime returned an invalid command receipt")
+            return receipt
+        except DebugError:
+            raise
+        except WorkflowUpdateFailedError as error:
+            cause = error.cause
+            code = (
+                "conflict"
+                if isinstance(cause, ApplicationError) and cause.type == "Conflict"
+                else "unavailable"
+            )
+            raise DebugError(code, "Debug breakpoint command could not be applied") from None
+        except Exception:
+            raise DebugError("unavailable", "Debug breakpoint command is unavailable") from None
 
     async def control(
         self, placement: Environment, execution_id: str, run_id: str, command: DebugCommand

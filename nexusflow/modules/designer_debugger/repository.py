@@ -3,10 +3,12 @@
 import sqlite3
 from pathlib import Path
 from threading import RLock
+from typing import Any, cast
 
 from pydantic import TypeAdapter
 
 from nexusflow.contracts.models import Identifier, Scope
+from nexusflow.modules.designer_debugger.breakpoint_types import DebugBreakpointControl
 from nexusflow.modules.designer_debugger.listing import (
     decode_cursor,
     encode_cursor,
@@ -24,6 +26,10 @@ from nexusflow.modules.designer_debugger.types import (
 from nexusflow.modules.durable_runtime.types import CommandReceipt, ExecutionPlan
 from nexusflow.modules.identity_environments.types import Environment
 from nexusflow.modules.project_versioning.canonical import digest
+
+_COMMAND_ADAPTER: TypeAdapter[DebugControl | DebugBreakpointControl] = TypeAdapter(
+    cast(Any, DebugControl | DebugBreakpointControl)
+)
 
 
 class SQLiteDebugSessionRepository:
@@ -347,7 +353,11 @@ class SQLiteDebugSessionRepository:
                 raise
 
     def claim_command(
-        self, scope: Scope, project_id: str, session_id: str, command: DebugControl
+        self,
+        scope: Scope,
+        project_id: str,
+        session_id: str,
+        command: DebugControl | DebugBreakpointControl,
     ) -> CommandReceipt | None:
         key = (
             scope.organization_id,
@@ -365,12 +375,14 @@ class SQLiteDebugSessionRepository:
                     key,
                 ).fetchone()
                 if row is not None:
-                    if DebugControl.model_validate_json(row[0]) != command:
+                    if _COMMAND_ADAPTER.validate_json(row[0]) != command:
                         raise DebugError("conflict", "Debug command already has another request")
                     result = (
                         None
                         if row[1] is None
-                        else TypeAdapter(CommandReceipt).validate_json(row[1])
+                        else TypeAdapter(CommandReceipt).validate_json(
+                            row[1], strict=isinstance(command, DebugBreakpointControl)
+                        )
                     )
                     if result is not None and result.command_id != command.command_id:
                         raise DebugError("unavailable", "Debug command receipt binding is invalid")
@@ -397,7 +409,7 @@ class SQLiteDebugSessionRepository:
         scope: Scope,
         project_id: str,
         session_id: str,
-        command: DebugControl,
+        command: DebugControl | DebugBreakpointControl,
         receipt: CommandReceipt,
     ) -> CommandReceipt:
         if (
@@ -421,10 +433,12 @@ class SQLiteDebugSessionRepository:
                     "SELECT request,receipt FROM debug_commands WHERE org=? AND env=? AND project=? AND session_id=? AND command_id=?",
                     key,
                 ).fetchone()
-                if row is None or DebugControl.model_validate_json(row[0]) != command:
+                if row is None or _COMMAND_ADAPTER.validate_json(row[0]) != command:
                     raise DebugError("conflict", "Debug command reservation does not match")
                 if row[1] is not None:
-                    previous = TypeAdapter(CommandReceipt).validate_json(row[1])
+                    previous = TypeAdapter(CommandReceipt).validate_json(
+                        row[1], strict=isinstance(command, DebugBreakpointControl)
+                    )
                     if previous != receipt:
                         raise DebugError("conflict", "Debug command acknowledgement changed")
                 self.connection.execute(
