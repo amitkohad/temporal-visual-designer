@@ -52,3 +52,8 @@ Authoring validation decisions: offline descriptor-backed checks, structured joi
 Activity intake decision: ZIP with manifest 0.1 and preassembled pure-Python source/vendored dependencies; offline validation, bounded in-memory staging and atomic local SQLite storage. See [ADR 0007](../../docs/decisions/0007-activity-bundle-intake.md). Production build/provenance, worker sandbox/resource policy and full capability checks remain explicit future gates.
 
 Catalog decision: immutable scoped snapshots, mandatory publication capability provider, monotonic generation-checked lifecycle, internal usage holds and permanent version reservations. Palette queries read metadata only and paginate in SQL. See [ADR 0008](../../docs/decisions/0008-activity-catalog.md). Preassembled intake has no build runner; catalog acceptance uses capability fakes. Actual sandbox/worker dispatch and release/run retention orchestration remain separate gates.
+
+
+## HTTP connection metadata decision
+
+[ADR 0049](../../docs/decisions/0049-http-connection-registry.md) freezes the fixed HTTP 1.0.0 registry subset: HTTPS DNS origins, opaque reference labels, immutable scoped revisions and metadata-only administrator APIs through an explicit host port. It performs no DNS or secret resolution. Execution-time private/metadata IP policy, redirects, worker authorization, connection bindings, HTTP/email/notification transports and mock semantics remain separate affected decision gates.

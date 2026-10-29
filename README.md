@@ -89,3 +89,5 @@ Dev debugger clients can [discover their saved sessions](docs/debug-session-disc
 The frozen-input inspector supports [explicitly opted-in business arrays](docs/debug-array-inspection.md), including public fields of purchase line items, with protected-field redaction and bounded, position-preserving output. Previously unsupported arrays stay hidden unless a new schema revision adds the array-specific marker.
 
 Dev sessions now expose [ordered metadata events](docs/debug-events.md) with bounded pagination, restart replay and retention-gap detection. Event values and error messages are absent. An [atomic reconnect baseline](docs/debug-reconnect.md) now pairs status, breakpoints and replay cursor; live streaming and React consumers remain planned.
+
+Explicit hosts can now configure an [environment-scoped HTTP connection registry](docs/http-connections.md) with immutable revisions, opaque credential references and signed admin metadata APIs. This starts the connector foundation; actual HTTP execution, secret resolution, default launcher wiring and UI remain planned.

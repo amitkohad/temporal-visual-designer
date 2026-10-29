@@ -177,3 +177,14 @@ Only explicitly public (`x-nexusflow-inspect: true`) primitive fields are expose
 Only existing public session metadata is selected; no requests, plans, draft/configuration or runtime reads are performed. Dispatch state is not live workflow state. Malformed/context-mismatched cursors fail safely and provider/corruption errors are sanitized. No schema, permissions or lifecycle changes. See [discovery guide](debug-session-discovery.md) and [ADR 0039](decisions/0039-debug-session-discovery.md).
 
 The existing frozen-input route also supports [homogeneous arrays](debug-array-inspection.md) only when both `x-nexusflow-inspect` and `x-nexusflow-inspect-array` are true. Item classification, protected precedence, indexed redaction and a 100-item-per-array cap supplement the unchanged global limits. Old public-only arrays stay hidden. No request/response schema or persistence changes; see [ADR 0040](decisions/0040-debug-array-inspection.md).
+
+
+## HTTP connection metadata
+
+Explicit hosts may inject `ConnectionRepository` through `ApiBackend.connections` and own its lifecycle. The default launcher supplies no registry or new administrator grants. Every route requires fresh scoped `connection.manage`; unconfigured authorized hosts return unavailable. Public responses are metadata-only and no-store.
+
+- `PUT /connections/{connection_id}/revisions/{connection_revision}`: immutable HTTP definition (`connector_type: http`, version `1.0.0`, `base_origin`, `allowed_origins`, optional opaque `secret_reference`); returns metadata (201). Exact canonical retries preserve creator/time; changed aliases conflict. Quota conflicts return 409.
+- `GET /connections/{connection_id}/revisions/{connection_revision}`: checksum-verified public metadata; no origin or reference values.
+- `GET /connections/{connection_id}/revisions?limit=25&before_revision=...`: descending revision history, limits 1–50 and exclusive positive cursor; returns `items` and `next_before_revision`. Duplicate/unknown/non-decimal query parameters are rejected.
+
+Definitions are stored outside project packages and have no active pointer. No DNS lookup, credential resolution or outbound request occurs. This is not an executable HTTP activity or execution-time egress enforcement. See [registry guide](http-connections.md) and [ADR 0049](decisions/0049-http-connection-registry.md).

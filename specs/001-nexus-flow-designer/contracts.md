@@ -68,6 +68,14 @@ Telemetry carries organization/environment/project/release/run correlation witho
 
 Each contract needs positive, invalid-input, authorization, retry and compatibility fixtures. Providers and consumers run the same conformance corpus. Changes require versioning, migration notes, and affected feature approval.
 
+### C09 executable HTTP connection metadata subset
+
+The bounded registry subset is frozen in `connectors/types.py` and [ADR 0049](../../docs/decisions/0049-http-connection-registry.md). HTTPConnectionWrite selects fixed HTTP version 1.0.0, canonical HTTPS DNS `base_origin`, 1–50 `allowed_origins` including the base, and optional opaque `secret_reference`. These fixed fields are the first nonsecret HTTP configuration shape; generic configuration and other connector types remain gated.
+
+Connection identity is scope/connection ID/revision label. Revisions are immutable and numbered per connection; retries retain the original metadata, changed aliases conflict. ConnectionMetadata exposes scope/identity/revision/type/version, definition digest, reference-presence flag and creator/time. Private ConnectionRecord retains canonical definition JSON; metadata/history reads select no definition column. There is no active pointer or package/export binding.
+
+Secret labels are not resolved or verified here. DNS/IP/redirect restrictions, authorized worker resolution, ConnectorInvocation/Result/Error execution contracts, actual activities, transport retry/idempotency and mock ports remain open. This subset does not close all of C09 or feature 08.
+
 ## Executable foundation subset
 
 The initial Python models in nexusflow/contracts implement schema version 0.1 for request-context, error, activity-descriptor, workflow, project and step-event. JSON Schema export is 2020-12. Use validate_contract for structural plus foundation graph checks; exports alone cannot enforce graph semantics. Scope/RequestContext contain explicit organization/environment scope and are transport contracts, not trusted authentication. The initial project contract covers workflow/activity dependency composition, not the final deployable project package or forms. Unimplemented sections of this document remain future contracts. React consumes exported schemas; Python is the authoritative model source. See ADR 0001 and docs/development.md for exact boundaries.
