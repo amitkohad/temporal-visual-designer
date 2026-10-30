@@ -205,3 +205,7 @@ credential-bearing connections fail before DNS. Raw results remain internal.
 [Dev HTTP mocks](dev-http-mocks.md) are a separate explicitly selected internal
 adapter. No mock execution or fixture administration API is registered. The live
 executor has no fallback to mocks; raw fixtures/results are not public contracts.
+
+The [HTTP JSON descriptor and adapter](http-json-activity.md) are also internal.
+They add no API/palette endpoint or executable artifact resolver. Current Python
+catalog/project publication must not treat contract metadata as deployable code.

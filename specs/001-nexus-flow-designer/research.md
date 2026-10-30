@@ -98,3 +98,15 @@ Persistent fixture history/package/admin support, live environment discovery,
 HTTP/email/notification descriptors, other mocks, secrets and workflow/Designer
 wiring remain affected gates. Built-in connector descriptors need artifact and
 capability semantics beyond the current executable Python bundle catalog.
+
+## HTTP JSON activity contract decision
+
+[ADR 0054](../../docs/decisions/0054-http-json-activity.md) introduces typed HTTP
+JSON business input and explicit live/mock mapping with status-only output. Scope
+and operation identity stay in trusted context. The pure descriptor uses a
+content-addressed metadata artifact and declares an unregistered capability;
+it is intentionally absent from the executable Python resolver. Literal offline
+authoring can validate it, but project publication remains blocked. Ref-free
+portable schemas and backend JSON/path bounds accommodate current validator
+limits; general bindings, executable capability publication, response mappings,
+credentials and runtime/Designer wiring remain affected gates.
