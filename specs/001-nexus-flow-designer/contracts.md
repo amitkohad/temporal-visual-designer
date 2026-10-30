@@ -141,3 +141,23 @@ delivery uncertainty. Private responses are validated for operation identity,
 status, header shape/size and body bytes; raw values are not safe workflow/debug
 or export contracts. No redirect chain, secret resolution, durable effect/retry
 journal, run/project/step binding, default worker or browser endpoint is added.
+
+## C09 explicit Dev HTTP mock subset
+
+[ADR 0053](../../docs/decisions/0053-dev-http-mocks.md) freezes private
+`HTTPMockScenario`, `HTTPMockGrant`, async scenario lookup and fresh mock policy
+ports. `StaticHTTPMockScenarios` snapshots bounded scoped revisions;
+`scenario_digest` uses a versioned canonical definition with binary fields encoded
+as base64. `HTTPMockExecutor` requires an explicit digest pin and exact
+path/method/content-type/body match, returning private fixture results with the
+requested operation ID. Fixture digests include scope, revision and response;
+operation IDs are not fixture identity.
+
+Require authoritative Dev classification and fresh permission before lookup and
+again afterward. `ExplicitDevHTTPMockPolicy` combines an explicit trusted Dev
+scope configuration with fresh worker permission; it does not discover live
+environment kind. Environment names are not eligibility evidence. The mock path
+has no live sender, DNS, HTTP or secret provider, and live execution never falls
+back to it. Closed mock errors are non-retryable with no external delivery.
+Fixtures are in-memory host configuration, not persisted project/admin artifacts.
+No descriptors, stateful retry simulation, workflow registration or UI are added.

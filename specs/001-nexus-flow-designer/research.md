@@ -85,3 +85,16 @@ private provider results, outer deadlines and conservative delivery uncertainty
 remain independent of future durable retry, secret-aware invocation and Temporal
 activity registration. Public providers, credentials, redaction/mapping and
 workflow/Designer integration remain separate affected gates.
+
+## Deterministic Dev HTTP mock decision
+
+[ADR 0053](../../docs/decisions/0053-dev-http-mocks.md) selects an explicitly
+separate digest-pinned mock executor and bounded immutable static fixture catalog.
+Fresh trusted policy provides Dev eligibility and worker permission; the existing
+environment routing model lacks an authoritative kind field, so no name-based
+classification or default host grant is introduced. Fixtures never fall back to
+real delivery and do not simulate remote deduplication or uncertain effects.
+Persistent fixture history/package/admin support, live environment discovery,
+HTTP/email/notification descriptors, other mocks, secrets and workflow/Designer
+wiring remain affected gates. Built-in connector descriptors need artifact and
+capability semantics beyond the current executable Python bundle catalog.
