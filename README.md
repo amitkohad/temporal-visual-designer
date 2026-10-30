@@ -93,3 +93,8 @@ Dev sessions now expose [ordered metadata events](docs/debug-events.md) with bou
 Explicit hosts can configure an [environment-scoped HTTP connection registry](docs/http-connections.md) with immutable revisions, opaque credential references and signed admin metadata APIs. Secret resolution, default launcher wiring and UI remain planned.
 
 The connector foundation includes [worker HTTP destination preflight](docs/http-destination-preflight.md): scoped authorization, pinned connection revisions, origin/IP checks, redirects and bounded DNS-provider waits. An internal [pinned HTTPS transport](docs/http-pinned-transport.md) adds verified TLS and bounded HTTP/1.1 framing. The [credential-free attempt coordinator](docs/http-attempt-execution.md) composes these with fresh authorization before DNS, after DNS and immediately before writing. Credential resolution, durable retries and workflow/UI integration remain planned.
+
+Hosts can explicitly select [deterministic Dev HTTP mocks](docs/dev-http-mocks.md)
+with fresh scoped permission, trusted Dev eligibility and digest-pinned immutable
+fixtures. Mocks make no network calls and never substitute automatically for live
+execution. Persistent fixture management, descriptors and workflow/UI wiring remain planned.

@@ -201,3 +201,7 @@ The [credential-free attempt coordinator](http-attempt-execution.md) composes
 internal providers with fresh authorization before DNS, after DNS and immediately
 before writing. It adds no execution route or launcher/Temporal registration;
 credential-bearing connections fail before DNS. Raw results remain internal.
+
+[Dev HTTP mocks](dev-http-mocks.md) are a separate explicitly selected internal
+adapter. No mock execution or fixture administration API is registered. The live
+executor has no fallback to mocks; raw fixtures/results are not public contracts.
