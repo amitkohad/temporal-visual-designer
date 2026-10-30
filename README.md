@@ -91,3 +91,5 @@ The frozen-input inspector supports [explicitly opted-in business arrays](docs/d
 Dev sessions now expose [ordered metadata events](docs/debug-events.md) with bounded pagination, restart replay and retention-gap detection. Event values and error messages are absent. An [atomic reconnect baseline](docs/debug-reconnect.md) now pairs status, breakpoints and replay cursor; live streaming and React consumers remain planned.
 
 Explicit hosts can now configure an [environment-scoped HTTP connection registry](docs/http-connections.md) with immutable revisions, opaque credential references and signed admin metadata APIs. This starts the connector foundation; actual HTTP execution, secret resolution, default launcher wiring and UI remain planned.
+
+The connector foundation now includes isolated [worker HTTP destination preflight](docs/http-destination-preflight.md): scoped authorization, pinned connection revisions, origin/IP checks, redirects and bounded DNS-provider waits. Actual HTTP transport, credential resolution and workflow/UI integration remain planned.

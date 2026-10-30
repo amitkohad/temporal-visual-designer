@@ -137,3 +137,6 @@ Atomic debug reconnect: `uv run pytest nexusflow/tests/debugger/test_reconnect.p
 
 
 HTTP connection registry: `uv run pytest nexusflow/tests/connectors nexusflow/tests/api/test_connections.py` verifies immutable scoped SQLite revisions, canonical definitions, zero DNS/network access, metadata-only SQL/API reads, quotas, corruption/recovery/concurrency and fresh signed administration. See [ADR 0049](decisions/0049-http-connection-registry.md). This metadata-only increment changes no runtime/Temporal code; secret resolution, execution transports, mocks, default launcher and UI composition remain open.
+
+
+HTTP destination preflight: `uv run pytest nexusflow/tests/connectors/test_destination.py nexusflow/tests/connectors/test_destination_policy.py nexusflow/tests/connectors/test_destination_acceptance.py` verifies scoped worker authorization, pinned registry bindings, exact origins, address/redirect rules, rebinding denial, privacy, DNS deadlines and cancellation through isolated ports. See [ADR 0050](decisions/0050-http-destination-preflight.md). No actual DNS/HTTP/secret-provider or Temporal adapter is introduced; execution integration remains open.

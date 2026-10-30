@@ -188,3 +188,6 @@ Explicit hosts may inject `ConnectionRepository` through `ApiBackend.connections
 - `GET /connections/{connection_id}/revisions?limit=25&before_revision=...`: descending revision history, limits 1–50 and exclusive positive cursor; returns `items` and `next_before_revision`. Duplicate/unknown/non-decimal query parameters are rejected.
 
 Definitions are stored outside project packages and have no active pointer. No DNS lookup, credential resolution or outbound request occurs. This is not an executable HTTP activity or execution-time egress enforcement. See [registry guide](http-connections.md) and [ADR 0049](decisions/0049-http-connection-registry.md).
+
+
+Worker [HTTP destination preflight](http-destination-preflight.md) is an internal library boundary. It adds no browser execution route and does not change connection metadata APIs, default launcher wiring or workflow execution.
