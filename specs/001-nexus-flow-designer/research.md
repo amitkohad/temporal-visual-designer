@@ -73,3 +73,15 @@ retain delivery uncertainty. System A-record lookup remains bounded at its async
 boundary even though underlying OS work may continue after cancellation.
 Fresh-authorized orchestration, secrets, redaction, retries, real public egress,
 private/IPv6 policy and workflow/UI registration remain separate affected gates.
+
+## Credential-free attempt coordination decision
+
+[ADR 0052](../../docs/decisions/0052-http-attempt-execution.md) composes the scoped
+registry, planner and pinned sender through an internal one-attempt executor.
+Secret references fail before DNS. Fresh permission/integrity checks run after
+DNS and again in a synchronous post-TLS pre-write guard, reducing authorization
+gaps without claiming atomic revocation of network effects. Strict snapshots,
+private provider results, outer deadlines and conservative delivery uncertainty
+remain independent of future durable retry, secret-aware invocation and Temporal
+activity registration. Public providers, credentials, redaction/mapping and
+workflow/Designer integration remain separate affected gates.

@@ -7,6 +7,14 @@ destination immediately before sending; a constructed plan is not proof of
 authorization. Credential-bearing connections must wait for the secret-aware
 execution boundary rather than silently discarding their configured credentials.
 
+The [credential-free attempt coordinator](http-attempt-execution.md) now supplies
+fresh authorization before DNS, after DNS and after TLS before the first HTTP
+write. It uses `send(..., before_write=guard)`, an optional synchronous hook that
+must return `None` or raise a closed transport error before any request bytes.
+No hook is required for standalone trusted low-level callers; that API alone is
+not an authorization boundary. Known guard denials preserve their safe error
+codes and report no HTTP transmission.
+
 `AsyncIPv4Resolver` implements the preflight resolver port with asynchronous
 IPv4/TCP system lookup. It applies the existing all-answer public-address policy,
 bounded result size and timeout. System DNS can outlive a cancelled await in an

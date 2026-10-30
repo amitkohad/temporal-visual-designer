@@ -1,5 +1,6 @@
 """Internal credential-free single-attempt transport contracts; not public APIs."""
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Literal, Protocol, get_args
 
@@ -25,12 +26,23 @@ class HTTPAttemptResult:
 
 class PinnedHTTPSender(Protocol):
     async def send(
-        self, destination: ApprovedHTTPDestination, request: HTTPAttemptRequest
+        self,
+        destination: ApprovedHTTPDestination,
+        request: HTTPAttemptRequest,
+        *,
+        before_write: Callable[[], None] | None = None,
     ) -> HTTPAttemptResult: ...
 
 
 HTTPTransportErrorCode = Literal[
-    "invalid_request", "unavailable", "timeout", "protocol_error", "response_too_large"
+    "invalid_request",
+    "forbidden",
+    "credentials_required",
+    "blocked_destination",
+    "unavailable",
+    "timeout",
+    "protocol_error",
+    "response_too_large",
 ]
 
 

@@ -196,3 +196,8 @@ The [pinned HTTPS transport](http-pinned-transport.md) and system IPv4 resolver 
 also internal adapters. They add no dispatch route or default worker registration.
 Their routing records and raw response data must not be exposed as public API
 contracts; a secret-aware execution coordinator and redaction remain required.
+
+The [credential-free attempt coordinator](http-attempt-execution.md) composes
+internal providers with fresh authorization before DNS, after DNS and immediately
+before writing. It adds no execution route or launcher/Temporal registration;
+credential-bearing connections fail before DNS. Raw results remain internal.

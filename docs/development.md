@@ -148,5 +148,7 @@ conservative delivery uncertainty. Independent
 acceptance uses actual disposable loopback TLS sockets under a test-only dial
 redirect, with no public DNS or HTTP request. See
 [ADR 0051](decisions/0051-http-pinned-transport.md) and the
-[transport guide](http-pinned-transport.md). Fresh-authorized orchestration,
-secrets, retries, response redaction and workflow/Designer wiring remain open.
+[transport guide](http-pinned-transport.md). Secret-aware orchestration,
+retries, response redaction and workflow/Designer wiring remain open.
+
+Credential-free HTTP coordination: `uv run pytest nexusflow/tests/connectors/test_credential_free_destination.py nexusflow/tests/connectors/test_execution.py nexusflow/tests/connectors/test_transport_guard.py nexusflow/tests/connectors/test_execution_acceptance.py` verifies strict request/result boundaries, secret rejection before DNS, post-DNS/pre-write authorization, immutable registry binding, delivery uncertainty and total deadlines/cancellation. Independent acceptance composes actual SQLite, planner and TLS transport under fake DNS and test-only asserted public-pin loopback dialing. See [ADR 0052](decisions/0052-http-attempt-execution.md) and the [attempt guide](http-attempt-execution.md). No public egress, live identity, Temporal dispatch, default launcher or browser acceptance is claimed.
