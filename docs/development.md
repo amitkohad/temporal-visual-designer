@@ -17,7 +17,7 @@ The lockfile pins resolved versions. Schema export writes deterministic, version
 
 `uv run nexusflow-check workflow <file.json>` returns JSON issues and exits 0 for valid contracts, 1 for invalid content, and 2 for file/usage errors. It never runs a workflow. Error reports contain field locations and codes, not input payloads. Workflow schemas, expression handling and graph semantics are a foundation subset; complete graph/dataflow/parallel-join checks arrive in the Designer/runtime features.
 
-Default tests use local synthetic data and require no Azure credentials, Entra, SMTP, Temporal process or network. Keep fakes under nexusflow/tests, use fresh state per test and synchronization instead of sleeps. Frozen Pydantic fields prevent reassignment, but nested dictionaries are not deeply immutable; boundary adapters must copy snapshots. Test security failures and recovery relevant to each change. Do not infer production identity/isolation guarantees from fake-store tests.
+Default tests use local synthetic data and require no Azure credentials, Entra, SMTP, Temporal process or external network. The connector transport acceptance suite uses disposable loopback TLS sockets with test-only asserted dial redirection. Keep fakes under nexusflow/tests, use fresh state per test and synchronization instead of sleeps. Frozen Pydantic fields prevent reassignment, but nested dictionaries are not deeply immutable; boundary adapters must copy snapshots. Test security failures and recovery relevant to each change. Do not infer production identity/isolation guarantees from fake-store tests.
 
 Before implementation of a feature adapter, resolve its specific decisions in research.md. The runtime feasibility proof is implemented; unresolved scale/retention/identity deployment inputs block their affected production features rather than every local contract test.
 
@@ -136,7 +136,17 @@ Metadata debug events: `uv run pytest nexusflow/tests/debugger/test_events.py ne
 Atomic debug reconnect: `uv run pytest nexusflow/tests/debugger/test_reconnect.py nexusflow/tests/debugger/test_reconnect_transport.py nexusflow/tests/api/test_debug_reconnect.py` verifies one-query consistency, strict proof metadata/cursor validation, permission checks and 32 KiB bounds. `uv run pytest -m integration nexusflow/tests/runtime/test_debug_reconnect_integration.py nexusflow/tests/runtime/test_debug_reconnect_api_integration.py` verifies post-baseline replay without lost progress, restart, terminal reads and retained-tail recovery. See [ADR 0048](decisions/0048-atomic-debug-reconnect.md). React consumers, streaming and parallel reconciliation remain open.
 
 
-HTTP connection registry: `uv run pytest nexusflow/tests/connectors nexusflow/tests/api/test_connections.py` verifies immutable scoped SQLite revisions, canonical definitions, zero DNS/network access, metadata-only SQL/API reads, quotas, corruption/recovery/concurrency and fresh signed administration. See [ADR 0049](decisions/0049-http-connection-registry.md). This metadata-only increment changes no runtime/Temporal code; secret resolution, execution transports, mocks, default launcher and UI composition remain open.
+HTTP connection registry: `uv run pytest nexusflow/tests/connectors/test_definitions.py nexusflow/tests/connectors/test_repository.py nexusflow/tests/connectors/test_acceptance.py nexusflow/tests/api/test_connections.py` verifies immutable scoped SQLite revisions, canonical definitions, zero DNS/network access, metadata-only SQL/API reads, quotas, corruption/recovery/concurrency and fresh signed administration. See [ADR 0049](decisions/0049-http-connection-registry.md). This metadata-only increment changes no runtime/Temporal code; secret resolution, executable activity dispatch, mocks, default launcher and UI composition remain open.
 
 
 HTTP destination preflight: `uv run pytest nexusflow/tests/connectors/test_destination.py nexusflow/tests/connectors/test_destination_policy.py nexusflow/tests/connectors/test_destination_acceptance.py` verifies scoped worker authorization, pinned registry bindings, exact origins, address/redirect rules, rebinding denial, privacy, DNS deadlines and cancellation through isolated ports. See [ADR 0050](decisions/0050-http-destination-preflight.md). No actual DNS/HTTP/secret-provider or Temporal adapter is introduced; execution integration remains open.
+
+HTTP wire adapters: `uv run pytest nexusflow/tests/connectors/test_resolver.py nexusflow/tests/connectors/test_transport.py nexusflow/tests/connectors/test_transport_acceptance.py` verifies bounded A-only
+lookup through an injected OS resolver, numeric-IP/TLS-host pinning, HTTP/1.1
+framing, size/deadline limits, cancellation, private representations and
+conservative delivery uncertainty. Independent
+acceptance uses actual disposable loopback TLS sockets under a test-only dial
+redirect, with no public DNS or HTTP request. See
+[ADR 0051](decisions/0051-http-pinned-transport.md) and the
+[transport guide](http-pinned-transport.md). Fresh-authorized orchestration,
+secrets, retries, response redaction and workflow/Designer wiring remain open.

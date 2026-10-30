@@ -191,3 +191,8 @@ Definitions are stored outside project packages and have no active pointer. No D
 
 
 Worker [HTTP destination preflight](http-destination-preflight.md) is an internal library boundary. It adds no browser execution route and does not change connection metadata APIs, default launcher wiring or workflow execution.
+
+The [pinned HTTPS transport](http-pinned-transport.md) and system IPv4 resolver are
+also internal adapters. They add no dispatch route or default worker registration.
+Their routing records and raw response data must not be exposed as public API
+contracts; a secret-aware execution coordinator and redaction remain required.

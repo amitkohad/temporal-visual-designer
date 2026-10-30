@@ -393,6 +393,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
+    { name = "h11" },
     { name = "jsonschema" },
     { name = "pydantic" },
     { name = "pyjwt", extra = ["crypto"] },
@@ -415,6 +416,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115,<1" },
+    { name = "h11", specifier = ">=0.16,<1" },
     { name = "jsonschema", specifier = ">=4.23,<5" },
     { name = "pydantic", specifier = ">=2.11,<3" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.10,<3" },
