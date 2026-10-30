@@ -161,3 +161,28 @@ has no live sender, DNS, HTTP or secret provider, and live execution never falls
 back to it. Closed mock errors are non-retryable with no external delivery.
 Fixtures are in-memory host configuration, not persisted project/admin artifacts.
 No descriptors, stateful retry simulation, workflow registration or UI are added.
+
+## C09 HTTP JSON activity metadata and mapping subset
+
+[ADR 0054](../../docs/decisions/0054-http-json-activity.md) freezes
+`HTTPJSONActivityInput`, status-only `HTTPJSONActivityOutput`, closed
+`HTTPActivityError` and explicit live/mock executor ports. Business input contains
+connection ID/revision, mode, fixture pin, method, relative path and optional JSON
+object. Scope and operation ID are trusted host arguments, not input properties.
+GET/HEAD forbid bodies; mock mode requires a digest and live mode forbids it.
+Canonical body encoding enforces tree/depth/node/byte bounds before dispatch.
+
+`HTTPJSONActivityAdapter` selects one provider without fallback, validates bounded
+private results and drops all raw response headers/body. Output includes mode so
+mock metadata is distinguishable from live attempts. Statuses do not imply
+automatic retries or success/failure routing. Unknown live failures retain delivery
+uncertainty; mock failures never imply remote delivery. No general response
+mapping or secret detection/redaction is promised.
+
+`HTTPJSONDescriptorCatalog` supports exact metadata references only; it has no
+executable artifact resolver. The digest hashes actual versioned canonical
+contract metadata, not source code. Ref-free schemas support current literal
+authoring while backend rules enforce additional body/path limits. Existing
+Python catalog/publication stays blocked for this built-in until executable
+artifact and capability semantics are implemented. General bindings, default
+palette/API/worker registration, credentials and other descriptors remain open.
