@@ -39,7 +39,12 @@ class WorkerDestinationAuthorization(Protocol):
 
 
 DestinationErrorCode = Literal[
-    "invalid_request", "forbidden", "blocked_destination", "redirect_limit", "unavailable"
+    "invalid_request",
+    "forbidden",
+    "credentials_required",
+    "blocked_destination",
+    "redirect_limit",
+    "unavailable",
 ]
 
 

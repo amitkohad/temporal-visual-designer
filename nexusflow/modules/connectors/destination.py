@@ -140,9 +140,13 @@ class HTTPDestinationPlanner:
         redirect_count: int,
     ) -> ApprovedHTTPDestination:
         canonical_url, origin, host, port = checked_url(url, definition.allowed_origins)
+        task = asyncio.current_task()
+        cancellation_count = task.cancelling() if task is not None else 0
         try:
             async with asyncio.timeout(self.dns_timeout_seconds) as deadline:
                 addresses = await self.resolver.resolve_ipv4(host)
+                if task is not None and task.cancelling() > cancellation_count:
+                    raise asyncio.CancelledError
                 expires = deadline.when()
                 if deadline.expired() or (
                     expires is not None and asyncio.get_running_loop().time() >= expires
@@ -172,6 +176,72 @@ class HTTPDestinationPlanner:
         definition = self._connection(scope, request)
         url = request_url(definition.base_origin, request.path)
         return await self._approve(scope, request, definition, url, 0)
+
+    async def prepare_credential_free(
+        self, scope: Scope, request: HTTPDestinationRequest
+    ) -> ApprovedHTTPDestination:
+        """Approve a fresh initial hop without ignoring configured credentials."""
+        scope, request = self._request(scope, request)
+        definition = self._connection(scope, request)
+        if definition.secret_reference is not None:
+            raise DestinationError("credentials_required") from None
+        url = request_url(definition.base_origin, request.path)
+        return await self._approve(scope, request, definition, url, 0)
+
+    def revalidate_credential_free(
+        self, scope: Scope, request: HTTPDestinationRequest, approved: ApprovedHTTPDestination
+    ) -> None:
+        """Recheck authorization and the original credential-free binding, without DNS.
+
+        This synchronous check is intended immediately before sender entry and
+        again at the transport's pre-write guard. It does not create a signed
+        capability or promise atomic revocation against a remote network effect.
+        """
+        scope, request = self._request(scope, request)
+        definition = self._connection(scope, request)
+        if definition.secret_reference is not None:
+            raise DestinationError("credentials_required") from None
+        try:
+            if (
+                type(approved) is not ApprovedHTTPDestination
+                or type(approved.scope) is not Scope
+                or Scope.model_validate(
+                    {
+                        "organization_id": approved.scope.organization_id,
+                        "environment_id": approved.scope.environment_id,
+                    },
+                    strict=True,
+                )
+                != scope
+                or approved.scope != scope
+                or any(
+                    type(value) is not str
+                    for value in (
+                        approved.connection_id,
+                        approved.connection_revision,
+                        approved.definition_digest,
+                        approved.operation_id,
+                        approved.url,
+                        approved.origin,
+                        approved.host,
+                    )
+                )
+                or approved.connection_id != request.connection_id
+                or approved.connection_revision != request.connection_revision
+                or approved.operation_id != request.operation_id
+                or approved.definition_digest != digest(definition.model_dump(mode="json"))
+                or type(approved.port) is not int
+                or not 1 <= approved.port <= 65535
+                or type(approved.redirect_count) is not int
+                or approved.redirect_count != 0
+                or approved.url != request_url(definition.base_origin, request.path)
+                or checked_url(approved.url, definition.allowed_origins)
+                != (approved.url, approved.origin, approved.host, approved.port)
+                or checked_ipv4(approved.ipv4_addresses) != approved.ipv4_addresses
+            ):
+                raise ValueError
+        except Exception:
+            raise DestinationError("invalid_request") from None
 
     async def prepare_redirect(
         self,

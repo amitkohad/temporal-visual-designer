@@ -1,15 +1,18 @@
 """One credential-free HTTPS attempt using a freshly authorized internal routing plan."""
 
 import asyncio
+import inspect
 import math
 import socket
 import ssl
+from collections.abc import Callable
 from urllib.parse import urlsplit
 
 import h11
 from pydantic import TypeAdapter
 
 from nexusflow.contracts.models import Digest, Identifier, Scope
+from nexusflow.modules.connectors.attempt_policy import checked_attempt
 from nexusflow.modules.connectors.destination_types import ApprovedHTTPDestination
 from nexusflow.modules.connectors.policy import checked_ipv4, checked_url
 from nexusflow.modules.connectors.transport_types import (
@@ -18,9 +21,6 @@ from nexusflow.modules.connectors.transport_types import (
     HTTPTransportError,
     HTTPTransportErrorCode,
 )
-
-_METHODS = {"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
-_CONTENT_TYPES = {"application/json", "text/plain", "application/octet-stream"}
 
 
 class PinnedHTTPTransport:
@@ -98,13 +98,6 @@ class PinnedHTTPTransport:
                 or checked_url(destination.url, (destination.origin,))
                 != (destination.url, destination.origin, destination.host, destination.port)
                 or checked_ipv4(destination.ipv4_addresses) != destination.ipv4_addresses
-                or type(request.method) is not str
-                or request.method not in _METHODS
-                or type(request.body) is not bytes
-                or len(request.body) > self.max_request_bytes
-                or type(request.content_type) is not str
-                or request.content_type not in _CONTENT_TYPES
-                or (request.method in {"GET", "HEAD"} and request.body)
             ):
                 raise ValueError
         except Exception:
@@ -198,11 +191,18 @@ class PinnedHTTPTransport:
                 raise HTTPTransportError("protocol_error")
 
     async def send(
-        self, destination: ApprovedHTTPDestination, request: HTTPAttemptRequest
+        self,
+        destination: ApprovedHTTPDestination,
+        request: HTTPAttemptRequest,
+        *,
+        before_write: Callable[[], None] | None = None,
     ) -> HTTPAttemptResult:
         task = asyncio.current_task()
         cancellation_count = task.cancelling() if task is not None else 0
+        request = checked_attempt(request, self.max_request_bytes)
         self._validate(destination, request)
+        if before_write is not None and not callable(before_write):
+            raise HTTPTransportError("invalid_request")
         writer: asyncio.StreamWriter | None = None
         transmitted = False
         cancelled = False
@@ -248,6 +248,13 @@ class PinnedHTTPTransport:
                     payload += connection.send(h11.Data(data=request.body)) or b""
                 payload += connection.send(h11.EndOfMessage()) or b""
                 self._deadline(deadline, cancellation_count)
+                if before_write is not None:
+                    outcome = before_write()
+                    if outcome is not None:
+                        if inspect.iscoroutine(outcome):
+                            outcome.close()
+                        raise HTTPTransportError("invalid_request")
+                    self._deadline(deadline, cancellation_count)
                 transmitted = True
                 writer.write(payload)
                 await writer.drain()

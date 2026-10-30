@@ -121,3 +121,23 @@ time. It neither follows redirects nor supplies credentials, custom headers,
 proxies, automatic retries or decompression. Raw response data is not a debugger
 or export contract. Routing records are not signed capabilities; fresh worker
 authorization and secret/run binding require a trusted execution coordinator.
+
+## C09 internal credential-free attempt coordination subset
+
+[ADR 0052](../../docs/decisions/0052-http-attempt-execution.md) freezes
+`CredentialFreeDestinationPlanner`, `HTTPAttemptExecutor`, `HTTPExecutionError`
+and the optional synchronous `PinnedHTTPSender.before_write` hook. Requests
+provide scoped revision/operation/path and bounded method/body snapshots rather
+than external routing approvals. Reject configured secrets before DNS; recheck
+authorization and immutable bindings after DNS and after TLS before the first
+HTTP write. The guard must return `None` and be called exactly once by the
+coordinated sender. Authorization is not atomic with a remote effect after the
+last decision, and host ports remain trusted.
+
+Closed error codes include `credentials_required`; all execution errors have
+`retryable=False`. Preserve trusted pre-write no-transmission flags; unknown
+sender failures, invalid provider results and outer timeouts during send retain
+delivery uncertainty. Private responses are validated for operation identity,
+status, header shape/size and body bytes; raw values are not safe workflow/debug
+or export contracts. No redirect chain, secret resolution, durable effect/retry
+journal, run/project/step binding, default worker or browser endpoint is added.
