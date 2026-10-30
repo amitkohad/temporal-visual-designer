@@ -57,3 +57,8 @@ Catalog decision: immutable scoped snapshots, mandatory publication capability p
 ## HTTP connection metadata decision
 
 [ADR 0049](../../docs/decisions/0049-http-connection-registry.md) freezes the fixed HTTP 1.0.0 registry subset: HTTPS DNS origins, opaque reference labels, immutable scoped revisions and metadata-only administrator APIs through an explicit host port. It performs no DNS or secret resolution. Execution-time private/metadata IP policy, redirects, worker authorization, connection bindings, HTTP/email/notification transports and mock semantics remain separate affected decision gates.
+
+
+## HTTP destination policy decision
+
+[ADR 0050](../../docs/decisions/0050-http-destination-preflight.md) selects the first isolated worker preflight: exact HTTPS origins, fresh scoped worker authorization, pinned immutable revisions, bounded A-only resolution and a conservative public IPv4 allow policy with explicit special-use/platform exclusions. Redirects recheck all gates and preserve operation identity. Live resolver/transport enforcement, credential scope across origins, private/IPv6 support and delivery semantics remain affected gates.

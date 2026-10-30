@@ -95,3 +95,12 @@ ActivityManifest contains schema_version, common descriptor, Python runtime meta
 ## Catalog lifecycle subset (0.1)
 
 CatalogEntry is an immutable metadata snapshot with scope, exact ActivityRef, manifest_json, state, generation and publisher/update provenance. Lifecycle is published/deprecated/withdrawn; deletion retains a permanent version reservation. RuntimeCapabilities is a required publication-policy port; existing publication retries cannot resurrect a withdrawn entry. Internal usage holds protect retained exports and logical purge. See `activity_catalog/catalog_types.py` and [ADR 0008](../../docs/decisions/0008-activity-catalog.md). The bundle schema exporter also writes activity-catalog-entry.schema.json. Worker dispatch and automatic consumer retention remain open.
+
+
+## C09 executable destination preflight subset
+
+[ADR 0050](../../docs/decisions/0050-http-destination-preflight.md) freezes the internal HTTPDestinationRequest and ApprovedHTTPDestination types, WorkerDestinationAuthorization and IPv4Resolver ports. Requests bind scope/connection ID/revision/operation ID to an origin-relative path. Approved plans carry exact checked IPv4 addresses, HTTPS origin/TLS host/port, selected definition digest and bounded redirect count; URLs remain private routing data, not log/export/debug payloads.
+
+Fresh worker permission precedes registry/DNS access at each hop. Canonical allowlists precede bounded injected A-record resolution; every answer must pass the conservative public IPv4 policy. Redirects retain operation identity and require fresh approval. Validation/authorization/blocked targets are non-retryable; unavailable providers/deadlines have a retryability hint without automatic retries or effects.
+
+No actual resolver, HTTP client, credential resolver, browser dispatch endpoint or worker registration is provided. Future transport must honor pins/TLS identity and disable independent DNS/proxy/redirect fallbacks. Invocation run/project/step binding, response/body schemas, delivery journal/idempotency, private/IPv6 policy and full F08 acceptance remain open.
