@@ -103,4 +103,21 @@ CatalogEntry is an immutable metadata snapshot with scope, exact ActivityRef, ma
 
 Fresh worker permission precedes registry/DNS access at each hop. Canonical allowlists precede bounded injected A-record resolution; every answer must pass the conservative public IPv4 policy. Redirects retain operation identity and require fresh approval. Validation/authorization/blocked targets are non-retryable; unavailable providers/deadlines have a retryability hint without automatic retries or effects.
 
-No actual resolver, HTTP client, credential resolver, browser dispatch endpoint or worker registration is provided. Future transport must honor pins/TLS identity and disable independent DNS/proxy/redirect fallbacks. Invocation run/project/step binding, response/body schemas, delivery journal/idempotency, private/IPv6 policy and full F08 acceptance remain open.
+Preflight itself performs no HTTP or credential resolution. Downstream transport must honor pins/TLS identity and disable independent DNS/proxy/redirect fallbacks. Invocation run/project/step binding, workflow response/body schemas, delivery journal/idempotency, private/IPv6 policy and full F08 acceptance remain open.
+
+## C09 internal pinned HTTPS attempt subset
+
+[ADR 0051](../../docs/decisions/0051-http-pinned-transport.md) freezes internal
+`HTTPAttemptRequest` (fixed method/content type and private bytes),
+`HTTPAttemptResult` (operation ID, status and private raw headers/body),
+`PinnedHTTPSender` and closed `HTTPTransportError` contracts. Errors have fixed
+text, `retryable=False` and a conservative `delivery_may_have_occurred` flag set
+before writing. Cancellation propagates; it does not establish no remote effect.
+
+The actual A-only resolver validates all bounded answers and deadlines. The
+single-attempt HTTPS adapter validates structural pins, dials the first numeric
+IPv4 only, verifies the original TLS hostname, and bounds framing/body/response
+time. It neither follows redirects nor supplies credentials, custom headers,
+proxies, automatic retries or decompression. Raw response data is not a debugger
+or export contract. Routing records are not signed capabilities; fresh worker
+authorization and secret/run binding require a trusted execution coordinator.

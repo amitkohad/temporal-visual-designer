@@ -23,7 +23,7 @@ fails closed. DNS is limited to 16 unique canonical answers and a bounded await.
 No secrets are resolved or passed to the resolver.
 
 The result retains connection revision/digest and operation identity, along with
-approved addresses and TLS host/port for a future transport. Its full URL is
+approved addresses and TLS host/port for a downstream transport. Its full URL is
 excluded from `repr`; do not serialize internal plans into logs, packages or
 debug output. Errors have a fixed message/code and retryability hint. A provider
 failure does not expose its exception text. No HTTP request or delivery retry
@@ -36,6 +36,9 @@ userinfo credentials in URLs and origin escapes are rejected. Query values may
 contain business data and are not a general secret-detection boundary. New registry revisions do
 not change a selected immutable revision.
 
-This prepares policy for execution; actual DNS/HTTP adapters, pinned connections
-with TLS verification, secret handling, response limits, idempotency and workflow
-wiring remain open. See [ADR 0050](decisions/0050-http-destination-preflight.md).
+The [internal resolver and pinned HTTPS adapter](http-pinned-transport.md) now
+provide system A-record lookup and credential-free single attempts with verified
+TLS and response limits. A plan is not an unforgeable capability: fresh preflight
+must precede every attempt under a trusted coordinator. Secret handling,
+idempotency, redirect method/body rules and workflow wiring remain open. See
+[ADR 0050](decisions/0050-http-destination-preflight.md) for preflight decisions.

@@ -62,3 +62,14 @@ Catalog decision: immutable scoped snapshots, mandatory publication capability p
 ## HTTP destination policy decision
 
 [ADR 0050](../../docs/decisions/0050-http-destination-preflight.md) selects the first isolated worker preflight: exact HTTPS origins, fresh scoped worker authorization, pinned immutable revisions, bounded A-only resolution and a conservative public IPv4 allow policy with explicit special-use/platform exclusions. Redirects recheck all gates and preserve operation identity. Live resolver/transport enforcement, credential scope across origins, private/IPv6 support and delivery semantics remain affected gates.
+
+## HTTP wire transport decision
+
+[ADR 0051](../../docs/decisions/0051-http-pinned-transport.md) selects direct
+numeric-IP asyncio TLS streams and an explicit runtime h11 dependency for bounded
+HTTP/1.1 parsing. The first adapter is credential-free and makes one attempt;
+redirects return for fresh preflight, and errors after writing conservatively
+retain delivery uncertainty. System A-record lookup remains bounded at its async
+boundary even though underlying OS work may continue after cancellation.
+Fresh-authorized orchestration, secrets, redaction, retries, real public egress,
+private/IPv6 policy and workflow/UI registration remain separate affected gates.
