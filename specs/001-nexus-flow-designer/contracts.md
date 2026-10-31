@@ -186,3 +186,25 @@ authoring while backend rules enforce additional body/path limits. Existing
 Python catalog/publication stays blocked for this built-in until executable
 artifact and capability semantics are implemented. General bindings, default
 palette/API/worker registration, credentials and other descriptors remain open.
+
+## C09 opt-in Temporal HTTP mock dispatch subset
+
+[ADR 0055](../../docs/decisions/0055-temporal-http-mocks.md) freezes trusted
+`HTTPMockActivityContext`, private `PreparedHTTPMockCall`, adapter and closed
+dispatch error contracts. `HTTPJSONMockActivities` explicitly registers the proof
+dispatch activity for exact HTTP JSON references in mock mode only. Actual SDK
+namespaces, queue, workflow/activity types and node identity must match worker
+placement and the call; scope, release/configuration fields, bounded strict JSON
+and the legacy workflow/node ID are checked before adapter invocation.
+
+Derive a safe operation ID from actual workflow/run identity and pinned context,
+excluding retry attempt. Repeat mock delivery has stable identity and new runs
+differ. Return canonical status-only JSON and private non-retryable application
+errors; live mode is forbidden. The real mock policy still gates Dev eligibility
+and worker grants. Structural release checks are not durable publication/start
+authorization or effect deduplication.
+
+No workflow format/default host/API or executable artifact/capability change is
+made. Direct-plan integration verifies real Temporal execution and replay, not
+app-level promotion. Without heartbeats, workflow cancellation does not guarantee
+immediate worker interruption; mocks quiesce under their bounded deadline.

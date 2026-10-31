@@ -209,3 +209,7 @@ executor has no fallback to mocks; raw fixtures/results are not public contracts
 The [HTTP JSON descriptor and adapter](http-json-activity.md) are also internal.
 They add no API/palette endpoint or executable artifact resolver. Current Python
 catalog/project publication must not treat contract metadata as deployable code.
+
+The [opt-in Temporal HTTP mock dispatcher](temporal-http-mocks.md) is an explicit
+worker activity, not an API route. It does not change project publication,
+activation, default start/launcher behavior or expose live HTTP dispatch.

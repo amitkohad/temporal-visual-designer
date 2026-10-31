@@ -103,3 +103,8 @@ An internal [HTTP JSON activity](docs/http-json-activity.md) now adds typed lite
 authoring metadata and explicit live/mock mapping with status-only outputs.
 Its content digest identifies contract metadata; executable publication, runtime
 capability registration, general bindings and palette/UI wiring remain planned.
+
+An explicitly composed [Temporal HTTP mock worker](docs/temporal-http-mocks.md)
+can now run mock steps through the proof workflow with trusted SDK context,
+run-bound operation IDs, debug pause/restart and replay. Live HTTP dispatch,
+default launcher integration and built-in project publication remain blocked.

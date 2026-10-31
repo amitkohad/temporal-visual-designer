@@ -110,3 +110,16 @@ authoring can validate it, but project publication remains blocked. Ref-free
 portable schemas and backend JSON/path bounds accommodate current validator
 limits; general bindings, executable capability publication, response mappings,
 credentials and runtime/Designer wiring remain affected gates.
+
+## Temporal HTTP mock worker decision
+
+[ADR 0055](../../docs/decisions/0055-temporal-http-mocks.md) uses the proof's
+existing generic activity dispatch on an explicitly composed mock-only worker.
+Validate actual SDK context and derive an Identifier-safe operation hash including
+Temporal run identity; the legacy workflow/node string is insufficient for HTTP
+identity and remains only a consistency check. Direct mock workflows can execute
+and replay without changing the Python artifact/package model. Live dispatch
+waits for durable effect recovery; executable built-in publication and default
+host integration remain separate gates. Existing no-heartbeat proof scheduling
+also limits cancellation to durable workflow cancellation plus bounded mock
+lookup quiescence, not immediate worker interruption.
