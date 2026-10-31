@@ -208,3 +208,15 @@ No workflow format/default host/API or executable artifact/capability change is
 made. Direct-plan integration verifies real Temporal execution and replay, not
 app-level promotion. Without heartbeats, workflow cancellation does not guarantee
 immediate worker interruption; mocks quiesce under their bounded deadline.
+
+## C09 persistent HTTP mock fixture storage subset
+
+[ADR 0056](../../docs/decisions/0056-persistent-http-mocks.md) adds a trusted-host
+SQLite implementation of the existing scenario lookup port. Immutable scoped
+connection revisions retain the existing versioned fixture digest. Writes return
+only `HTTPMockFixtureReceipt` identity/size metadata; strict bounded canonical
+storage documents are private and are not a portable project package contract.
+Atomic count/encoded-byte quotas and exact retry behavior apply per scope.
+Reads validate content, key, byte count and digest and return independent snapshots.
+Storage does not grant Dev eligibility or worker permission. Admin endpoints,
+default host registration, UI, fixture packaging and production storage remain open.
