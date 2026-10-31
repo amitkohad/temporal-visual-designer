@@ -51,6 +51,7 @@ from nexusflow.modules.activity_catalog.types import ActivityManifest, CatalogEr
 from nexusflow.modules.connectors.mock_admin_types import (
     HTTPMockFixtureAdminError,
     HTTPMockFixtureMetadata,
+    HTTPMockFixturePage,
     HTTPMockFixtureWrite,
 )
 from nexusflow.modules.connectors.types import (
@@ -474,6 +475,28 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
             backend.mock_fixture_service, context.authorization, context.scope
         )
         return await service.get(context.scope, connection_id, connection_revision)
+
+    @app.get(prefix + "/mock-fixtures")
+    def list_mock_fixtures(
+        request: Request,
+        context: SessionDependency,
+        limit: Annotated[int, Query(ge=1, le=50)] = 25,
+        after_connection_id: Identifier | None = None,
+        after_connection_revision: Identifier | None = None,
+    ) -> HTTPMockFixturePage:
+        pairs = list(request.query_params.multi_items())
+        if len({name for name, _ in pairs}) != len(pairs) or any(
+            name not in {"limit", "after_connection_id", "after_connection_revision"}
+            or (name == "limit" and (not value.isascii() or not value.isdecimal()))
+            for name, value in pairs
+        ):
+            raise HTTPMockFixtureAdminError("invalid_request")
+        return backend.mock_fixture_service(context.authorization, context.scope).list(
+            context.scope,
+            limit=limit,
+            after_connection_id=after_connection_id,
+            after_connection_revision=after_connection_revision,
+        )
 
     @app.get(prefix + "/connections/{connection_id}/revisions/{connection_revision}")
     def get_connection(

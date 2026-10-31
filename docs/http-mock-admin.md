@@ -44,5 +44,6 @@ providers 503 and invalid fields 422. Existing unauthenticated handling applies.
 No fixture write configures a live HTTP destination or starts a workflow.
 
 See [ADR 0057](decisions/0057-http-mock-admin.md) and the
-[private storage guide](persistent-http-mocks.md). UI, packaging and default
-launcher integration remain separate work.
+[private storage guide](persistent-http-mocks.md). Explicit hosts can also
+[discover fixture metadata](http-mock-listing.md) through paginated listing.
+UI, packaging and default launcher integration remain separate work.

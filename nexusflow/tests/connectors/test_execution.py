@@ -424,22 +424,41 @@ async def test_caller_cancellation_even_when_provider_suppresses_it(ports, phase
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("phase", ["prepare", "send"])
-async def test_suppressed_timeout_late_provider_result_is_rejected(ports, phase):
+async def test_suppressed_timeout_late_provider_result_is_rejected(ports, phase, monkeypatch):
     _, planner, sender, _ = ports
+    original_timeout = asyncio.timeout
+    deadlines = []
+    suppressed = asyncio.Event()
+
+    def capture_timeout(delay):
+        deadline = original_timeout(delay)
+        deadlines.append(deadline)
+        return deadline
+
+    monkeypatch.setattr("nexusflow.modules.connectors.execution.asyncio.timeout", capture_timeout)
 
     async def suppress(*args, **kwargs):
+        # Expire the real production deadline only after the selected provider
+        # has entered. Setup duration must not change send-delivery uncertainty.
+        assert len(deadlines) == 1 and not deadlines[0].expired()
+        deadlines[0].reschedule(asyncio.get_running_loop().time())
         try:
             await asyncio.Event().wait()
         except asyncio.CancelledError:
+            suppressed.set()
             return PLAN if phase == "prepare" else RESULT
 
     target = planner.prepare_credential_free if phase == "prepare" else sender.send
     target.side_effect = suppress
     await failed(
-        HTTPAttemptExecutor(planner, sender, timeout_seconds=0.01),
+        HTTPAttemptExecutor(planner, sender, timeout_seconds=30),
         code="timeout",
         possible=phase == "send",
     )
+    assert suppressed.is_set() and deadlines[0].expired()
+    target.assert_awaited_once()
+    if phase == "prepare":
+        sender.send.assert_not_awaited()
 
 
 @pytest.mark.asyncio

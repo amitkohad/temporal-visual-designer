@@ -234,3 +234,16 @@ metadata release. GET validates the private stored scenario internally and retur
 identity/digest/size only. No raw fixture read route, runtime authorization grant,
 live execution mode or default host wiring is added. UI, list/history/delete,
 packaging and persistent-fixture Temporal restart acceptance remain open.
+
+## C09 Dev HTTP fixture metadata discovery subset
+
+[ADR 0058](../../docs/decisions/0058-http-mock-listing.md) adds a private
+`HTTPMockFixtureListingStore`/receipt-page port and public metadata pages.
+Signed scoped `GET /mock-fixtures` uses the existing explicit Dev administrator
+gate and returns at most 50 items with paired exclusive lexical key cursors.
+Repository listing bounds and validates stored metadata and document type/size
+without fetching or decoding fixture JSON in the application. Discovery does not
+recompute content identity or establish execution readiness. Exact GET and
+execution retain full content checks. Pages across requests are current views,
+not frozen snapshots; inserts before a cursor are not backfilled. Default hosts,
+browser UI, fixture history/delete and package transfer remain open.

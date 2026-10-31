@@ -115,3 +115,7 @@ Explicitly enabled Dev hosts can administer immutable JSON mock fixtures through
 [signed fixture APIs](docs/http-mock-admin.md), with administrator permission,
 metadata-only responses and existing persistent storage. Browser management,
 fixture package transfer and default launcher enablement remain planned.
+
+The same Dev administrator policy supports [paginated fixture discovery](docs/http-mock-listing.md)
+with bounded metadata-only pages and restart-stable lexical cursors. Listing is
+discovery metadata; verified reads and execution still check private content.

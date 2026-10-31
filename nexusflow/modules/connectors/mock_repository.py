@@ -7,7 +7,8 @@ from threading import RLock
 
 from pydantic import TypeAdapter
 
-from nexusflow.contracts.models import Identifier, Scope
+from nexusflow.contracts.models import Digest, Identifier, Scope
+from nexusflow.modules.connectors.mock_listing_types import HTTPMockFixtureReceiptPage
 from nexusflow.modules.connectors.mock_scenarios import scenario_digest
 from nexusflow.modules.connectors.mock_storage_codec import decode_scenario, encode_scenario
 from nexusflow.modules.connectors.mock_storage_types import (
@@ -204,3 +205,90 @@ class SQLiteHTTPMockScenarios:
         except Exception:
             raise HTTPMockError("invalid_request") from None
         return await asyncio.to_thread(self._get, key)
+
+    def list_metadata(
+        self,
+        scope: Scope,
+        *,
+        limit: int = 25,
+        after_connection_id: str | None = None,
+        after_connection_revision: str | None = None,
+    ) -> HTTPMockFixtureReceiptPage:
+        """Enumerate bounded identity metadata, without decoding private content.
+
+        Listing checks storage shape and sizes, not the content digest. Consumers
+        must still use get/execution to validate a selected private fixture.
+        """
+        try:
+            selected = _key(scope, "probe", "probe")[:2]
+            if type(limit) is not int or not 1 <= limit <= 50:
+                raise ValueError
+            if (after_connection_id is None) != (after_connection_revision is None):
+                raise ValueError
+            after = None
+            if after_connection_id is not None and after_connection_revision is not None:
+                after = _key(scope, after_connection_id, after_connection_revision)[2:]
+        except Exception:
+            raise HTTPMockStorageError("invalid_request") from None
+        with self._lock:
+            try:
+                # CASE bounds protect Python from materializing oversized corrupt
+                # metadata. Private documents are inspected only by SQL type/size.
+                query = """SELECT
+                    CASE WHEN typeof(connection_id)='text'
+                        AND length(CAST(connection_id AS BLOB)) BETWEEN 1 AND 128
+                        THEN connection_id ELSE NULL END AS connection_id,
+                    CASE WHEN typeof(connection_revision)='text'
+                        AND length(CAST(connection_revision AS BLOB)) BETWEEN 1 AND 128
+                        THEN connection_revision ELSE NULL END AS connection_revision,
+                    CASE WHEN typeof(fixture_digest)='text'
+                        AND length(CAST(fixture_digest AS BLOB))=71
+                        THEN fixture_digest ELSE NULL END AS fixture_digest,
+                    CASE WHEN typeof(stored_bytes)='integer'
+                        THEN stored_bytes ELSE NULL END AS stored_bytes,
+                    typeof(definition_json) AS definition_type,
+                    length(CAST(definition_json AS BLOB)) AS actual_bytes
+                    FROM http_mock_scenarios AS fixtures
+                    WHERE organization_id=? AND environment_id=?"""
+                parameters: tuple[object, ...] = selected
+                if after is not None:
+                    query += " AND (fixtures.connection_id COLLATE BINARY,fixtures.connection_revision COLLATE BINARY) > (?,?)"
+                    parameters += after
+                query += " ORDER BY fixtures.connection_id COLLATE BINARY,fixtures.connection_revision COLLATE BINARY LIMIT ?"
+                rows = self._db.execute(query, (*parameters, limit + 1)).fetchall()
+                receipts: list[HTTPMockFixtureReceipt] = []
+                for row in rows:
+                    key = _key(
+                        Scope(organization_id=selected[0], environment_id=selected[1]),
+                        row["connection_id"],
+                        row["connection_revision"],
+                    )
+                    fixture_digest = TypeAdapter(Digest).validate_python(
+                        row["fixture_digest"], strict=True
+                    )
+                    if (
+                        type(row["stored_bytes"]) is not int
+                        or type(row["actual_bytes"]) is not int
+                        or not 1 <= row["stored_bytes"] <= _MAX_DOCUMENT
+                        or row["stored_bytes"] != row["actual_bytes"]
+                        or row["definition_type"] != "text"
+                    ):
+                        raise ValueError
+                    receipts.append(
+                        HTTPMockFixtureReceipt(
+                            Scope(organization_id=key[0], environment_id=key[1]),
+                            key[2],
+                            key[3],
+                            fixture_digest,
+                            row["stored_bytes"],
+                        )
+                    )
+                items = tuple(receipts[:limit])
+                next_key = (
+                    (items[-1].connection_id, items[-1].connection_revision)
+                    if len(receipts) > limit
+                    else (None, None)
+                )
+                return HTTPMockFixtureReceiptPage(items, *next_key)
+            except Exception:
+                raise HTTPMockStorageError("unavailable") from None
