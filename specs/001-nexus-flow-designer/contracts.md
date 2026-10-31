@@ -220,3 +220,17 @@ Atomic count/encoded-byte quotas and exact retry behavior apply per scope.
 Reads validate content, key, byte count and digest and return independent snapshots.
 Storage does not grant Dev eligibility or worker permission. Admin endpoints,
 default host registration, UI, fixture packaging and production storage remain open.
+
+## C09 Dev HTTP JSON fixture administration subset
+
+[ADR 0057](../../docs/decisions/0057-http-mock-admin.md) freezes strict
+`HTTPMockFixtureWrite`, metadata, storage and private administration error ports.
+Signed scoped PUT/GET routes administer immutable fixtures using fresh
+`connection.manage` plus explicit host-enabled Dev scopes. UAT and Prod requests
+are forbidden. Route identity cannot be overridden by the JSON object payload.
+Writes accept bounded canonical JSON bodies, not arbitrary bytes or headers.
+Provider responses are validated and permission is rechecked before successful
+metadata release. GET validates the private stored scenario internally and returns
+identity/digest/size only. No raw fixture read route, runtime authorization grant,
+live execution mode or default host wiring is added. UI, list/history/delete,
+packaging and persistent-fixture Temporal restart acceptance remain open.

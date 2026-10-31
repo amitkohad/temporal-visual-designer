@@ -213,3 +213,7 @@ catalog/project publication must not treat contract metadata as deployable code.
 The [opt-in Temporal HTTP mock dispatcher](temporal-http-mocks.md) is an explicit
 worker activity, not an API route. It does not change project publication,
 activation, default start/launcher behavior or expose live HTTP dispatch.
+
+## Dev HTTP JSON mock fixture administration
+
+Explicit hosts may configure `ApiBackend.mock_fixtures` and `mock_fixture_dev_scopes`. Signed `PUT` (201) and `GET` (200) `/connections/{connection_id}/revisions/{connection_revision}/mock-fixture` require fresh scoped `connection.manage` plus explicitly enabled Dev placement. UAT/Prod are forbidden. PUT accepts bounded method/path/JSON request and status/JSON response fields; both endpoints return identity/digest/size metadata only. Identical retries are idempotent, changed content or quota exhaustion conflicts. Query parameters are unsupported. GET validates private persisted content internally; there is no body download endpoint. Defaults do not enable fixtures or worker execution. See [API guide](http-mock-admin.md) and [ADR 0057](decisions/0057-http-mock-admin.md).

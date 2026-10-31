@@ -48,6 +48,11 @@ from nexusflow.contracts.models import ActivityRef, Digest, Identifier, Scope
 from nexusflow.contracts.validation import ValidationIssue
 from nexusflow.modules.activity_catalog.catalog_types import CatalogEntry
 from nexusflow.modules.activity_catalog.types import ActivityManifest, CatalogError, ImportedBundle
+from nexusflow.modules.connectors.mock_admin_types import (
+    HTTPMockFixtureAdminError,
+    HTTPMockFixtureMetadata,
+    HTTPMockFixtureWrite,
+)
 from nexusflow.modules.connectors.types import (
     ConnectionError,
     ConnectionMetadata,
@@ -201,7 +206,10 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
             "attachment_limit": 409,
             "import_limit": 409,
         }.get(code, 422)
-        if isinstance(error, ConnectionError) and code == "limit_exceeded":
+        if (
+            isinstance(error, (ConnectionError, HTTPMockFixtureAdminError))
+            and code == "limit_exceeded"
+        ):
             status = 409
         normalized = {
             401: "unauthenticated",
@@ -229,6 +237,7 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
         FormError,
         DebugError,
         ConnectionError,
+        HTTPMockFixtureAdminError,
         RPCError,
         OSError,
         sqlite3.Error,
@@ -434,6 +443,37 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
         return backend.connection_service(context.authorization, context.scope).put(
             context.scope, connection_id, connection_revision, payload
         )
+
+    @app.put(
+        prefix + "/connections/{connection_id}/revisions/{connection_revision}/mock-fixture",
+        status_code=201,
+    )
+    def put_mock_fixture(
+        connection_id: Identifier,
+        connection_revision: Identifier,
+        payload: HTTPMockFixtureWrite,
+        request: Request,
+        context: SessionDependency,
+    ) -> HTTPMockFixtureMetadata:
+        if request.query_params:
+            raise HTTPMockFixtureAdminError("invalid_request")
+        return backend.mock_fixture_service(context.authorization, context.scope).put(
+            context.scope, connection_id, connection_revision, payload
+        )
+
+    @app.get(prefix + "/connections/{connection_id}/revisions/{connection_revision}/mock-fixture")
+    async def get_mock_fixture(
+        connection_id: Identifier,
+        connection_revision: Identifier,
+        request: Request,
+        context: SessionDependency,
+    ) -> HTTPMockFixtureMetadata:
+        if request.query_params:
+            raise HTTPMockFixtureAdminError("invalid_request")
+        service = await run_in_threadpool(
+            backend.mock_fixture_service, context.authorization, context.scope
+        )
+        return await service.get(context.scope, connection_id, connection_revision)
 
     @app.get(prefix + "/connections/{connection_id}/revisions/{connection_revision}")
     def get_connection(

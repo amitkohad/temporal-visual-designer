@@ -15,6 +15,11 @@ from nexusflow.modules.activity_catalog.catalog import CatalogService
 from nexusflow.modules.activity_catalog.catalog_types import CatalogRepository, RuntimeCapabilities
 from nexusflow.modules.activity_catalog.service import IntakeService
 from nexusflow.modules.activity_catalog.types import IntakeRepository
+from nexusflow.modules.connectors.mock_admin import HTTPMockFixtureService
+from nexusflow.modules.connectors.mock_admin_types import (
+    HTTPMockFixtureAdminError,
+    HTTPMockFixtureStore,
+)
 from nexusflow.modules.connectors.service import ConnectionService
 from nexusflow.modules.connectors.types import ConnectionError, ConnectionRepository
 from nexusflow.modules.designer_debugger.repository import SQLiteDebugSessionRepository
@@ -148,6 +153,46 @@ class ApiBackend:
     debug_sessions: SQLiteDebugSessionRepository | None = None
     debug_runtime: DebugRuntime | None = None
     connections: ConnectionRepository | None = None
+    mock_fixtures: HTTPMockFixtureStore | None = None
+    mock_fixture_dev_scopes: tuple[Scope, ...] = ()
+
+    def mock_fixture_service(
+        self, authorization: RequestAuthorization, scope: Scope
+    ) -> HTTPMockFixtureService:
+        authorization.authorize(scope, "connection.manage", "connections")
+        if scope.environment_id != "dev":
+            raise HTTPMockFixtureAdminError("forbidden") from None
+        try:
+            if type(self.mock_fixture_dev_scopes) is not tuple:
+                raise ValueError
+            configured = []
+            for item in self.mock_fixture_dev_scopes:
+                if type(item) is not Scope:
+                    raise ValueError
+                configured.append(
+                    Scope.model_validate(
+                        {
+                            "organization_id": item.organization_id,
+                            "environment_id": item.environment_id,
+                        },
+                        strict=True,
+                    )
+                )
+            keys = [(item.organization_id, item.environment_id) for item in configured]
+            if len(set(keys)) != len(keys) or any(
+                item.environment_id != "dev" for item in configured
+            ):
+                raise ValueError
+        except Exception:
+            raise HTTPMockFixtureAdminError("unavailable") from None
+        if scope not in configured:
+            raise HTTPMockFixtureAdminError("forbidden") from None
+        if self.mock_fixtures is None:
+            raise HTTPMockFixtureAdminError("unavailable") from None
+        try:
+            return HTTPMockFixtureService(self.mock_fixtures, authorization, tuple(configured))
+        except ValueError:
+            raise HTTPMockFixtureAdminError("unavailable") from None
 
     def connection_service(
         self, authorization: RequestAuthorization, scope: Scope

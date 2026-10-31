@@ -134,3 +134,14 @@ adapter and fresh executor authorization; persistence itself does not establish
 Dev placement. The private local file contains synthetic fixture data in plaintext.
 Cloud storage operations, public fixture management and package transfer remain
 separate decisions rather than inferred capabilities of this adapter.
+
+## Dev HTTP JSON fixture administration decision
+
+[ADR 0057](../../docs/decisions/0057-http-mock-admin.md) adds an explicitly enabled
+signed administrator API instead of exposing the private persisted fixture format.
+Use bounded JSON object authoring and metadata-only output with immutable route
+keys. Require both fresh existing `connection.manage` permission and trusted host
+Dev eligibility; environment naming alone is insufficient and UAT/Prod stay
+forbidden. Private GET content validation is distinct from metadata-only database
+access. No connection existence check is required for preparing a synthetic
+fixture, and fixture administration does not grant worker execution capability.

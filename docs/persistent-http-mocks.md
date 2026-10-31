@@ -28,6 +28,7 @@ Use the existing explicit Dev policy and fresh worker authorization; rows in the
 database do not grant permission. Runtime reads return independent snapshots and
 fail closed on invalid or corrupted stored documents. There is no network fallback.
 
-Admin/Designer management, default launcher registration, project packaging,
+Explicit hosts can add [signed Dev JSON fixture APIs](http-mock-admin.md).
+Designer management, default launcher registration, project packaging,
 production storage operations and cloud acceptance remain separate work. See
 [ADR 0056](decisions/0056-persistent-http-mocks.md).
