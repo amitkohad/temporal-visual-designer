@@ -54,6 +54,12 @@ class HTTPMockFixtureStore(Protocol):
     ) -> HTTPMockScenario | None: ...
 
 
+class HTTPMockFixturePage(Contract):
+    items: Annotated[tuple[HTTPMockFixtureMetadata, ...], Field(max_length=50)]
+    next_after_connection_id: Identifier | None = None
+    next_after_connection_revision: Identifier | None = None
+
+
 HTTPMockFixtureAdminErrorCode = Literal[
     "invalid_request", "forbidden", "not_found", "conflict", "limit_exceeded", "unavailable"
 ]

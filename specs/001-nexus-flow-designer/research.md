@@ -145,3 +145,13 @@ Dev eligibility; environment naming alone is insufficient and UAT/Prod stay
 forbidden. Private GET content validation is distinct from metadata-only database
 access. No connection existence check is required for preparing a synthetic
 fixture, and fixture administration does not grant worker execution capability.
+
+## HTTP mock fixture discovery decision
+
+[ADR 0058](../../docs/decisions/0058-http-mock-listing.md) uses bounded lexical
+keyset pagination over immutable connection/revision keys. Paired cursors avoid
+offset scans and are scoped by fresh administrator/Dev authorization, not by
+cursor secrecy. Discovery validates metadata shape and sizes without decoding
+private documents; it does not replace verified exact reads or execution checks.
+Concurrent page requests are not a frozen export snapshot. No numeric version
+sorting, total-count or unbounded body enumeration is introduced.

@@ -254,23 +254,37 @@ async def test_scope_isolation_is_independent_of_identical_connection_identifier
 
 
 @pytest.mark.asyncio
-async def test_stalled_fixture_deadline_has_no_live_fallback():
+async def test_stalled_fixture_deadline_has_no_live_fallback(monkeypatch):
     value = scenario()
     worker, policy, _, _ = components(value)
-    stopped = asyncio.Event()
+    entered, stopped = asyncio.Event(), asyncio.Event()
+    deadlines = []
+    original_timeout = asyncio.timeout
+
+    def capture_timeout(delay):
+        deadline = original_timeout(delay)
+        deadlines.append(deadline)
+        return deadline
+
+    monkeypatch.setattr(asyncio, "timeout", capture_timeout)
 
     class StalledCatalog:
         async def get(self, scope, connection_id, connection_revision):
             try:
+                entered.set()
+                # Arm the real deadline after lookup starts, so slow setup cannot
+                # turn this cancellation scenario into a pre-lookup timeout.
+                deadlines[-1].reschedule(asyncio.get_running_loop().time())
                 await asyncio.Event().wait()
             finally:
                 stopped.set()
 
-    executor = HTTPMockExecutor(policy, StalledCatalog(), timeout_seconds=0.01)
+    executor = HTTPMockExecutor(policy, StalledCatalog(), timeout_seconds=30)
     with pytest.raises(HTTPMockError) as caught:
         await run(executor, value)
     assert_private_failure(caught, "timeout")
-    assert stopped.is_set() and len(worker.calls) == 1
+    assert entered.is_set() and stopped.is_set() and len(worker.calls) == 1
+    assert len(deadlines) == 1 and deadlines[0].expired()
 
 
 @pytest.mark.asyncio

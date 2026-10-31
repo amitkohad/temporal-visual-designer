@@ -6,9 +6,11 @@ from nexusflow.contracts.models import Identifier, Scope
 from nexusflow.modules.connectors.mock_admin_types import (
     HTTPMockFixtureAdminError,
     HTTPMockFixtureMetadata,
+    HTTPMockFixturePage,
     HTTPMockFixtureStore,
     HTTPMockFixtureWrite,
 )
+from nexusflow.modules.connectors.mock_listing_types import HTTPMockFixtureReceiptPage
 from nexusflow.modules.connectors.mock_scenarios import checked_scenario, scenario_digest
 from nexusflow.modules.connectors.mock_storage_codec import encode_scenario
 from nexusflow.modules.connectors.mock_storage_types import (
@@ -207,6 +209,7 @@ class HTTPMockFixtureService:
             )
         except Exception:
             raise HTTPMockFixtureAdminError("unavailable") from None
+
         self._authorize(selected)
         if stored is None:
             raise HTTPMockFixtureAdminError("not_found") from None
@@ -224,5 +227,75 @@ class HTTPMockFixtureService:
             ):
                 raise ValueError
             return self._metadata(scenario)
+        except Exception:
+            raise HTTPMockFixtureAdminError("unavailable") from None
+
+    def list(
+        self,
+        scope: Scope,
+        *,
+        limit: int = 25,
+        after_connection_id: str | None = None,
+        after_connection_revision: str | None = None,
+    ) -> HTTPMockFixturePage:
+        try:
+            selected = _scope(scope)
+        except Exception:
+            raise HTTPMockFixtureAdminError("invalid_request") from None
+        self._authorize(selected)
+        try:
+            if type(limit) is not int or not 1 <= limit <= 50:
+                raise ValueError
+            if (after_connection_id is None) != (after_connection_revision is None):
+                raise ValueError
+            after = None
+            if after_connection_id is not None and after_connection_revision is not None:
+                after = (_identifier(after_connection_id), _identifier(after_connection_revision))
+        except Exception:
+            raise HTTPMockFixtureAdminError("invalid_request") from None
+        try:
+            listing = getattr(self.store, "list_metadata", None)
+            if not callable(listing):
+                raise ValueError
+            page = listing(
+                selected.model_copy(deep=True),
+                limit=limit,
+                after_connection_id=after_connection_id,
+                after_connection_revision=after_connection_revision,
+            )
+        except HTTPMockStorageError as error:
+            if type(error.code) is str and error.code == "invalid_request":
+                raise HTTPMockFixtureAdminError("invalid_request") from None
+            raise HTTPMockFixtureAdminError("unavailable") from None
+        except Exception:
+            raise HTTPMockFixtureAdminError("unavailable") from None
+        self._authorize(selected)
+        try:
+            if (
+                type(page) is not HTTPMockFixtureReceiptPage
+                or type(page.items) is not tuple
+                or len(page.items) > limit
+            ):
+                raise ValueError
+            items = tuple(self._receipt(item) for item in page.items)
+            previous = after
+            for item in items:
+                key = (item.connection_id, item.connection_revision)
+                if item.scope != selected or (previous is not None and key <= previous):
+                    raise ValueError
+                previous = key
+            next_id = page.next_after_connection_id
+            next_revision = page.next_after_connection_revision
+            if (next_id is None) != (next_revision is None):
+                raise ValueError
+            if next_id is not None and next_revision is not None:
+                next_key = (_identifier(next_id), _identifier(next_revision))
+                if not items or len(items) != limit or next_key != previous:
+                    raise ValueError
+            return HTTPMockFixturePage(
+                items=items,
+                next_after_connection_id=next_id,
+                next_after_connection_revision=next_revision,
+            )
         except Exception:
             raise HTTPMockFixtureAdminError("unavailable") from None
