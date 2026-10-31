@@ -119,3 +119,8 @@ fixture package transfer and default launcher enablement remain planned.
 The same Dev administrator policy supports [paginated fixture discovery](docs/http-mock-listing.md)
 with bounded metadata-only pages and restart-stable lexical cursors. Listing is
 discovery metadata; verified reads and execution still check private content.
+
+The local demo can explicitly enable these administration APIs with
+[`enable-mock-fixtures`](docs/local-mock-fixtures.md). It configures persistent
+Dev storage and a synthetic local administrator grant; ordinary initialization
+stays disabled. Mock workflow dispatch and live HTTP are still separate work.

@@ -185,3 +185,7 @@ The API remains the testing surface; the React Designer panel, variable inspecti
 The enabled debugger supports [redacted frozen input inspection](debug-input-inspection.md). The [sample project](../examples/local-debug-input-project.json) marks a public field and keeps protected/unclassified fields hidden; inspect a created session without publication or activation.
 
 After reconnecting, [list your saved debug sessions](debug-session-discovery.md) through `GET /projects/welcome/debug-sessions` with the same signed Dev headers. Select an ID to resume status or controls after restart.
+
+## Enable Dev mock fixture administration
+
+Stop the launcher, run `uv run nexusflow-local enable-mock-fixtures --state-dir .nexusflow-local`, then restart `serve` with the same state directory. This explicitly installs the synthetic demo user's Dev `organization_administrator` grant and opens persistent fixture storage for the existing signed PUT/GET/discovery APIs. The role includes broader local administrator rights; UAT/Prod and worker permissions are not granted. Re-enablement/startup do not restore revoked access. Default initialization stays disabled. See the [local fixture guide](local-mock-fixtures.md) for recovery and lifecycle limits. This enables administration only, not HTTP mock workflow dispatch or executable publication.

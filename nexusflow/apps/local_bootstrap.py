@@ -227,14 +227,18 @@ def _backend(
     *,
     tasks_enabled: bool = False,
     debug_enabled: bool = False,
+    mock_fixtures_enabled: bool = False,
 ) -> Iterator[ApiBackend]:
     from nexusflow.apps.local_debug import load_debug_profile
+    from nexusflow.apps.local_mocks import load_mock_fixture_profile
     from nexusflow.apps.local_tasks import LocalTaskAssignments, LocalTaskFields, load_task_profile
+    from nexusflow.modules.connectors.mock_repository import SQLiteHTTPMockScenarios
     from nexusflow.modules.designer_debugger.repository import SQLiteDebugSessionRepository
     from nexusflow.modules.designer_debugger.temporal import TemporalDebugRuntime
 
     profile = load_task_profile(directory, settings) if tasks_enabled else None
     debug_profile = load_debug_profile(directory, settings) if debug_enabled else None
+    mock_profile = load_mock_fixture_profile(directory, settings) if mock_fixtures_enabled else None
     if debug_profile is not None and not isinstance(runtime, TemporalRuntimeGateway):
         raise ValueError("Local debugger requires the owned Temporal runtime")
     with ExitStack() as stack:
@@ -261,6 +265,10 @@ def _backend(
             debug_runtime = TemporalDebugRuntime(runtime.clients, runtime.journal)
         package_imports = SQLitePackageImportRepository(directory / "package-imports.db")
         stack.callback(package_imports.close)
+        mock_fixtures = None
+        if mock_profile is not None:
+            mock_fixtures = SQLiteHTTPMockScenarios(directory / mock_profile.fixtures_database)
+            stack.callback(mock_fixtures.close)
         yield ApiBackend(
             IdentityService(identity, LocalSigningKeys(_public(_private(directory), settings))),
             projects,
@@ -277,13 +285,22 @@ def _backend(
             package_imports=package_imports,
             debug_sessions=debug_sessions,
             debug_runtime=debug_runtime,
+            mock_fixtures=mock_fixtures,
+            mock_fixture_dev_scopes=(mock_profile.scope,) if mock_profile else (),
         )
 
 
 @contextmanager
 def open_backend(directory: Path, runtime: RuntimeGateway) -> Iterator[ApiBackend]:
     settings = load_settings(directory)
-    with _backend(directory, settings, runtime, tasks_enabled=True, debug_enabled=True) as backend:
+    with _backend(
+        directory,
+        settings,
+        runtime,
+        tasks_enabled=True,
+        debug_enabled=True,
+        mock_fixtures_enabled=True,
+    ) as backend:
         yield backend
 
 

@@ -247,3 +247,15 @@ recompute content identity or establish execution readiness. Exact GET and
 execution retain full content checks. Pages across requests are current views,
 not frozen snapshots; inserts before a cursor are not backfilled. Default hosts,
 browser UI, fixture history/delete and package transfer remain open.
+
+## C09 explicit local-demo fixture administration subset
+
+[ADR 0059](../../docs/decisions/0059-local-mock-fixtures.md) adds a strict
+installation-bound Dev profile, explicit locked enable command, fixed persistent
+store and synthetic administrator grant. Default initialization is disabled.
+Profile loading checks the effective committed SQLite schema read-only and never
+repairs data/schema/grants; normal SQLite locking sidecars may be managed.
+Re-enablement/restart do not restore revoked access. Owned backend composition
+serves existing fixture administration/discovery APIs without registering mock
+workflow activities or changing executable publication. Synthetic local host
+acceptance is distinct from Entra/cloud/production and mock workflow execution.
