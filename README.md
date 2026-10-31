@@ -98,7 +98,7 @@ Hosts can explicitly select [deterministic Dev HTTP mocks](docs/dev-http-mocks.m
 with fresh scoped permission, trusted Dev eligibility and digest-pinned immutable
 fixtures. Mocks make no network calls and never substitute automatically for live
 execution. Explicit hosts can use [persistent private SQLite fixtures](docs/persistent-http-mocks.md)
-with immutable revisions, restart-stable pins and scoped quotas. Admin fixture
+with immutable revisions, restart-stable pins and scoped quotas. Browser fixture
 management, executable activity publication and workflow/UI wiring remain planned.
 
 An internal [HTTP JSON activity](docs/http-json-activity.md) now adds typed literal
@@ -110,3 +110,8 @@ An explicitly composed [Temporal HTTP mock worker](docs/temporal-http-mocks.md)
 can now run mock steps through the proof workflow with trusted SDK context,
 run-bound operation IDs, debug pause/restart and replay. Live HTTP dispatch,
 default launcher integration and built-in project publication remain blocked.
+
+Explicitly enabled Dev hosts can administer immutable JSON mock fixtures through
+[signed fixture APIs](docs/http-mock-admin.md), with administrator permission,
+metadata-only responses and existing persistent storage. Browser management,
+fixture package transfer and default launcher enablement remain planned.
