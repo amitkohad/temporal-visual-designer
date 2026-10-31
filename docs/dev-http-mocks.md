@@ -39,9 +39,10 @@ connection, DNS, HTTP, socket or secret lookup occurs. Permission is rechecked
 after fixture lookup so revocation or loss of Dev eligibility cannot release a
 response based on an earlier grant.
 
-The catalog is in-memory host configuration, not durable storage or built-in
-version history. Preserve selected fixtures and digests across host restarts;
-project packaging and admin fixture management remain separate work. Repeated
+The static catalog is in-memory host configuration. Explicit hosts can instead
+use [persistent private fixtures](persistent-http-mocks.md) to preserve immutable
+scoped revisions and pins across restarts. Project packaging and admin fixture
+management remain separate work. Repeated
 and concurrent mock calls are deterministic, but no effect journal, remote
 deduplication or retry scenario is implied.
 

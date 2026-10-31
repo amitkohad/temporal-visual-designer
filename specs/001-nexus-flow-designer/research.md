@@ -123,3 +123,14 @@ waits for durable effect recovery; executable built-in publication and default
 host integration remain separate gates. Existing no-heartbeat proof scheduling
 also limits cancellation to durable workflow cancellation plus bounded mock
 lookup quiescence, not immediate worker interruption.
+
+## Persistent HTTP mock fixture decision
+
+[ADR 0056](../../docs/decisions/0056-persistent-http-mocks.md) preserves static
+scenario identity in a private immutable SQLite store, avoiding a separate digest
+scheme for persistent mocks. Immediate write transactions serialize scoped quotas
+and idempotent retries across repository instances. Runtime reads use an off-loop
+adapter and fresh executor authorization; persistence itself does not establish
+Dev placement. The private local file contains synthetic fixture data in plaintext.
+Cloud storage operations, public fixture management and package transfer remain
+separate decisions rather than inferred capabilities of this adapter.

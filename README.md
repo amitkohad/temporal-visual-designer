@@ -97,7 +97,9 @@ The connector foundation includes [worker HTTP destination preflight](docs/http-
 Hosts can explicitly select [deterministic Dev HTTP mocks](docs/dev-http-mocks.md)
 with fresh scoped permission, trusted Dev eligibility and digest-pinned immutable
 fixtures. Mocks make no network calls and never substitute automatically for live
-execution. Persistent fixture management, executable activity publication and workflow/UI wiring remain planned.
+execution. Explicit hosts can use [persistent private SQLite fixtures](docs/persistent-http-mocks.md)
+with immutable revisions, restart-stable pins and scoped quotas. Admin fixture
+management, executable activity publication and workflow/UI wiring remain planned.
 
 An internal [HTTP JSON activity](docs/http-json-activity.md) now adds typed literal
 authoring metadata and explicit live/mock mapping with status-only outputs.
