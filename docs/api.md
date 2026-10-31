@@ -221,3 +221,5 @@ Explicit hosts may configure `ApiBackend.mock_fixtures` and `mock_fixture_dev_sc
 ## Dev fixture metadata discovery
 
 Signed `GET /mock-fixtures` uses the same explicit Dev provider and `connection.manage` gate. It accepts `limit` (default 25, maximum 50) and paired `after_connection_id`/`after_connection_revision` cursors; rejects unknown/duplicate query fields; and returns bounded metadata `items` plus paired next-cursor fields. Ordering is lexical, exclusive of the cursor, and continuation is not a frozen snapshot. Listing never materializes private JSON in the application and does not recompute fixture digests; verified exact GET/execution remain required. See [discovery guide](http-mock-listing.md) and [ADR 0058](decisions/0058-http-mock-listing.md).
+
+The synthetic local-demo launcher now supports explicit [fixture administration enablement](local-mock-fixtures.md). `enable-mock-fixtures` creates installation-bound Dev storage and a synthetic administrator grant once; re-enablement/startup do not restore revoked access. Initialization stays disabled, and no mock worker activity or live HTTP execution capability is registered.

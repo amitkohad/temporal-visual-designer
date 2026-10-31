@@ -47,3 +47,7 @@ See [ADR 0057](decisions/0057-http-mock-admin.md) and the
 [private storage guide](persistent-http-mocks.md). Explicit hosts can also
 [discover fixture metadata](http-mock-listing.md) through paginated listing.
 UI, packaging and default launcher integration remain separate work.
+
+The synthetic local demo now has an explicit
+[`enable-mock-fixtures` command](local-mock-fixtures.md). It enables these APIs
+with a Dev-only administrator profile; it does not enable workflow mock dispatch.

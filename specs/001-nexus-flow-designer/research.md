@@ -155,3 +155,14 @@ cursor secrecy. Discovery validates metadata shape and sizes without decoding
 private documents; it does not replace verified exact reads or execution checks.
 Concurrent page requests are not a frozen export snapshot. No numeric version
 sorting, total-count or unbounded body enumeration is introduced.
+
+## Local-demo fixture administration decision
+
+[ADR 0059](../../docs/decisions/0059-local-mock-fixtures.md) makes fixture
+administration explicitly usable in the local host with persistent Dev storage.
+The enable command installs the existing synthetic administrator role once;
+retries/startup preserve revocation and never restore membership or author rights.
+Read-only recovery checks must observe WAL schema changes before any writable
+provider can run schema creation. SQLite immutable mode is unsuitable for that
+check because it ignores WAL; locking sidecars are not immutable fixture data.
+Worker registration and built-in publication remain separate implementation gates.
