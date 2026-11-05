@@ -124,3 +124,7 @@ The local demo can explicitly enable these administration APIs with
 [`enable-mock-fixtures`](docs/local-mock-fixtures.md). It configures persistent
 Dev storage and a synthetic local administrator grant; ordinary initialization
 stays disabled. Mock workflow dispatch and live HTTP are still separate work.
+
+Explicit hosts can now compose a [worker over read-only persistent fixtures](docs/persistent-mock-worker.md),
+with fresh worker authorization and actual Temporal restart/replay acceptance.
+Default launcher dispatch and executable built-in publication remain separate.

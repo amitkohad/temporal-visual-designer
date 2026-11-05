@@ -7,3 +7,5 @@ Python owns the API/control plane, shared contracts, Temporal runtime and activi
 Application roots may import feature modules and contracts. Modules may import contracts and their own internals; cross-feature behavior uses injected ports. Contract code cannot import modules, applications, test fakes or cloud SDKs. Production roots must never import test helpers. Root manifests, CI and composition changes have one integration owner.
 
 The local-demo `enable-mock-fixtures` command explicitly configures persistent Dev fixture administration and a synthetic administrator grant. `local_mocks` validates installation-bound recovery state before writable composition; the owned backend serves existing APIs without registering mock workflow activities. See [local guide](../../docs/local-mock-fixtures.md).
+
+`persistent_http_mocks.open_persistent_http_mock_activities` provides an explicit, host-owned Temporal mock composition over existing read-only fixtures. It supplies no worker/grant/default registration; the caller owns worker drain before store closure. See [worker guide](../../docs/persistent-mock-worker.md).

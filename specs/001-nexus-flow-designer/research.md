@@ -166,3 +166,14 @@ Read-only recovery checks must observe WAL schema changes before any writable
 provider can run schema creation. SQLite immutable mode is unsuitable for that
 check because it ignores WAL; locking sidecars are not immutable fixture data.
 Worker registration and built-in publication remain separate implementation gates.
+
+## Persistent mock worker decision
+
+[ADR 0060](../../docs/decisions/0060-persistent-mock-worker.md) composes existing
+Dev mock components over an existing read-only SQLite store instead of copying
+fixtures into worker startup memory. Fresh queries see later immutable admin
+revisions while retaining digest and permission checks. Shared effective-schema
+validation includes physical column order because administrative inserts use a
+canonical positional layout. The host owns worker lifecycle and trusted Dev
+classification; this factory grants no authorization and is not default launcher
+registration or executable activity publication.

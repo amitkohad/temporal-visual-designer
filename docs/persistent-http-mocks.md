@@ -32,3 +32,5 @@ Explicit hosts can add [signed Dev JSON fixture APIs](http-mock-admin.md).
 Designer management, default launcher registration, project packaging,
 production storage operations and cloud acceptance remain separate work. See
 [ADR 0056](decisions/0056-persistent-http-mocks.md).
+
+Explicit worker hosts can use `SQLiteHTTPMockScenarios(database, read_only=True)` to require an existing supported store without schema creation, migration or fixture writes. Read-only mode validates effective WAL schema and rejects PUT. Administrative defaults remain writable. The [persistent worker factory](persistent-mock-worker.md) owns this runtime store and composes the existing mock dispatcher.
