@@ -11,6 +11,7 @@ from pydantic import field_validator
 from nexusflow.apps.local_bootstrap import TENANT_ID, USER_ID, LocalSettings, load_settings
 from nexusflow.contracts.models import Contract, Scope
 from nexusflow.modules.connectors.mock_repository import SQLiteHTTPMockScenarios
+from nexusflow.modules.connectors.mock_schema import validate_http_mock_schema
 from nexusflow.modules.identity_environments.repository import SQLiteIdentityRepository
 from nexusflow.modules.identity_environments.types import Grant
 
@@ -97,26 +98,7 @@ def load_mock_fixture_profile(
         # SQLite may create/update locking sidecars; fixture data is never repaired.
         connection = sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True)
         try:
-            table = connection.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='http_mock_scenarios'"
-            ).fetchone()
-            columns = connection.execute("PRAGMA table_info(http_mock_scenarios)").fetchall()
-            expected_columns = {
-                "organization_id": ("TEXT", 1, 1),
-                "environment_id": ("TEXT", 1, 2),
-                "connection_id": ("TEXT", 1, 3),
-                "connection_revision": ("TEXT", 1, 4),
-                "fixture_digest": ("TEXT", 1, 0),
-                "stored_bytes": ("INTEGER", 1, 0),
-                "definition_json": ("TEXT", 1, 0),
-            }
-            actual = {row[1]: (row[2].upper(), row[3], row[5]) for row in columns}
-            if (
-                table is None
-                or actual.keys() != expected_columns.keys()
-                or any(actual.get(name) != spec for name, spec in expected_columns.items())
-            ):
-                raise ValueError
+            validate_http_mock_schema(connection)
         finally:
             connection.close()
     except Exception:

@@ -53,3 +53,5 @@ server. Descriptor metadata is still not an executable Python package, so these
 tests do not prove built-in project publication/activation, the default launcher,
 API execution or browser integration. See
 [ADR 0055](decisions/0055-temporal-http-mocks.md).
+
+Hosts can compose the same dispatcher over an existing SQLite fixture store with the [persistent mock worker factory](persistent-mock-worker.md). It opens storage read-only, retains fresh worker authorization and leaves default registration/publication unchanged.

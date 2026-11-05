@@ -259,3 +259,16 @@ Re-enablement/restart do not restore revoked access. Owned backend composition
 serves existing fixture administration/discovery APIs without registering mock
 workflow activities or changing executable publication. Synthetic local host
 acceptance is distinct from Entra/cloud/production and mock workflow execution.
+
+## C09 explicit persistent mock worker subset
+
+[ADR 0060](../../docs/decisions/0060-persistent-mock-worker.md) adds read-only
+existing fixture storage and an explicit host composition context. Schema checks
+are shared with local profile loading and include physical column order required
+by administrative inserts. The context yields the existing mock dispatcher with
+fresh worker policy, never a live transport. Hosts stop/drain their registered
+worker before context-owned store closure. Signed fixture pins are verified through
+actual compiled-plan Temporal execution/restart/replay, separate from executable
+built-in publication and default project API start. Administrator grants do not
+substitute for worker permission. Default launcher, production providers and live
+effect recovery remain open.

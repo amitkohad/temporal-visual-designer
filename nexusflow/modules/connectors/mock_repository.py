@@ -10,6 +10,7 @@ from pydantic import TypeAdapter
 from nexusflow.contracts.models import Digest, Identifier, Scope
 from nexusflow.modules.connectors.mock_listing_types import HTTPMockFixtureReceiptPage
 from nexusflow.modules.connectors.mock_scenarios import scenario_digest
+from nexusflow.modules.connectors.mock_schema import validate_http_mock_schema
 from nexusflow.modules.connectors.mock_storage_codec import decode_scenario, encode_scenario
 from nexusflow.modules.connectors.mock_storage_types import (
     HTTPMockFixtureReceipt,
@@ -45,7 +46,10 @@ class SQLiteHTTPMockScenarios:
         *,
         max_scenarios_per_scope: int = 100,
         max_total_bytes_per_scope: int = 8388608,
+        read_only: bool = False,
     ) -> None:
+        if type(read_only) is not bool:
+            raise ValueError("Invalid HTTP mock fixture access mode") from None
         if (
             type(max_scenarios_per_scope) is not int
             or not 1 <= max_scenarios_per_scope <= 1000
@@ -56,20 +60,43 @@ class SQLiteHTTPMockScenarios:
         self.max_scenarios_per_scope = max_scenarios_per_scope
         self.max_total_bytes_per_scope = max_total_bytes_per_scope
         self._lock = RLock()
+        self._read_only = read_only
         try:
-            self._db = sqlite3.connect(database, check_same_thread=False, timeout=5)
+            if read_only:
+                selected = Path(database)
+                related = (
+                    selected,
+                    selected.with_name(selected.name + "-wal"),
+                    selected.with_name(selected.name + "-shm"),
+                )
+                if any(path.is_symlink() for path in related) or not selected.is_file():
+                    raise ValueError
+                self._db = sqlite3.connect(
+                    selected.resolve().as_uri() + "?mode=ro",
+                    uri=True,
+                    check_same_thread=False,
+                    timeout=5,
+                )
+            else:
+                self._db = sqlite3.connect(database, check_same_thread=False, timeout=5)
             self._db.row_factory = sqlite3.Row
-            self._db.execute("PRAGMA journal_mode=WAL")
-            self._db.execute("""CREATE TABLE IF NOT EXISTS http_mock_scenarios (
+            if read_only:
+                validate_http_mock_schema(self._db)
+            else:
+                self._db.execute("PRAGMA journal_mode=WAL")
+                self._db.execute("""CREATE TABLE IF NOT EXISTS http_mock_scenarios (
                 organization_id TEXT NOT NULL, environment_id TEXT NOT NULL,
                 connection_id TEXT NOT NULL, connection_revision TEXT NOT NULL,
                 fixture_digest TEXT NOT NULL, stored_bytes INTEGER NOT NULL,
                 definition_json TEXT NOT NULL,
                 PRIMARY KEY(organization_id,environment_id,connection_id,connection_revision))""")
-            self._db.commit()
+                self._db.commit()
         except Exception:
             if hasattr(self, "_db"):
-                self._db.close()
+                try:
+                    self._db.close()
+                except Exception:
+                    pass
             raise HTTPMockStorageError("unavailable") from None
 
     def close(self) -> None:
@@ -128,6 +155,8 @@ class SQLiteHTTPMockScenarios:
         return value, receipt, encoded
 
     def put(self, value: HTTPMockScenario) -> HTTPMockFixtureReceipt:
+        if self._read_only:
+            raise HTTPMockStorageError("unavailable") from None
         try:
             encoded = encode_scenario(value)
             snapshot = decode_scenario(encoded)
