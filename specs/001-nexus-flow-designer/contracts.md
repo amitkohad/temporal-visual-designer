@@ -272,3 +272,16 @@ actual compiled-plan Temporal execution/restart/replay, separate from executable
 built-in publication and default project API start. Administrator grants do not
 substitute for worker permission. Default launcher, production providers and live
 effect recovery remain open.
+
+## C09 email text authoring metadata subset
+
+[ADR 0061](../../docs/decisions/0061-email-activity-contracts.md) freezes typed
+email text inputs, future submission output, private prepared snapshots and
+descriptor-only exact metadata lookup. Sender/credentials/scope/operation identity
+are excluded from business input. The bounded ASCII mailbox subset, canonical
+domain spelling, total recipient and UTF-8/header rules are validated offline;
+portable schemas cover structural/syntax/mode rules while backend byte/aggregate
+rules remain authoritative. `nexus.email.text@1.0.0` declares an unregistered
+capability and cannot be treated as an executable artifact. No provider, actual
+mock, connection administration, delivery policy or default runtime/API/palette
+registration is introduced.

@@ -128,3 +128,7 @@ stays disabled. Mock workflow dispatch and live HTTP are still separate work.
 Explicit hosts can now compose a [worker over read-only persistent fixtures](docs/persistent-mock-worker.md),
 with fresh worker authorization and actual Temporal restart/replay acceptance.
 Default launcher dispatch and executable built-in publication remain separate.
+
+Offline authoring also supports a distinct [email text activity contract](docs/email-activity-contracts.md)
+with bounded recipients, subject/body validation and private message snapshots.
+This is descriptor metadata; email transport and execution remain planned.

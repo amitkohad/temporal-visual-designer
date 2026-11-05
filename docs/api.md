@@ -225,3 +225,5 @@ Signed `GET /mock-fixtures` uses the same explicit Dev provider and `connection.
 The synthetic local-demo launcher now supports explicit [fixture administration enablement](local-mock-fixtures.md). `enable-mock-fixtures` creates installation-bound Dev storage and a synthetic administrator grant once; re-enablement/startup do not restore revoked access. Initialization stays disabled, and no mock worker activity or live HTTP execution capability is registered.
 
 Signed fixture administration can prepare pins for an explicitly composed [persistent mock worker](persistent-mock-worker.md). The factory opens existing fixtures read-only and verifies actual Temporal execution through direct compiled plans. This introduces no new API route and does not make the built-in descriptor publishable or startable through default project APIs.
+
+The [email text activity descriptor](email-activity-contracts.md) is offline metadata only. It introduces no email API, connection provider, executable publication, sending or worker registration; existing HTTP APIs remain unchanged.
