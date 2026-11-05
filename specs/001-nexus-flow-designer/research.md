@@ -177,3 +177,14 @@ validation includes physical column order because administrative inserts use a
 canonical positional layout. The host owns worker lifecycle and trusted Dev
 classification; this factory grants no authorization and is not default launcher
 registration or executable activity publication.
+
+## Email text activity contract decision
+
+[ADR 0061](../../docs/decisions/0061-email-activity-contracts.md) introduces a
+separate email descriptor before transport or secret integration. Use a documented
+bounded mailbox subset and fixed private preparation errors, with canonical
+domains and independent recipient/message snapshots. Portable absolute-end guards
+reject trailing header newlines and malformed pins. Submission acceptance is a
+future contract and does not mean delivery. Descriptor metadata stays outside the
+executable Python catalog; email sender policy, provider effects and durable retry
+ambiguity remain separate decisions.
