@@ -140,3 +140,7 @@ secret references and private SQLite definitions. No email is sent by these APIs
 An explicit [email preflight planner](docs/email-preflight.md) now checks fresh
 worker permission, pinned definitions and exact recipient domains, then prepares
 a private sender/message snapshot. Transport and actual sending remain planned.
+
+Prepared envelopes can be [encoded as deterministic bounded MIME](docs/email-mime.md),
+with private transport recipients, Bcc-free headers and caller-persisted message
+time. This prepares bytes; email delivery remains planned.

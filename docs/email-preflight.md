@@ -33,3 +33,6 @@ No retries or possible delivery are reported by preflight errors.
 
 Transport, egress/secret controls, durable effects, worker registration and browser
 flows remain future work. See [ADR 0063](decisions/0063-email-preflight.md).
+
+The resulting snapshot can feed the offline [MIME encoder](email-mime.md).
+Encoding adds no sending authority or external effect.
