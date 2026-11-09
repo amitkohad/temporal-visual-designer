@@ -48,6 +48,11 @@ from nexusflow.contracts.models import ActivityRef, Digest, Identifier, Scope
 from nexusflow.contracts.validation import ValidationIssue
 from nexusflow.modules.activity_catalog.catalog_types import CatalogEntry
 from nexusflow.modules.activity_catalog.types import ActivityManifest, CatalogError, ImportedBundle
+from nexusflow.modules.connectors.email_connection_types import (
+    EmailConnectionMetadata,
+    EmailConnectionPage,
+    EmailConnectionWrite,
+)
 from nexusflow.modules.connectors.mock_admin_types import (
     HTTPMockFixtureAdminError,
     HTTPMockFixtureMetadata,
@@ -427,6 +432,58 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
             backend.project_service(context.authorization, context.scope).read(
                 context.scope, project_id, revision
             )
+        )
+
+    @app.put(
+        prefix + "/email-connections/{connection_id}/revisions/{connection_revision}",
+        status_code=201,
+    )
+    def put_email_connection(
+        connection_id: Identifier,
+        connection_revision: Identifier,
+        payload: EmailConnectionWrite,
+        request: Request,
+        context: SessionDependency,
+    ) -> EmailConnectionMetadata:
+        if request.query_params:
+            raise ConnectionError(
+                "invalid_request", "Email connection query parameters are unsupported"
+            )
+        return backend.email_connection_service(context.authorization, context.scope).put(
+            context.scope, connection_id, connection_revision, payload
+        )
+
+    @app.get(prefix + "/email-connections/{connection_id}/revisions/{connection_revision}")
+    def get_email_connection(
+        connection_id: Identifier,
+        connection_revision: Identifier,
+        request: Request,
+        context: SessionDependency,
+    ) -> EmailConnectionMetadata:
+        if request.query_params:
+            raise ConnectionError(
+                "invalid_request", "Email connection query parameters are unsupported"
+            )
+        return backend.email_connection_service(context.authorization, context.scope).get(
+            context.scope, connection_id, connection_revision
+        )
+
+    @app.get(prefix + "/email-connections/{connection_id}/revisions")
+    def list_email_connections(
+        connection_id: Identifier,
+        request: Request,
+        context: SessionDependency,
+        limit: Annotated[int, Query(ge=1, le=50)] = 25,
+        before_revision: Annotated[int | None, Query(ge=1, le=2**63 - 1)] = None,
+    ) -> EmailConnectionPage:
+        pairs = list(request.query_params.multi_items())
+        if len({name for name, _ in pairs}) != len(pairs) or any(
+            name not in {"limit", "before_revision"} or not value.isascii() or not value.isdecimal()
+            for name, value in pairs
+        ):
+            raise ConnectionError("invalid_request", "Invalid email connection pagination")
+        return backend.email_connection_service(context.authorization, context.scope).list(
+            context.scope, connection_id, limit=limit, before_revision=before_revision
         )
 
     @app.put(

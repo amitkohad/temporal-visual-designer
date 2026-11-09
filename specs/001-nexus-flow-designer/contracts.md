@@ -285,3 +285,15 @@ rules remain authoritative. `nexus.email.text@1.0.0` declares an unregistered
 capability and cannot be treated as an executable artifact. No provider, actual
 mock, connection administration, delivery policy or default runtime/API/palette
 registration is introduced.
+
+## C09 email connection administration subset
+
+[ADR 0062](../../docs/decisions/0062-email-connections.md) adds strict private
+SMTP TLS definitions and immutable scoped email connection metadata/history.
+Host/sender/recipient policy and opaque secret-reference values remain private;
+public GET/history use metadata-only storage reads. Signed administration uses
+fresh `connection.manage` and optional explicit providers, with no default grant
+or registry wiring. Definition normalization performs no DNS, TLS or credential
+lookup and does not enforce runtime recipient/egress policy. Checksummed canonical
+records, atomic quotas and immutable retries follow the existing HTTP registry;
+email sending and executable activity publication remain separate gates.

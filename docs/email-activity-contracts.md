@@ -39,6 +39,10 @@ and obtain an independent private snapshot before any future provider mapping.
 
 The declared output is a future submission receipt with operation ID, mode and
 `submission_status: accepted`. It is not a delivery confirmation. No executor,
-mail connection registry, transport, secret resolver, real mock provider or
+transport, secret resolver, real mock provider or
 default worker is added. Current executable publication remains blocked. See
 [ADR 0061](decisions/0061-email-activity-contracts.md).
+
+The separate [email connection registry](email-connections.md) now supports
+explicit metadata administration. It stores configuration without executing this
+activity or validating live delivery readiness.

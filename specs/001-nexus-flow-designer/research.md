@@ -188,3 +188,14 @@ reject trailing header newlines and malformed pins. Submission acceptance is a
 future contract and does not mean delivery. Descriptor metadata stays outside the
 executable Python catalog; email sender policy, provider effects and durable retry
 ambiguity remain separate decisions.
+
+## Email connection metadata decision
+
+[ADR 0062](../../docs/decisions/0062-email-connections.md) introduces a separate
+email-specific registry/port rather than widening the existing HTTP request and
+metadata contracts. SMTP TLS settings, canonical sender and exact recipient
+domains are immutable private definitions, with public identity/digest/audit
+metadata only. Named-column inserts avoid physical-order coupling; bounded SQL
+guards precede metadata materialization. Opaque secret references are stored,
+never resolved. Runtime sender/recipient/egress policy and delivery remain future
+worker concerns rather than inferred from successful configuration storage.
