@@ -305,19 +305,34 @@ async def test_fixture_provider_exceptions_cannot_expose_payload_or_fake_deliver
 
 
 @pytest.mark.asyncio
-async def test_timeout_cancels_stalled_fixture_provider(ports):
-    stopped = asyncio.Event()
+async def test_timeout_cancels_stalled_fixture_provider(ports, monkeypatch):
+    entered, stopped = asyncio.Event(), asyncio.Event()
+    deadlines = []
+    original_timeout = asyncio.timeout
+
+    def capture_timeout(delay):
+        deadline = original_timeout(delay)
+        deadlines.append(deadline)
+        return deadline
+
+    monkeypatch.setattr(asyncio, "timeout", capture_timeout)
 
     async def stalled(*args):
         try:
+            entered.set()
+            # Expire the real deadline after lookup enters, so slow setup cannot
+            # replace this cancellation scenario with a pre-lookup timeout.
+            deadlines[-1].reschedule(asyncio.get_running_loop().time())
             await asyncio.Event().wait()
         finally:
             stopped.set()
 
     ports[1].get.side_effect = stalled
-    executor = HTTPMockExecutor(ports[0], ports[1], timeout_seconds=0.01)
+    executor = HTTPMockExecutor(ports[0], ports[1], timeout_seconds=30)
     await failure(ports, "timeout", executor=executor)
-    assert stopped.is_set()
+    assert entered.is_set() and stopped.is_set()
+    assert len(deadlines) == 1 and deadlines[0].expired()
+    ports[1].get.assert_awaited_once()
 
 
 @pytest.mark.asyncio

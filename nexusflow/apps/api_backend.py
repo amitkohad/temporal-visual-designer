@@ -15,6 +15,8 @@ from nexusflow.modules.activity_catalog.catalog import CatalogService
 from nexusflow.modules.activity_catalog.catalog_types import CatalogRepository, RuntimeCapabilities
 from nexusflow.modules.activity_catalog.service import IntakeService
 from nexusflow.modules.activity_catalog.types import IntakeRepository
+from nexusflow.modules.connectors.email_connection_service import EmailConnectionService
+from nexusflow.modules.connectors.email_connection_types import EmailConnectionRepository
 from nexusflow.modules.connectors.mock_admin import HTTPMockFixtureService
 from nexusflow.modules.connectors.mock_admin_types import (
     HTTPMockFixtureAdminError,
@@ -155,6 +157,15 @@ class ApiBackend:
     connections: ConnectionRepository | None = None
     mock_fixtures: HTTPMockFixtureStore | None = None
     mock_fixture_dev_scopes: tuple[Scope, ...] = ()
+    email_connections: EmailConnectionRepository | None = None
+
+    def email_connection_service(
+        self, authorization: RequestAuthorization, scope: Scope
+    ) -> EmailConnectionService:
+        authorization.authorize(scope, "connection.manage", "connections")
+        if not isinstance(self.email_connections, EmailConnectionRepository):
+            raise ConnectionError("unavailable", "Email connection provider is not configured")
+        return EmailConnectionService(self.email_connections, authorization)
 
     def mock_fixture_service(
         self, authorization: RequestAuthorization, scope: Scope

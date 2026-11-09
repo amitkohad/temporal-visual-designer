@@ -226,4 +226,8 @@ The synthetic local-demo launcher now supports explicit [fixture administration 
 
 Signed fixture administration can prepare pins for an explicitly composed [persistent mock worker](persistent-mock-worker.md). The factory opens existing fixtures read-only and verifies actual Temporal execution through direct compiled plans. This introduces no new API route and does not make the built-in descriptor publishable or startable through default project APIs.
 
-The [email text activity descriptor](email-activity-contracts.md) is offline metadata only. It introduces no email API, connection provider, executable publication, sending or worker registration; existing HTTP APIs remain unchanged.
+The [email text activity descriptor](email-activity-contracts.md) is offline metadata only. Sending, executable publication and worker registration remain separate work. Optional email connection metadata administration is documented below; existing HTTP APIs retain their shape.
+
+## Email connection metadata
+
+Explicit hosts may inject `ApiBackend.email_connections`. Signed `PUT` (201) and `GET` (200) `/email-connections/{connection_id}/revisions/{connection_revision}` and `GET` history `/email-connections/{connection_id}/revisions` require fresh scoped `connection.manage`. Definitions contain canonical SMTP TLS host/port, sender, exact recipient domains and an optional opaque secret reference; public responses expose metadata only. Exact retries preserve original metadata, changed same-key content/quota exhaustion conflicts, and history uses bounded `limit`/`before_revision`. Unsupported or duplicate query fields are rejected. Unconfigured authorized providers return 503. No connection, secret lookup, runtime start or email delivery occurs. See [guide](email-connections.md) and [ADR 0062](decisions/0062-email-connections.md).
