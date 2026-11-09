@@ -136,3 +136,7 @@ This is descriptor metadata; email transport and execution remain planned.
 Explicit hosts can configure [immutable email connection metadata](docs/email-connections.md)
 through signed administrator APIs, with canonical sender/domain policy, opaque
 secret references and private SQLite definitions. No email is sent by these APIs.
+
+An explicit [email preflight planner](docs/email-preflight.md) now checks fresh
+worker permission, pinned definitions and exact recipient domains, then prepares
+a private sender/message snapshot. Transport and actual sending remain planned.

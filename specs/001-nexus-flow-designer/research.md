@@ -199,3 +199,13 @@ metadata only. Named-column inserts avoid physical-order coupling; bounded SQL
 guards precede metadata materialization. Opaque secret references are stored,
 never resolved. Runtime sender/recipient/egress policy and delivery remain future
 worker concerns rather than inferred from successful configuration storage.
+
+## Email envelope preflight decision
+
+[ADR 0063](../../docs/decisions/0063-email-preflight.md) separates trusted sender
+and connection policy from business message data before introducing a transport.
+Fresh resource-bound worker authorization surrounds an off-loop private read;
+independent canonical record/message snapshots prevent cross-scope or mutation
+substitution. Exact recipient-domain policy includes Cc/Bcc with no suffix grants.
+Preflight cannot authorize later network effects by possession of its result:
+destination/secret controls and fresh send-boundary checks remain future work.
