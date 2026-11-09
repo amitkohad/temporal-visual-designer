@@ -297,3 +297,15 @@ or registry wiring. Definition normalization performs no DNS, TLS or credential
 lookup and does not enforce runtime recipient/egress policy. Checksummed canonical
 records, atomic quotas and immutable retries follow the existing HTTP registry;
 email sending and executable activity publication remain separate gates.
+
+## C09 worker-authorized email preflight subset
+
+[ADR 0063](../../docs/decisions/0063-email-preflight.md) freezes private prepared
+email envelopes, fixed preflight errors and an explicit async planner. Trusted
+host scope/operation identity and exact message/definition keys are revalidated;
+worker.execute precedes private reads and is checked again afterward. Canonical
+sender/SMTP/reference fields come only from the pinned definition and To/Cc/Bcc
+domains must match the exact allowlist. Read-only preparation has no DNS, TLS,
+secret or delivery effect. Live mode only is supported; mock authoring is rejected
+until a provider exists. Off-loop reads, bounded late-result/cancellation handling
+and private errors do not make the snapshot a reusable egress/sending permit.

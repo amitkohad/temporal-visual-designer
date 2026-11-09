@@ -30,7 +30,9 @@ literals, URLs, embedded ports, trailing dots or wildcards. Names are lowercased
 the sender uses the existing [email mailbox subset](email-activity-contracts.md).
 Recipient domains are sorted into canonical form; canonical duplicates
 are rejected. Matching is intended to be exact, with no subdomain inheritance.
-The server does not yet enforce this policy against an executing message.
+The administration API stores this policy without executing a message. An explicit
+[preflight planner](email-preflight.md) now checks recipients against it before
+future transport work.
 
 Public reads contain identity/revision, email connector/transport, digest,
 `has_secret_reference`, actor and UTC time. Private values in the example never
@@ -47,6 +49,6 @@ Default registry quotas are 100 connections per scope and 100 revisions per
 connection. Cross-scope lookups cannot return another environment's metadata.
 
 Connection storage does not grant worker access or make email authoring metadata
-executable. Transport, secrets, worker/recipient policy, delivery recovery,
+executable. Transport, secrets, send-boundary authorization, delivery recovery,
 browser forms and production deployment remain separate work. See
 [ADR 0062](decisions/0062-email-connections.md).
