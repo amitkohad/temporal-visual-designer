@@ -209,3 +209,12 @@ independent canonical record/message snapshots prevent cross-scope or mutation
 substitution. Exact recipient-domain policy includes Cc/Bcc with no suffix grants.
 Preflight cannot authorize later network effects by possession of its result:
 destination/secret controls and fresh send-boundary checks remain future work.
+
+## Email MIME decision
+
+[ADR 0064](../../docs/decisions/0064-email-mime.md) selects a pure stdlib MIME
+encoder between preflight and future delivery. Explicit SMTP policy, base64 text,
+private Bcc envelope recipients and bounded wire validation avoid implicit
+SMTPUTF8 requirements. Trusted persisted time replaces ambient clock access;
+context-derived identity is separate from byte integrity and future durable
+effect binding. No transport or sending permit is inferred from encoded bytes.

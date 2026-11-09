@@ -309,3 +309,14 @@ domains must match the exact allowlist. Read-only preparation has no DNS, TLS,
 secret or delivery effect. Live mode only is supported; mock authoring is rejected
 until a provider exists. Off-loop reads, bounded late-result/cancellation handling
 and private errors do not make the snapshot a reusable egress/sending permit.
+
+## C09 deterministic email MIME subset
+
+[ADR 0064](../../docs/decisions/0064-email-mime.md) freezes strict revalidation,
+private prepared/encoded results and closed offline encoding errors. Explicit
+caller-persisted UTC time and context-derived Message-ID yield deterministic
+ASCII/CRLF text MIME with bounded base64 UTF-8 body. To/Cc/Bcc remain ordered
+transport recipients; headers omit Bcc. Exact wire bytes have a separate content
+digest. Message-ID excludes content/recipients/time and supplies no deduplication
+or payload binding. The encoder performs no fresh permission/storage lookup,
+network, credential resolution or delivery. Future send boundaries remain open.
