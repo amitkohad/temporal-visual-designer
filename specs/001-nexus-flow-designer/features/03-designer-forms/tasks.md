@@ -16,11 +16,13 @@ Implementation status is tracked below; checked subtasks record verified backend
   - [x] **F03-T003d** Support bounded workflow-input initialization of managed form fields with required object paths, actual target validation and immutable snapshots; general expressions/output mappings remain open ([evidence](../../implementation-form-input-bindings.md)).
   - [ ] **F03-T003b** Complete rendering/layout and attachment semantics, task/start adapters and shared expression integration; browser rendering is also tracked by T005.
 - [ ] **F03-T004 [P]** Implement project explorer, canvas, properties, mappings, and save recovery with component tests in `nexusflow/modules/03-designer-forms/ui/canvas/`. Prerequisites: F03-T001. Maps: F03-A01–A03, A06. Use fake APIs.
+  - [x] **F03-T004a** Deliver independently runnable React spatial authoring sample, searchable bounded insertion, selected-step properties, pending-edit retention, atomic undo/redo, keyboard movement, outline and zoom/minimap ([evidence](../../implementation-react-designer.md)). Backend projects/save recovery, descriptor configuration, mappings and full authoring remain open.
 - [ ] **F03-T005 [P]** Implement form builder, preview, and accessible renderer with component tests in `nexusflow/modules/03-designer-forms/ui/forms/`. Prerequisites: F03-T001. Maps: F03-A04, A05. Use fake validation/submission ports.
 - [ ] **F03-T006 [P]** Author onboarding and requisition templates in `nexusflow/modules/03-designer-forms/templates/`. Prerequisites: F03-T001. Maps: F03-A07. Use frozen descriptor fixtures.
   - [x] **F03-T006a** Provide tenant-neutral backend starter factories and signed Dev draft-creation APIs for fixed onboarding/requisition approval sequences, explicit assignments and input-backed confirmation forms; verify pure schema/compile and signed local-provider acceptance ([evidence](../../implementation-business-process-templates.md)).
   - [ ] **F03-T006b** Complete published-descriptor-backed reference templates, connector/conditional process coverage and React template authoring acceptance. Backend starters do not close the original authoring-template scope.
 - [ ] **F03-T007 [P]** Implement isolated browser/security/contract acceptance harness in `nexusflow/modules/03-designer-forms/tests/acceptance/`. Prerequisites: F03-T001. Maps: F03-A01–A07. Do not edit implementation paths.
+  - [x] **F03-T007c** Verify local authoring with component tests and actual Chromium pointer/keyboard, literal-label safety, reload boundary and 1600/1280/800-pixel screenshots with intact asset geometry ([evidence](../../implementation-react-designer.md)). Full accessibility, usability, backend integration and F03-A01–A09 remain open.
   - [x] **F03-T007a** Independent backend graph/mapping/publication and form security/contract acceptance suites pass in `nexusflow/tests/designer_forms/`.
   - [ ] **F03-T007b** Implement browser/keyboard/rendered-content security acceptance and remaining F03-A01–A09 coverage.
 - [ ] **F03-T008** Wire module and sibling adapters in `nexusflow/modules/03-designer-forms/integration/`; verify all acceptance fixtures and applicable lint; record results in `nexusflow/modules/03-designer-forms/tests/verification.md`. Prerequisites: F03-T002–T007; actual sibling adapters only needed for cross-feature integration. Maps: F03-A01–A07.
@@ -32,6 +34,11 @@ Implementation status is tracked below; checked subtasks record verified backend
 ## Additional UI gate
 
 F03-T004/F03-T005 require NF-T020 as well as F03-T001 and must implement F03-FR10/F03-A08. F03-T007 may author UX fixtures earlier, but integrated browser acceptance requires the approved designs and completed UI. F03-T008 additionally verifies F03-A08/UX-A01–03/A07. Figma design-only work is tracked separately by UX-T001–006 and is not blocked by the implementation gate above.
+
+The user's 2026-11-09 request explicitly authorizes the bounded first React
+workspace under F03-T004a/T007c using approved frame 5:14. This supersedes the
+blanket pre-implementation design gate for that scope; it does not close NF-T020,
+approve other screens or establish full UX/accessibility acceptance.
 
 Reference revision: F03-T004 additionally implements F03-FR11 and UX-013/014 after the design gate. F03-T007/F03-T008 verify F03-A09/UX-A08. Use spatial frame 5:14 in the handoff register, not the superseded stacked-card frame.
 

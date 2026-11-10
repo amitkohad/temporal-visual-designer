@@ -32,6 +32,16 @@ The user requested a spatial workflow designer based on their supplied reference
 
 ## Approval scope and change control
 
+2026-11-09 implementation authorization: the user explicitly requested starting
+React business-user tasks. A bounded local workspace now implements the approved
+5:14 spatial direction under [increment 067](implementation-react-designer.md),
+using retrieved child-node design context and intact exported SVG assets. Shared
+semantic CSS tokens and tested sample interactions provide an initial code
+handoff, not completion of the full Figma library/prototype/usability review.
+NF-T018–020 remain open; this explicit user authorization permits the bounded
+implementation without repeating canvas-direction approval. Remaining forms,
+Admin/task screens, live integration and full accessibility readiness remain open.
+
 Approval evidence: the user confirmed the revised UI looks good and requested specification updates on 2026-10-23. The approved canvas direction includes compact labeled icon nodes, circular events, diamond decisions, dotted workspace, directional curved/orthogonal connectors, labeled alternative branches, slim activity/execution rails, contextual properties, zoom and minimap. Preserve these in subsequent designs and implementation. Frame IDs identify editable artifacts, not immutable Figma versions; this dated v2 record identifies the reviewed visual direction. Later revisions must be recorded explicitly.
 
 This approval covers the Designer canvas concept only. It does not approve every Admin/mobile/form screen, claim accessibility or usability tests passed, close NF-T018–020, or authorize application implementation. Complete interaction annotations, consistent vector icons, state coverage and component/token handoff before marking UI readiness complete. No need to request this same canvas-direction approval again unless materially changing it.
