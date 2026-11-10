@@ -1,5 +1,6 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 import WorkflowCanvas from "./Canvas";
+import Projects from "./Projects";
 import { editorReducer, initialState } from "./model";
 import type { DesignerNode } from "./model";
 
@@ -21,6 +22,16 @@ const activityKinds = [
 type Draft = { label: string; description: string };
 
 export default function App() {
+  const [projects, setProjects] = useState(false);
+  return projects ? (
+    <Projects onClose={() => setProjects(false)} />
+  ) : (
+    <SampleWorkspace onProjects={() => setProjects(true)} />
+  );
+}
+
+function SampleWorkspace({ onProjects }: { onProjects: () => void }) {
+  const [leavingSample, setLeavingSample] = useState(false);
   const [state, dispatch] = useReducer(editorReducer, undefined, initialState);
   const [palette, setPalette] = useState(false);
   const [search, setSearch] = useState("");
@@ -142,10 +153,26 @@ export default function App() {
         </span>
         <span className="environment">DEV</span>
         <span className="sample-context">Sample workspace</span>
+        <button onClick={() => (dirty ? setLeavingSample(true) : onProjects())}>
+          Projects
+        </button>
         <span className="avatar" aria-label="Local sample user">
           SU
         </span>
       </header>
+      {leavingSample && (
+        <section
+          role="alertdialog"
+          aria-label="Leave sample?"
+          className="sample-banner"
+        >
+          <p>Leave the sample and discard changes in this tab?</p>
+          <button onClick={onProjects}>Discard sample changes</button>
+          <button onClick={() => setLeavingSample(false)}>
+            Keep sample editing
+          </button>
+        </section>
+      )}
       <section className="workflow-toolbar" aria-label="Workflow tools">
         <div className="workflow-title">
           <h1>Purchase requisition</h1>

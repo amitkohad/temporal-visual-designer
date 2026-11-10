@@ -8,6 +8,8 @@ import type {
 import "./canvas.css";
 
 interface CanvasProps {
+  title?: string;
+  contextLabel?: string;
   document: DesignerDocument;
   selectedId: string;
   onSelect: (id: string) => void;
@@ -84,6 +86,8 @@ function TimerIcon() {
 }
 
 export default function WorkflowCanvas({
+  title = "PURCHASE REQUISITION",
+  contextLabel = "Local sample",
   document,
   selectedId,
   onSelect,
@@ -137,9 +141,9 @@ export default function WorkflowCanvas({
         >
           <div className="canvas-world" style={{ transform: `scale(${zoom})` }}>
             <div className="canvas-caption">
-              <span>PURCHASE REQUISITION</span>
+              <span>{title}</span>
               <span className="canvas-step-count">
-                {document.nodes.length} steps · Local sample
+                {document.nodes.length} steps · {contextLabel}
               </span>
             </div>
             <svg
