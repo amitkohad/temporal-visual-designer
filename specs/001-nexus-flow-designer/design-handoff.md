@@ -32,6 +32,12 @@ The user requested a spatial workflow designer based on their supplied reference
 
 ## Approval scope and change control
 
+2026-11-10 connected workspace increment adds project discovery and revision-aware
+presentation saving using the existing canvas, semantic tokens and labeled forms.
+Independent browser screenshots cover the bounded connected screens at 1280/800
+pixels. This is implementation evidence, not a new approved Figma prototype or
+full usability/accessibility certification. See [increment 068](implementation-react-projects.md).
+
 2026-11-09 implementation authorization: the user explicitly requested starting
 React business-user tasks. A bounded local workspace now implements the approved
 5:14 spatial direction under [increment 067](implementation-react-designer.md),

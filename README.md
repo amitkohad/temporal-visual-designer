@@ -5,7 +5,9 @@ A visual business-process designer powered by Temporal. The backend and workflow
 The first [React business-user workspace](docs/react-designer.md) is available in
 `web/`. Run `npm ci` and `npm run dev` there to edit the spatial purchase-process
 sample, search activities, inspect steps and use undo/redo. Changes stay in the
-tab; backend saving, sign-in, execution and deployable export are not connected.
+tab in sample mode. The Projects workspace can now load Dev projects and save
+labels, descriptions and positions through the Python API with revision checks.
+Browser sign-in, executable graph editing and deployable export remain planned.
 
 ## Foundation development
 

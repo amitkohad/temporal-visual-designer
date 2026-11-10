@@ -1,0 +1,2 @@
+# Keep browser sources compatible with Prettier on Windows and Linux checkouts.
+web/** text eol=lf

@@ -1,6 +1,6 @@
 # Run the local API and Temporal worker
 
-This launcher starts the Python API and a real Temporal proof worker on your workstation. The React designer is not implemented yet. The `local-demo` profile explicitly generates synthetic local credentials; it does not connect to Entra or configure a production tenant.
+This launcher starts the Python API and a real Temporal proof worker on your workstation. The separate [React workspace](react-designer.md#connect-to-dev-projects) can load Dev projects and save presentation metadata through this API. The `local-demo` profile explicitly generates synthetic local credentials; it does not connect to Entra or configure a production tenant.
 
 Prerequisites: Python 3.12 or 3.13, uv, and Temporal CLI 1.9.1. Put `temporal` on PATH, set `NEXUSFLOW_TEMPORAL_CLI` to its executable, or pass `--temporal-cli` to `serve`. The launcher does not download a CLI or adopt an existing Temporal server. See the [official Temporal CLI documentation](https://docs.temporal.io/cli) for installation.
 

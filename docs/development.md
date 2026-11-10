@@ -8,6 +8,12 @@ with `npx playwright install chromium`. See [React workspace](react-designer.md)
 for local startup and the current in-memory authoring boundary. Python commands
 below remain independent of the browser toolchain.
 
+Connected project layouts: `uv run pytest -q -m integration web/integration/test_project_api.py`
+from the repository root runs actual Chromium through the Vite proxy to signed
+FastAPI and SQLite. It needs installed `web/` dependencies and Chromium, but no
+Temporal service. Default web unit/browser tests use fake HTTP separately. See
+[connected workspace limits](react-designer.md#connect-to-dev-projects).
+
 ```sh
 uv sync --locked
 uv run ruff check .
