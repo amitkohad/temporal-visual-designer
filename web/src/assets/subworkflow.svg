@@ -1,0 +1,8 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="34" height="34" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Call subworkflow icon">
+<path id="Vector" d="M17 10V20M17 20H5V25M17 20H29V25" stroke-width="2" stroke="#46AAAD"/>
+<path id="Vector_2" d="M20 2H14C12.8954 2 12 2.89543 12 4V9C12 10.1046 12.8954 11 14 11H20C21.1046 11 22 10.1046 22 9V4C22 2.89543 21.1046 2 20 2Z" fill="#46AAAD"/>
+<path id="Vector_3" d="M9 25H2C0.89543 25 0 25.8954 0 27V32C0 33.1046 0.89543 34 2 34H9C10.1046 34 11 33.1046 11 32V27C11 25.8954 10.1046 25 9 25Z" fill="#46AAAD"/>
+<path id="Vector_4" d="M32 25H25C23.8954 25 23 25.8954 23 27V32C23 33.1046 23.8954 34 25 34H32C33.1046 34 34 33.1046 34 32V27C34 25.8954 33.1046 25 32 25Z" fill="#46AAAD"/>
+</g>
+</svg>
