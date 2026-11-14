@@ -22,6 +22,14 @@ from nexusflow.apps.api_backend import (
     RuntimeGateway,
     TemporalRuntimeGateway,
 )
+from nexusflow.apps.entra_pilot import (
+    apply_entra_pilot_bootstrap,
+    browser_auth_from_settings,
+    compose_group_resolver,
+    compose_signing_keys,
+    disabled_browser_auth,
+    load_entra_pilot_settings,
+)
 from nexusflow.contracts.models import Contract, DataSchema, Identifier, Scope, check_data_schema
 from nexusflow.modules.activity_catalog.catalog_repository import SQLiteCatalogRepository
 from nexusflow.modules.activity_catalog.repository import SQLiteIntakeRepository
@@ -82,11 +90,22 @@ class LocalCapabilities:
 
 
 class LocalConfigurations:
-    def __init__(self, settings: LocalSettings) -> None:
+    def __init__(
+        self, settings: LocalSettings, *, extra_organization_ids: tuple[str, ...] = ()
+    ) -> None:
+        scopes = [
+            Scope(organization_id=settings.organization_id, environment_id="dev"),
+            *(
+                Scope(organization_id=organization_id, environment_id="dev")
+                for organization_id in extra_organization_ids
+            ),
+        ]
+        self.scopes = frozenset(scopes)
+        # Preserve the historical single-scope attribute for existing callers/tests.
         self.scope = Scope(organization_id=settings.organization_id, environment_id="dev")
 
     def supports(self, scope: Scope, project_id: str, revision: str, schema: DataSchema) -> bool:
-        if scope != self.scope or revision != "local-v1":
+        if scope not in self.scopes or revision != "local-v1":
             return False
         try:
             check_data_schema(schema)
@@ -269,15 +288,27 @@ def _backend(
         if mock_profile is not None:
             mock_fixtures = SQLiteHTTPMockScenarios(directory / mock_profile.fixtures_database)
             stack.callback(mock_fixtures.close)
+        entra = load_entra_pilot_settings()
+        browser_auth = disabled_browser_auth()
+        local_keys = LocalSigningKeys(_public(_private(directory), settings))
+        groups = None
+        extra_orgs: tuple[str, ...] = ()
+        if entra is not None:
+            apply_entra_pilot_bootstrap(identity, entra)
+            browser_auth = browser_auth_from_settings(entra)
+            groups = compose_group_resolver(local_tenant_id=TENANT_ID, entra=entra)
+            if entra.organization_id != settings.organization_id:
+                extra_orgs = (entra.organization_id,)
+        keys = compose_signing_keys(local_tenant_id=TENANT_ID, local_keys=local_keys, entra=entra)
         yield ApiBackend(
-            IdentityService(identity, LocalSigningKeys(_public(_private(directory), settings))),
+            IdentityService(identity, keys, groups=groups),
             projects,
             catalog,
             intake,
             activations,
             starts,
             LocalCapabilities(),
-            LocalConfigurations(settings),
+            LocalConfigurations(settings, extra_organization_ids=extra_orgs),
             runtime,
             tasks_database=directory / profile.tasks_database if profile else None,
             task_assignments=LocalTaskAssignments(profile.scope) if profile else None,
@@ -287,6 +318,7 @@ def _backend(
             debug_runtime=debug_runtime,
             mock_fixtures=mock_fixtures,
             mock_fixture_dev_scopes=(mock_profile.scope,) if mock_profile else (),
+            browser_auth=browser_auth,
         )
 
 

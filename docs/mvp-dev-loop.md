@@ -73,9 +73,10 @@ then `serve --ui` (same-origin Hosted Dev), and `token` (see
 
 ## Pilot identity
 
-**First pilot uses the local-demo bearer token** pasted into the Connect form
-(`uv run nexusflow-local token`). Entra browser sign-in is deferred; it does
-not block MVP UI composition.
+**Default pilot uses the local-demo bearer token** pasted into the Connect form
+(`uv run nexusflow-local token`). Optional Entra browser sign-in is available
+when the host is configured; see [entra-pilot.md](entra-pilot.md). Mocked
+adapter tests are not live-tenant acceptance.
 
 Shared client rules match `web/src/project-api.ts`: same-origin only, memory
 token, no-store, bounded JSON, fixed private error codes, explicit idempotency

@@ -10,6 +10,11 @@ import type {
   TaskFormView,
   TaskView,
 } from "./task-api";
+import {
+  acquireEntraAccessToken,
+  fetchBrowserAuthConfig,
+  type BrowserAuthConfig,
+} from "./entra-auth";
 import "./tasks.css";
 import "./tokens.css";
 
@@ -111,6 +116,9 @@ export default function Tasks({
     connection?.environmentId ?? "dev",
   );
   const [token, setToken] = useState("");
+  const [browserAuth, setBrowserAuth] = useState<BrowserAuthConfig>({
+    enabled: false,
+  });
   const [session, setSession] = useState<Session | null>(null);
   const [runId, setRunId] = useState(initialRunId);
   const [tasks, setTasks] = useState<TaskView[]>([]);
@@ -131,6 +139,16 @@ export default function Tasks({
     },
     [],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchBrowserAuthConfig().then((config) => {
+      if (!cancelled) setBrowserAuth(config);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!connection) return;
@@ -218,26 +236,62 @@ export default function Tasks({
     }
   }
 
+  async function connectWith(
+    connection: TaskConnection,
+    ticket: number,
+  ) {
+    if (connection.environmentId !== "dev") {
+      setError("Only the dev environment can be used in this increment.");
+      end(ticket);
+      return;
+    }
+    const client = createTaskClient(connection);
+    setSession({
+      client,
+      organizationId: connection.organizationId,
+      environmentId: connection.environmentId,
+    });
+    setOrganizationId(connection.organizationId);
+    setEnvironmentId(connection.environmentId);
+    setToken("");
+    await refreshInbox(client, ticket, runId);
+  }
+
   async function connect(event: React.FormEvent) {
     event.preventDefault();
     const ticket = begin();
     if (ticket === null) return;
     try {
-      if (environmentId !== "dev") {
-        setError("Only the dev environment can be used in this increment.");
-        end(ticket);
-        return;
-      }
-      const client = createTaskClient({
-        organizationId,
-        environmentId,
-        token,
-      });
-      setSession({ client, organizationId, environmentId });
-      setToken("");
-      await refreshInbox(client, ticket, runId);
+      await connectWith({ organizationId, environmentId, token }, ticket);
     } catch (caught) {
       if (ticket === generation.current) setError(failure(caught));
+      end(ticket);
+    }
+  }
+
+  async function signInWithMicrosoft() {
+    if (!browserAuth.enabled) return;
+    const ticket = begin();
+    if (ticket === null) return;
+    try {
+      const acquired = await acquireEntraAccessToken(browserAuth);
+      if (ticket !== generation.current) return;
+      await connectWith(
+        {
+          organizationId: acquired.organizationId,
+          environmentId: acquired.environmentId,
+          token: acquired.accessToken,
+        },
+        ticket,
+      );
+    } catch (caught) {
+      if (ticket === generation.current) {
+        setError(
+          caught instanceof Error && caught.message.startsWith("Entra")
+            ? caught.message
+            : "Microsoft sign-in did not complete. You can paste a token instead.",
+        );
+      }
       end(ticket);
     }
   }
@@ -378,17 +432,17 @@ export default function Tasks({
         </div>
       </header>
       <p className="task-boundary">
-        Pending inbox for Dev with local-demo or shared Connect tokens. Tokens
-        stay in memory only. Entra sign-in is not part of this surface.
+        Pending inbox for Dev with local-demo tokens, shared Connect session, or
+        Microsoft Entra when the host exposes browser auth. Tokens stay in
+        memory only.
       </p>
       {!session && (
         <form className="task-connection-form" onSubmit={connect}>
           <h2>Connect to Dev tasks</h2>
           <p>
-            Paste the organization-scoped bearer token from{" "}
-            <code>uv run nexusflow-local token</code>. Default pilot scope is
-            organization <code>local-demo</code> and environment{" "}
-            <code>dev</code>.
+            Paste a bearer token from <code>uv run nexusflow-local token</code>{" "}
+            (org <code>local-demo</code>, env <code>dev</code>), or sign in with
+            Microsoft when Entra is configured.
           </p>
           <fieldset disabled={busy}>
             <label htmlFor="task-organization">Organization ID</label>
@@ -419,6 +473,15 @@ export default function Tasks({
             <button className="task-primary" type="submit">
               Connect
             </button>
+            {browserAuth.enabled && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void signInWithMicrosoft()}
+              >
+                Sign in with Microsoft
+              </button>
+            )}
           </fieldset>
         </form>
       )}

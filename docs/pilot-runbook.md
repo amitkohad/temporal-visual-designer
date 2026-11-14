@@ -1,8 +1,10 @@
 # Pilot runbook (local-demo Hosted Dev)
 
 Short operator guide for an **internal business-user pilot** on the managed-approval
-Dev loop. Identity is the synthetic `local-demo` bearer token (paste into Connect).
-This is **not** Entra sign-in, cloud Temporal, or production hosting.
+Dev loop. Default identity is the synthetic `local-demo` bearer token (paste into
+Connect). When Entra is configured on the host, **Sign in with Microsoft** is also
+available — see [entra-pilot.md](entra-pilot.md). This Hosted Dev loop is **not**
+cloud Temporal or production multi-tenant hosting.
 
 ## Prerequisites
 
@@ -46,6 +48,8 @@ uv run nexusflow-local stop
 
 ## Token / sign-in
 
+### Path A — local-demo token (default)
+
 While the host is running (or after init):
 
 ```sh
@@ -63,6 +67,13 @@ In the browser Connect form:
 The token stays in memory only for the tab session. Do not put tokens in URLs,
 screenshots, or checked-in scripts. Issue a fresh token with `--lifetime-seconds`
 (1–86400) if needed.
+
+### Path B — Microsoft Entra (optional)
+
+When `NEXUSFLOW_ENTRA_*` (or `NEXUSFLOW_ENTRA_CONFIG`) is set before `serve`, the
+API exposes `GET /api/v1/auth/browser` and Connect shows **Sign in with Microsoft**.
+Local-demo token paste remains available. Full enablement, app registration, and
+honest live-tenant remaining work: [entra-pilot.md](entra-pilot.md).
 
 ## Click-through (Sample → Projects → Release → Tasks)
 
@@ -117,7 +128,8 @@ for business-user pilots.
 
 ## Non-claims
 
-- Token paste ≠ Entra / org SSO
+- Token paste ≠ Entra / org SSO (unless Path B is configured and live-tenant smoke passes)
+- Mocked Entra JWKS/Graph boundary tests ≠ live-tenant production acceptance
 - Local Temporal CLI ≠ cloud Temporal
 - Loopback Hosted Dev ≠ production reverse proxy, TLS, or multi-tenant isolation
-- Unit / fake-port tests ≠ production provider acceptance
+- Environment switcher / grant feedback UI is deferred; Connect still uses explicit org/env fields

@@ -10,6 +10,7 @@ from typing import Protocol
 from temporalio.client import Client
 
 from nexusflow.apps.catalog_adapters import ScopedCatalog
+from nexusflow.apps.entra_pilot import BrowserAuthPublicConfig, disabled_browser_auth
 from nexusflow.contracts.models import Scope
 from nexusflow.modules.activity_catalog.catalog import CatalogService
 from nexusflow.modules.activity_catalog.catalog_types import CatalogRepository, RuntimeCapabilities
@@ -158,6 +159,10 @@ class ApiBackend:
     mock_fixtures: HTTPMockFixtureStore | None = None
     mock_fixture_dev_scopes: tuple[Scope, ...] = ()
     email_connections: EmailConnectionRepository | None = None
+    browser_auth: BrowserAuthPublicConfig | None = None
+
+    def public_browser_auth(self) -> BrowserAuthPublicConfig:
+        return self.browser_auth if self.browser_auth is not None else disabled_browser_auth()
 
     def email_connection_service(
         self, authorization: RequestAuthorization, scope: Scope
