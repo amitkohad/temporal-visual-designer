@@ -1,7 +1,12 @@
-/** Presentation-only projection. Executable workflow fields are never rewritten. */
+/** Project content projection: layout-only and MVP executable writeback. */
 import type { DesignerDocument, DesignerNode, NodeKind } from "./model";
 import { isIdentifier, isObject, ProjectApiError } from "./project-api";
 import type { JsonObject, JsonValue, ProjectRevision } from "./project-api";
+import {
+  rebuildWorkflowFromDocument,
+  sameTopology,
+  wireKindForVisual,
+} from "./workflow-edit";
 
 const kinds: Record<string, NodeKind> = {
   start: "start",
@@ -245,6 +250,48 @@ export function projectDocument(
     throw new ProjectApiError("invalid_response");
   }
 }
+function writeLayoutNodes(
+  content: JsonObject,
+  workflowId: string,
+  document: DesignerDocument,
+  removeMissing: boolean,
+): JsonObject {
+  const stored = metadata(content);
+  const workflowLayout = own(stored.workflows, workflowId);
+  const prior = isObject(workflowLayout) ? workflowLayout : {};
+  let nodes: JsonObject = isObject(prior.nodes) ? prior.nodes : {};
+  if (removeMissing) {
+    const keep = new Set(document.nodes.map((node) => node.id));
+    nodes = Object.fromEntries(
+      Object.entries(nodes).filter(([id]) => keep.has(id)),
+    );
+  }
+  for (const node of document.nodes) {
+    const priorNode = own(nodes, node.id);
+    nodes = {
+      ...nodes,
+      [node.id]: {
+        ...(isObject(priorNode) ? priorNode : {}),
+        label: node.label,
+        description: node.description,
+        x: node.x,
+        y: node.y,
+      },
+    };
+  }
+  return {
+    ...content,
+    layout: {
+      ...stored.layout,
+      nexus_flow_designer: {
+        ...stored.namespace,
+        schema_version: "0.1",
+        workflows: { ...stored.workflows, [workflowId]: { ...prior, nodes } },
+      },
+    },
+  };
+}
+
 export function withDesignerLayout(
   revision: ProjectRevision,
   workflowId: string,
@@ -272,36 +319,65 @@ export function withDesignerLayout(
         throw new Error();
       ids.add(node.id);
     }
-    const content = copy(revision.content);
-    const stored = metadata(content);
-    const workflowLayout = own(stored.workflows, workflowId);
-    const prior = isObject(workflowLayout) ? workflowLayout : {};
-    let nodes: JsonObject = isObject(prior.nodes) ? prior.nodes : {};
-    for (const node of document.nodes) {
-      const priorNode = own(nodes, node.id);
-      nodes = {
-        ...nodes,
-        [node.id]: {
-          ...(isObject(priorNode) ? priorNode : {}),
-          label: node.label,
-          description: node.description,
-          x: node.x,
-          y: node.y,
-        },
-      };
-    }
-    return {
-      ...content,
-      layout: {
-        ...stored.layout,
-        nexus_flow_designer: {
-          ...stored.namespace,
-          schema_version: "0.1",
-          workflows: { ...stored.workflows, [workflowId]: { ...prior, nodes } },
-        },
-      },
-    };
+    return writeLayoutNodes(copy(revision.content), workflowId, document, false);
   } catch {
     throw new ProjectApiError("invalid_response");
   }
+}
+
+/** Rewrite one workflow's executable graph and preserve layout for other workflows. */
+export function withExecutableWorkflow(
+  revision: ProjectRevision,
+  workflowId: string,
+  document: DesignerDocument,
+): JsonObject {
+  try {
+    if (!isIdentifier(workflowId) || !isObject(document)) throw new Error();
+    for (const node of document.nodes) {
+      if (!layoutNode(node) || !wireKindForVisual(node.kind)) throw new Error();
+    }
+    const content = copy(revision.content);
+    const listed = workflows({ ...revision, content });
+    const index = listed.findIndex(
+      (value) => value.workflow_id === workflowId,
+    );
+    if (index < 0) throw new Error();
+    const rebuilt = rebuildWorkflowFromDocument(listed[index], document);
+    const nextWorkflows = listed.map((value, current) =>
+      current === index ? rebuilt : value,
+    );
+    const withWorkflows: JsonObject = {
+      ...content,
+      workflows: nextWorkflows,
+    };
+    const withLayout = writeLayoutNodes(
+      withWorkflows,
+      workflowId,
+      document,
+      true,
+    );
+    // Ensure the rewritten graph still projects with the staged layout.
+    project({ ...revision, content: withLayout }, workflowId);
+    return withLayout;
+  } catch {
+    throw new ProjectApiError("invalid_response");
+  }
+}
+
+export function projectContentForSave(
+  revision: ProjectRevision,
+  workflowId: string,
+  document: DesignerDocument,
+  baseline: DesignerDocument,
+): { content: JsonObject; executable: boolean } {
+  if (sameTopology(baseline, document)) {
+    return {
+      content: withDesignerLayout(revision, workflowId, document),
+      executable: false,
+    };
+  }
+  return {
+    content: withExecutableWorkflow(revision, workflowId, document),
+    executable: true,
+  };
 }

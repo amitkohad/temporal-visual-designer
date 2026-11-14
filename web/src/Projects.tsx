@@ -3,21 +3,63 @@ import WorkflowCanvas from "./Canvas";
 import { editorReducer } from "./model";
 import type { DesignerDocument, EditorAction, EditorState } from "./model";
 import { createProjectClient, ProjectApiError } from "./project-api";
-import type { ProjectRevision, ProjectSummary } from "./project-api";
+import type {
+  ProjectConnection,
+  ProjectRevision,
+  ProjectSummary,
+} from "./project-api";
 import {
   listWorkflows,
+  projectContentForSave,
   projectDocument,
   withDesignerLayout,
 } from "./project-projection";
+import {
+  createTemplateClient,
+  publishBlockedByValidation,
+  type TemplateClient,
+  type TemplateInfo,
+  type ValidationIssue,
+} from "./template-api";
+import {
+  canDeleteStep,
+  canInsertAfter,
+  canReorderStep,
+  commitDocument,
+  deleteDesignerStep,
+  reorderDesignerStep,
+  sameTopology,
+} from "./workflow-edit";
 import "./projects.css";
 
 type Client = ReturnType<typeof createProjectClient>;
 type Draft = { label: string; description: string };
 type Session = {
   client: Client;
+  templates: TemplateClient;
   organizationId: string;
   environmentId: string;
+  token: string;
 };
+
+export type DesignerPublishGate = {
+  connection: ProjectConnection | null;
+  projectId: string | null;
+  headRevision: number | null;
+  workflowId: string | null;
+  validationIssues: ValidationIssue[];
+  publishBlocked: boolean;
+};
+
+export type ProjectsProps = {
+  onClose: () => void;
+  /** Optional 1C release controls mount point (publish/activate/start). */
+  releaseControls?: React.ReactNode;
+  onPublishGateChange?: (gate: DesignerPublishGate) => void;
+};
+
+export { publishBlockedByValidation };
+export type { ValidationIssue };
 
 const failureMessages: Record<string, string> = {
   invalid_request:
@@ -55,12 +97,24 @@ function own<T>(
   return record && Object.hasOwn(record, key) ? record[key] : undefined;
 }
 
-export default function Projects({ onClose }: { onClose: () => void }) {
+const emptyAssignments = (slots: string[]) =>
+  Object.fromEntries(slots.map((slot) => [slot, ""]));
+
+export default function Projects({
+  onClose,
+  releaseControls,
+  onPublishGateChange,
+}: ProjectsProps) {
   const [organizationId, setOrganizationId] = useState("");
   const [environmentId, setEnvironmentId] = useState("dev");
   const [token, setToken] = useState("");
   const [session, setSession] = useState<Session | null>(null);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [templates, setTemplates] = useState<TemplateInfo[]>([]);
+  const [templateId, setTemplateId] = useState("employee-onboarding");
+  const [draftProjectId, setDraftProjectId] = useState("");
+  const [draftName, setDraftName] = useState("");
+  const [assignments, setAssignments] = useState<Record<string, string>>({});
   const [snapshot, setSnapshot] = useState<ProjectRevision | null>(null);
   const [workflowId, setWorkflowId] = useState("");
   const [editors, setEditors] = useState<Record<string, EditorState>>({});
@@ -77,6 +131,9 @@ export default function Projects({ onClose }: { onClose: () => void }) {
   const [notice, setNotice] = useState("");
   const [conflict, setConflict] = useState(false);
   const [confirmation, setConfirmation] = useState<(() => void) | null>(null);
+  const [validationIssues, setValidationIssues] = useState<ValidationIssue[]>(
+    [],
+  );
   const editor = own(editors, workflowId);
   const selected = editor?.document.nodes.find(
     (node) => node.id === editor.selectedId,
@@ -109,6 +166,29 @@ export default function Projects({ onClose }: { onClose: () => void }) {
     [editors, baselines],
   );
   const dirty = pending || appliedChanges;
+  const executableDirty = useMemo(
+    () =>
+      Object.entries(editors).some(([id, state]) => {
+        const original = own(baselines, id);
+        return original ? !sameTopology(original, state.document) : false;
+      }),
+    [editors, baselines],
+  );
+  const selectedTemplate =
+    templates.find((item) => item.template_id === templateId) ?? null;
+  const canInsert = selected
+    ? canInsertAfter(editor!.document, selected.id)
+    : false;
+  const canDelete = selected
+    ? canDeleteStep(editor!.document, selected.id)
+    : false;
+  const canMoveEarlier = selected
+    ? canReorderStep(editor!.document, selected.id, "earlier")
+    : false;
+  const canMoveLater = selected
+    ? canReorderStep(editor!.document, selected.id, "later")
+    : false;
+  const publishBlocked = publishBlockedByValidation(validationIssues);
 
   useEffect(
     () => () => {
@@ -125,6 +205,30 @@ export default function Projects({ onClose }: { onClose: () => void }) {
     window.addEventListener("beforeunload", protect);
     return () => window.removeEventListener("beforeunload", protect);
   }, [dirty]);
+  useEffect(() => {
+    if (!onPublishGateChange) return;
+    onPublishGateChange({
+      connection: session
+        ? {
+            organizationId: session.organizationId,
+            environmentId: session.environmentId,
+            token: session.token,
+          }
+        : null,
+      projectId: snapshot?.project_id ?? null,
+      headRevision: snapshot?.revision ?? null,
+      workflowId: workflowId || null,
+      validationIssues,
+      publishBlocked,
+    });
+  }, [
+    onPublishGateChange,
+    session,
+    snapshot,
+    workflowId,
+    validationIssues,
+    publishBlocked,
+  ]);
 
   function begin() {
     if (busyRef.current) return null;
@@ -151,6 +255,7 @@ export default function Projects({ onClose }: { onClose: () => void }) {
     setBaselines({});
     setDrafts({});
     setConflict(false);
+    setValidationIssues([]);
     setError("");
     setNotice("");
   }
@@ -158,6 +263,7 @@ export default function Projects({ onClose }: { onClose: () => void }) {
     generation.current += 1;
     setSession(null);
     setProjects([]);
+    setTemplates([]);
     setToken("");
     resetProject();
   }
@@ -170,17 +276,36 @@ export default function Projects({ onClose }: { onClose: () => void }) {
         setError("Only the dev environment can be edited in this increment.");
         return;
       }
-      const client = createProjectClient({
+      const connection = {
+        organizationId,
+        environmentId,
+        token,
+      };
+      const client = createProjectClient(connection);
+      const templateClient = createTemplateClient(connection);
+      const [result, listed] = await Promise.all([
+        client.listProjects(),
+        templateClient.listTemplates(),
+      ]);
+      if (ticket !== generation.current) return;
+      setSession({
+        client,
+        templates: templateClient,
         organizationId,
         environmentId,
         token,
       });
-      const result = await client.listProjects();
-      if (ticket !== generation.current) return;
-      setSession({ client, organizationId, environmentId });
       setProjects(result);
+      setTemplates(listed);
+      const first = listed[0];
+      if (first) {
+        setTemplateId(first.template_id);
+        setAssignments(emptyAssignments(first.assignment_slots));
+      }
       setToken("");
-      setNotice("Connected to Dev. Open a project to edit its presentation.");
+      setNotice(
+        "Connected to Dev. Create a starter or open a project to edit the supported workflow.",
+      );
     } catch (caught) {
       if (ticket === generation.current) setError(failure(caught));
     } finally {
@@ -205,6 +330,7 @@ export default function Projects({ onClose }: { onClose: () => void }) {
     setBaselines({ [id]: document });
     setDrafts({});
     setConflict(false);
+    setValidationIssues([]);
   }
   async function openProject(id: string, retainWorkflow = false) {
     if (!session) return;
@@ -226,6 +352,56 @@ export default function Projects({ onClose }: { onClose: () => void }) {
         return;
       }
       setNotice(`Loaded project revision ${revision.revision}.`);
+    } catch (caught) {
+      if (ticket === generation.current) setError(failure(caught));
+    } finally {
+      end(ticket);
+    }
+  }
+  async function createFromTemplate(event: React.FormEvent) {
+    event.preventDefault();
+    if (!session || !selectedTemplate) return;
+    const ticket = begin();
+    if (ticket === null) return;
+    try {
+      const payloadAssignments = Object.fromEntries(
+        selectedTemplate.assignment_slots.map((slot) => [
+          slot,
+          {
+            rule: "any_one" as const,
+            user_ids: [assignments[slot]?.trim()].filter(Boolean) as string[],
+            group_ids: [] as string[],
+          },
+        ]),
+      );
+      const created = await session.templates.createProject(templateId, {
+        project_id: draftProjectId.trim(),
+        name: draftName.trim(),
+        assignments: payloadAssignments,
+      });
+      if (ticket !== generation.current) return;
+      setProjects((previous) => {
+        if (previous.some((item) => item.project_id === created.project_id))
+          return previous.map((item) =>
+            item.project_id === created.project_id
+              ? { ...item, head_revision: created.revision, name: draftName }
+              : item,
+          );
+        return [
+          {
+            project_id: created.project_id,
+            name: draftName.trim(),
+            head_revision: created.revision,
+          },
+          ...previous,
+        ];
+      });
+      adopt(created);
+      setNotice(
+        `Created ${selectedTemplate.name} draft at revision ${created.revision}.`,
+      );
+      setDraftProjectId("");
+      setDraftName("");
     } catch (caught) {
       if (ticket === generation.current) setError(failure(caught));
     } finally {
@@ -264,6 +440,25 @@ export default function Projects({ onClose }: { onClose: () => void }) {
         ? { ...previous, [workflowId]: editorReducer(current, action) }
         : previous;
     });
+    setValidationIssues([]);
+  }
+  function replaceDocument(next: DesignerDocument, selectedId: string) {
+    if (busyRef.current || !editor) return;
+    setEditors((previous) => {
+      const current = own(previous, workflowId);
+      if (!current) return previous;
+      return {
+        ...previous,
+        [workflowId]: commitDocument(
+          current.past,
+          current.document,
+          next,
+          selectedId,
+        ),
+      };
+    });
+    setValidationIssues([]);
+    setError("");
   }
   function property(field: keyof Draft, value: string) {
     if (!selected || !draft || busyRef.current) return;
@@ -306,7 +501,55 @@ export default function Projects({ onClose }: { onClose: () => void }) {
     });
     setError("");
     setNotice(
-      "Presentation updated locally. Save project to create a revision.",
+      executableDirty
+        ? "Step updated locally. Save project to create a revision."
+        : "Presentation updated locally. Save project to create a revision.",
+    );
+  }
+  function insertStep(kind: "approval" | "timer") {
+    if (!selected || !canInsertAfter(editor!.document, selected.id)) {
+      setError(
+        "Select a step with exactly one outgoing path to insert after it. Decision and end steps cannot be insertion points.",
+      );
+      return;
+    }
+    edit({ type: "insert", kind, afterId: selected.id });
+    setNotice(
+      kind === "approval"
+        ? "Approval step inserted locally. Save project to update the executable workflow."
+        : "Wait step inserted locally. Save project to update the executable workflow.",
+    );
+  }
+  function removeStep() {
+    if (!editor || !selected) return;
+    const next = deleteDesignerStep(editor.document, selected.id);
+    if (!next) {
+      setError(
+        "Only approval, wait, and other mid-chain steps with one incoming and one outgoing path can be deleted. Start and end are required.",
+      );
+      return;
+    }
+    replaceDocument(next, selected.id);
+    setNotice(
+      "Step removed locally. Save project to update the executable workflow.",
+    );
+  }
+  function moveStep(direction: "earlier" | "later") {
+    if (!editor || !selected) return;
+    const next = reorderDesignerStep(
+      editor.document,
+      selected.id,
+      direction,
+    );
+    if (!next) {
+      setError(
+        "This step cannot be reordered. Move only mid-chain steps along a single path.",
+      );
+      return;
+    }
+    replaceDocument(next, selected.id);
+    setNotice(
+      "Step order updated locally. Save project to update the executable workflow.",
     );
   }
   async function save() {
@@ -315,21 +558,35 @@ export default function Projects({ onClose }: { onClose: () => void }) {
     if (ticket === null) return;
     try {
       let staged = snapshot;
+      let executable = false;
       for (const [id, state] of Object.entries(editors)) {
+        const original = own(baselines, id);
         if (
-          JSON.stringify(state.document) !== JSON.stringify(own(baselines, id))
-        ) {
+          !original ||
+          JSON.stringify(state.document) === JSON.stringify(original)
+        )
+          continue;
+        if (sameTopology(original, state.document)) {
           staged = {
             ...staged,
             content: withDesignerLayout(staged, id, state.document),
           };
+        } else {
+          const result = projectContentForSave(
+            staged,
+            id,
+            state.document,
+            original,
+          );
+          staged = { ...staged, content: result.content };
+          executable = executable || result.executable;
         }
       }
       const saved = await session.client.saveProject(
         snapshot.project_id,
         snapshot.revision,
         staged.content,
-        "Update designer layout",
+        executable ? "Update workflow steps" : "Update designer layout",
       );
       if (ticket !== generation.current) return;
       adopt(saved, workflowId, editor?.selectedId);
@@ -346,6 +603,44 @@ export default function Projects({ onClose }: { onClose: () => void }) {
       if (caught instanceof ProjectApiError && caught.code === "conflict")
         setConflict(true);
       setError(failure(caught));
+    } finally {
+      end(ticket);
+    }
+  }
+  async function validate() {
+    if (!session || !snapshot || pending) return;
+    const ticket = begin();
+    if (ticket === null) return;
+    try {
+      let staged = snapshot.content;
+      for (const [id, state] of Object.entries(editors)) {
+        const original = own(baselines, id);
+        if (
+          !original ||
+          JSON.stringify(state.document) === JSON.stringify(original)
+        )
+          continue;
+        const result = projectContentForSave(
+          { ...snapshot, content: staged },
+          id,
+          state.document,
+          original,
+        );
+        staged = result.content;
+      }
+      const issues = await session.templates.validateProject(
+        snapshot.project_id,
+        staged,
+      );
+      if (ticket !== generation.current) return;
+      setValidationIssues(issues);
+      setNotice(
+        issues.length
+          ? `Validation found ${issues.length} issue${issues.length === 1 ? "" : "s"}. Publish stays blocked until they are resolved.`
+          : "Validation passed. Publish can proceed when release controls are available.",
+      );
+    } catch (caught) {
+      if (ticket === generation.current) setError(failure(caught));
     } finally {
       end(ticket);
     }
@@ -370,8 +665,9 @@ export default function Projects({ onClose }: { onClose: () => void }) {
         </div>
       </header>
       <p className="project-boundary">
-        Connected Dev authoring · labels, descriptions and layout only. Workflow
-        execution, assignments and mappings are unchanged.
+        Connected Dev authoring · create starters, edit supported approval/wait
+        steps, validate, and save executable revisions. Publish stays blocked
+        while validation reports issues.
       </p>
       {!session && (
         <form className="connection-form" onSubmit={connect}>
@@ -428,6 +724,80 @@ export default function Projects({ onClose }: { onClose: () => void }) {
               {session.organizationId} / {session.environmentId}
             </p>
             <p>Showing the first 100 projects.</p>
+            <form className="template-create" onSubmit={createFromTemplate}>
+              <h3>Create from template</h3>
+              <fieldset disabled={busy || dirty}>
+                <label htmlFor="project-template">Starter</label>
+                <select
+                  id="project-template"
+                  value={templateId}
+                  onChange={(event) => {
+                    const next = templates.find(
+                      (item) => item.template_id === event.target.value,
+                    );
+                    setTemplateId(event.target.value);
+                    if (next)
+                      setAssignments(emptyAssignments(next.assignment_slots));
+                  }}
+                >
+                  {templates.map((template) => (
+                    <option
+                      key={template.template_id}
+                      value={template.template_id}
+                    >
+                      {template.name}
+                    </option>
+                  ))}
+                </select>
+                {selectedTemplate && <p>{selectedTemplate.description}</p>}
+                <label htmlFor="template-project-id">Project ID</label>
+                <input
+                  id="template-project-id"
+                  value={draftProjectId}
+                  onChange={(event) => setDraftProjectId(event.target.value)}
+                  autoComplete="off"
+                  maxLength={128}
+                  required
+                />
+                <label htmlFor="template-project-name">Project name</label>
+                <input
+                  id="template-project-name"
+                  value={draftName}
+                  onChange={(event) => setDraftName(event.target.value)}
+                  autoComplete="off"
+                  maxLength={200}
+                  required
+                />
+                {selectedTemplate?.assignment_slots.map((slot) => (
+                  <div key={slot}>
+                    <label htmlFor={`template-slot-${slot}`}>
+                      {slot} assignee user ID
+                    </label>
+                    <input
+                      id={`template-slot-${slot}`}
+                      value={assignments[slot] ?? ""}
+                      onChange={(event) =>
+                        setAssignments((previous) => ({
+                          ...previous,
+                          [slot]: event.target.value,
+                        }))
+                      }
+                      autoComplete="off"
+                      maxLength={128}
+                      required
+                    />
+                  </div>
+                ))}
+                <button className="project-primary" type="submit">
+                  Create draft
+                </button>
+              </fieldset>
+              {dirty && (
+                <p>
+                  Save or discard project edits before creating another draft.
+                </p>
+              )}
+            </form>
             {!projects.length && (
               <p>No projects are available in this environment.</p>
             )}
@@ -461,8 +831,8 @@ export default function Projects({ onClose }: { onClose: () => void }) {
               <div className="project-empty">
                 <h2>Choose a project</h2>
                 <p>
-                  Open a Dev project to adjust step labels, descriptions and
-                  positions. Unsupported workflows stay unchanged.
+                  Create an onboarding or purchase starter, or open a Dev
+                  project to edit supported steps, labels and layout.
                 </p>
               </div>
             )}
@@ -480,6 +850,8 @@ export default function Projects({ onClose }: { onClose: () => void }) {
                       <span>
                         {dirty ? "Unsaved changes" : "All changes saved"}
                       </span>
+                      {executableDirty ? " · Executable edits pending" : ""}
+                      {publishBlocked ? " · Publish blocked" : ""}
                     </p>
                   </div>
                   <div className="project-editor-actions">
@@ -494,6 +866,14 @@ export default function Projects({ onClose }: { onClose: () => void }) {
                       onClick={() => edit({ type: "redo" })}
                     >
                       Redo
+                    </button>
+                    <button
+                      disabled={busy || pending}
+                      onClick={() => {
+                        void validate();
+                      }}
+                    >
+                      Validate
                     </button>
                     <button
                       disabled={busy}
@@ -516,6 +896,35 @@ export default function Projects({ onClose }: { onClose: () => void }) {
                     </button>
                   </div>
                 </div>
+                {releaseControls && (
+                  <div
+                    className="project-release-slot"
+                    data-publish-blocked={publishBlocked ? "true" : "false"}
+                    aria-label="Release controls"
+                  >
+                    {releaseControls}
+                  </div>
+                )}
+                {validationIssues.length > 0 && (
+                  <div
+                    className="project-validation"
+                    role="status"
+                    aria-label="Validation issues"
+                  >
+                    <h3>Validation issues</h3>
+                    <ul>
+                      {validationIssues.map((issue) => (
+                        <li key={`${issue.path}:${issue.code}:${issue.message}`}>
+                          <code>{issue.path || "/"}</code> · {issue.code}:{" "}
+                          {issue.message}
+                        </li>
+                      ))}
+                    </ul>
+                    <p>
+                      Publish is blocked while these authoring issues remain.
+                    </p>
+                  </div>
+                )}
                 <div className="project-workflow-select">
                   <label htmlFor="project-workflow">Workflow</label>
                   <select
@@ -541,7 +950,11 @@ export default function Projects({ onClose }: { onClose: () => void }) {
                   <div className="connected-canvas" inert={busy}>
                     <WorkflowCanvas
                       title={workflowId}
-                      contextLabel="Presentation only"
+                      contextLabel={
+                        executableDirty
+                          ? "Executable edits"
+                          : "Connected authoring"
+                      }
                       document={editor.document}
                       selectedId={editor.selectedId}
                       onSelect={(id) => edit({ type: "select", id })}
@@ -555,7 +968,9 @@ export default function Projects({ onClose }: { onClose: () => void }) {
                     aria-label="Step properties"
                   >
                     <h3>{selected.label}</h3>
-                    <p>Presentation only · {selected.id}</p>
+                    <p>
+                      {selected.kind} · {selected.id}
+                    </p>
                     <form onSubmit={apply}>
                       <fieldset disabled={busy}>
                         <label htmlFor="connected-step-name">Step name</label>
@@ -581,6 +996,44 @@ export default function Projects({ onClose }: { onClose: () => void }) {
                         <button type="submit">Apply changes</button>
                       </fieldset>
                     </form>
+                    <fieldset disabled={busy} className="connected-steps">
+                      <legend>Supported steps</legend>
+                      <button
+                        type="button"
+                        disabled={!canInsert}
+                        onClick={() => insertStep("approval")}
+                      >
+                        Insert approval
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!canInsert}
+                        onClick={() => insertStep("timer")}
+                      >
+                        Insert wait
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!canDelete}
+                        onClick={removeStep}
+                      >
+                        Delete step
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!canMoveEarlier}
+                        onClick={() => moveStep("earlier")}
+                      >
+                        Move earlier
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!canMoveLater}
+                        onClick={() => moveStep("later")}
+                      >
+                        Move later
+                      </button>
+                    </fieldset>
                     <fieldset disabled={busy} className="connected-move">
                       <legend>Move selected step</legend>
                       {[

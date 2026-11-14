@@ -146,6 +146,88 @@
   width: 100%;
   font-size: 12px;
 }
+.template-create {
+  margin: 18px 0 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.template-create h3 {
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+.template-create fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.template-create label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin: 12px 0 6px;
+}
+.template-create select,
+.template-create input {
+  width: 100%;
+  font: inherit;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 8px 10px;
+  background: white;
+}
+.template-create p {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 8px 0 0;
+}
+.template-create button {
+  margin-top: 14px;
+}
+.project-release-slot {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: #f8fbfb;
+}
+.project-validation {
+  padding: 12px 20px;
+  border-bottom: 1px solid #e5b7b7;
+  background: #fff7f7;
+  color: #8c2d2d;
+}
+.project-validation h3 {
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.project-validation ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.project-validation li {
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 4px 0;
+}
+.project-validation p {
+  margin-top: 8px;
+  font-size: 12px;
+}
+.connected-steps {
+  margin-top: 18px;
+}
+.connected-steps legend {
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.connected-steps button {
+  display: block;
+  width: 100%;
+  margin: 0 0 8px;
+  font-size: 12px;
+  text-align: left;
+}
 .project-editor {
   background: white;
   border: 1px solid var(--border);
