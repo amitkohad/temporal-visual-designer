@@ -1,0 +1,108 @@
+.release-controls {
+  display: grid;
+  gap: 16px;
+  padding: 18px 20px;
+  background: linear-gradient(160deg, #f7fbfc 0%, #eef5f6 55%, #f4f8f9 100%);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--ink);
+}
+.release-controls-header h2 {
+  font-size: 18px;
+  margin-top: 4px;
+}
+.release-eyebrow {
+  color: var(--teal);
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.release-lede {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.release-lede code,
+.release-summary code,
+.release-tasks-hint code {
+  font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  color: #1d4f57;
+}
+.release-gate {
+  padding: 10px 12px;
+  background: #fff6f0;
+  border: 1px solid #efd2bc;
+  border-radius: 8px;
+  color: #7a3b12;
+  font-size: 13px;
+}
+.release-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.release-primary {
+  color: white;
+  background: var(--teal);
+  border-color: var(--teal);
+  font-weight: 600;
+}
+.release-primary:hover:not(:disabled) {
+  background: #006b75;
+  border-color: #006b75;
+}
+.release-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+  margin: 0;
+}
+.release-summary div {
+  min-width: 0;
+}
+.release-summary dt {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.release-summary dd {
+  margin: 4px 0 0;
+  font-size: 13px;
+  word-break: break-word;
+}
+.release-tasks-link,
+.release-tasks-hint {
+  font-size: 13px;
+  color: var(--muted);
+}
+.release-link {
+  color: var(--teal);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  min-height: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.release-link:hover:not(:disabled) {
+  background: transparent;
+  color: #006b75;
+}
+.release-error {
+  color: var(--danger);
+  font-size: 13px;
+}
+.release-notice {
+  color: var(--success);
+  font-size: 13px;
+}
+@media (max-width: 640px) {
+  .release-summary {
+    grid-template-columns: 1fr;
+  }
+}
