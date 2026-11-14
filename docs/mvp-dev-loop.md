@@ -66,8 +66,10 @@ with `Authorization: Bearer <token>`. Pilot defaults: organization
    `POST /tasks/{id}/decisions` (`command_id`, `expected_revision`,
    `decision`)
 
-Local-demo preparation: `nexusflow-local init`, `enable-tasks`, `serve`,
-`token`. Activation examples commonly use `configuration_revision` `local-v1`.
+Local-demo preparation: `nexusflow-local init`, `enable-tasks`, build `web/`
+then `serve --ui` (same-origin Hosted Dev), and `token` (see
+[pilot-runbook.md](pilot-runbook.md)). Activation examples commonly use
+`configuration_revision` `local-v1`.
 
 ## Pilot identity
 

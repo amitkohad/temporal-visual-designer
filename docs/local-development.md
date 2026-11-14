@@ -14,6 +14,23 @@ uv run nexusflow-local serve
 
 The API listens at `http://127.0.0.1:8000`, and the owned headless Temporal server uses loopback port 7233. Both ports must be free, distinct and between 1024 and 65535. Use `--api-port` and `--temporal-port` for a new installation if necessary; keep the Temporal port unchanged on subsequent runs. The API starts only after the Temporal worker and backend have initialized. `/health` is process liveness; a completed start/status check exercises dependencies.
 
+### Hosted Dev UI (same origin)
+
+For an internal business pilot, build the React workspace once and serve it from the
+same loopback process as the API (no separate Vite terminal):
+
+```sh
+cd web && npm ci && npm run build && cd ..
+uv run nexusflow-local enable-tasks
+uv run nexusflow-local serve --ui
+```
+
+Open the printed `url` (default `http://127.0.0.1:8000`). Browser `/api` calls stay
+same-origin. Pass `--ui-dir PATH` if the build output is not `web/dist`. Missing builds
+fail closed before Temporal starts. See the [pilot runbook](pilot-runbook.md) for
+token Connect, Sample→Projects→Release→Tasks click-through and `.nexusflow-local`
+backup. This remains local-demo packaging, not Entra or production hosting.
+
 In another terminal, issue a one-hour local bearer token and inspect the seeded project. PowerShell example:
 
 ```powershell

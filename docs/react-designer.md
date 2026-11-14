@@ -45,12 +45,13 @@ remain open. See [increment evidence](../specs/001-nexus-flow-designer/implement
 
 ## Connect to Dev projects
 
-The Projects button opens the connected workspace. Start a configured Python API
-at `http://127.0.0.1:8000`, or use the [local launcher](local-development.md).
-The Vite development server proxies same-origin `/api` requests to that loopback
-API. For a different trusted host, set `NEXUSFLOW_API_TARGET` in the Vite process
-environment before starting it; the browser cannot choose a proxy destination.
-Production hosting requires its own same-origin reverse proxy and identity setup.
+The Projects button opens the connected workspace. Prefer the pilot Hosted Dev
+host: build `web/` then `uv run nexusflow-local serve --ui` so the UI and API share
+one loopback origin ([pilot runbook](pilot-runbook.md)). Engineers can still run
+the API alone and use `npm run dev`; Vite proxies same-origin `/api` to
+`http://127.0.0.1:8000` (override with `NEXUSFLOW_API_TARGET` in the Vite process
+only). The browser cannot choose a proxy destination. Production hosting requires
+its own same-origin reverse proxy and identity setup.
 
 Enter the organization ID, `dev` and a bearer token from that host, then Connect.
 For the local launcher use organization `local-demo` and obtain a token with

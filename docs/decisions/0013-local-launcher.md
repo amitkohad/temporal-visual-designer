@@ -14,6 +14,12 @@ An OS file lock covers the full init/serve lifetime across processes; the stable
 
 The state directory is one preservation unit, containing credentials, provider stores, activation/start intents, dispatch receipts and Temporal history. Runtime destination changes or partial database deletion require investigation/new demo state. Journal permanence does not imply indefinite Temporal query-history retention. The configured namespace is verified with at least one day of retention; production backup/recovery, RPO/RTO, HA and long-term retention remain open. Unix private-key creation uses exclusive mode 0600; Windows relies on inherited workstation ACLs. Workstation state is trusted, private and never an uploaded deployment package.
 
-Operational output identifies profile/address/scope, not bearer tokens, inputs or keys. Token is emitted only by the explicit token command. Access logging is disabled; the local host is not an external telemetry redaction or production TLS solution. Local exception output is sanitized. Live Entra, custom activity sandboxing, connector effects, browser UI, task inboxes and production deployment remain separate increments.
+Operational output identifies profile/address/scope, not bearer tokens, inputs or keys. Token is emitted only by the explicit token command. Access logging is disabled; the local host is not an external telemetry redaction or production TLS solution. Local exception output is sanitized. Optional `serve --ui` mounts a prebuilt `web/dist` React workspace on the same
+loopback origin as the API so pilot browsers keep same-origin `/api` calls without
+a separate Vite process. Missing builds fail closed; this is workstation packaging,
+not a production reverse proxy. See [pilot-runbook.md](../pilot-runbook.md).
+
+Live Entra, custom activity sandboxing, connector effects, production deployment and
+browser identity remain separate increments.
 
 Three disjoint agent lanes implemented bootstrap/provider composition, runtime lifecycle and independent socket/subprocess acceptance. The coordinator implemented CLI locking/stop, integrated all lanes, corrected cross-platform type checking and aligned port validation. Isolated tests cover initialization, retention-state failures, lifecycle cleanup, namespace failures and locking. Actual CLI/socket/worker acceptance verifies persistence and authenticated workflow completion across graceful restart without ASGI-only transport.
