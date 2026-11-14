@@ -5,8 +5,10 @@ Use Python 3.12 or 3.13 and uv. The browser UI uses React; Node is not required 
 The standalone React sample in `web/` uses Node 24 LTS and npm. Run `npm ci`,
 `npm run build`, `npm test` and `npm run test:e2e` there; install Chromium once
 with `npx playwright install chromium`. See [React workspace](react-designer.md)
-for local startup and the current in-memory authoring boundary. Python commands
-below remain independent of the browser toolchain.
+for local startup and the current in-memory authoring boundary. Parallel MVP UI
+lanes (executable Designer, task portal, publish/activate/start) follow
+[MVP Dev-loop contracts](mvp-dev-loop.md). Python commands below remain
+independent of the browser toolchain.
 
 Connected project layouts: `uv run pytest -q -m integration web/integration/test_project_api.py`
 from the repository root runs actual Chromium through the Vite proxy to signed

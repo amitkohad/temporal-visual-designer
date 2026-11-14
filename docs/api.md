@@ -2,6 +2,12 @@
 
 The ASGI application factory is `nexusflow.apps.api.create_app`. It requires an `ApiBackend` containing explicitly configured providers; no default credentials, environments or fake workers are installed. Provider lifecycle remains the caller's responsibility. See [ADR 0012](decisions/0012-application-api.md).
 
+For the business-user Dev closed loop (template → revise → publish → activate →
+start → task decision), React lanes share the frozen subset and file ownership
+in [MVP Dev-loop contracts](mvp-dev-loop.md). That document does not replace
+this API guide; it selects the MVP routes and client rules above existing
+contracts.
+
 To host it, supply a Python module (for example `your_host.py`) which constructs the configured backend and assigns `app = create_app(backend)`, then run:
 
 ```sh
