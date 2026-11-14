@@ -19,6 +19,12 @@ from nexusflow.apps.local_debug import enable_debugger, load_debug_profile
 from nexusflow.apps.local_mocks import enable_mock_fixtures, load_mock_fixture_profile
 from nexusflow.apps.local_runtime import local_runtime
 from nexusflow.apps.local_tasks import enable_tasks, load_task_profile
+from nexusflow.apps.local_ui import (
+    PilotUiError,
+    attach_pilot_ui,
+    require_ui_directory,
+    resolve_ui_directory,
+)
 from nexusflow.modules.identity_environments.repository import SQLiteIdentityRepository
 
 
@@ -72,6 +78,7 @@ async def serve_local(
     api_port: int = 8000,
     temporal_port: int = 7233,
     temporal_executable: str | None = None,
+    ui_directory: Path | None = None,
 ) -> None:
     if (
         not 1024 <= api_port <= 65535
@@ -79,6 +86,12 @@ async def serve_local(
         or api_port == temporal_port
     ):
         raise LocalCommandError("API and Temporal require distinct valid ports")
+    ui_root: Path | None = None
+    if ui_directory is not None:
+        try:
+            ui_root = require_ui_directory(ui_directory)
+        except PilotUiError as error:
+            raise LocalCommandError(str(error)) from None
     with installation_lock(directory):
         settings = load_settings(directory)
         task_profile = load_task_profile(directory, settings)
@@ -120,9 +133,12 @@ async def serve_local(
                 task_profile=task_profile,
             ) as gateway:
                 with open_backend(directory, gateway) as backend:
+                    application = create_app(backend)
+                    if ui_root is not None:
+                        attach_pilot_ui(application, ui_root)
                     server = uvicorn.Server(
                         uvicorn.Config(
-                            create_app(backend),
+                            application,
                             host="127.0.0.1",
                             port=api_port,
                             access_log=False,
@@ -146,18 +162,17 @@ async def serve_local(
                             await asyncio.sleep(0.1)
 
                     watcher = asyncio.create_task(watch_stop())
-                    print(
-                        json.dumps(
-                            {
-                                "profile": "local-demo",
-                                "url": f"http://127.0.0.1:{api_port}",
-                                "organization_id": settings.organization_id,
-                                "environment_id": "dev",
-                                "state_directory": str(directory),
-                            }
-                        ),
-                        flush=True,
-                    )
+                    startup = {
+                        "profile": "local-demo",
+                        "url": f"http://127.0.0.1:{api_port}",
+                        "organization_id": settings.organization_id,
+                        "environment_id": "dev",
+                        "state_directory": str(directory),
+                    }
+                    if ui_root is not None:
+                        startup["ui"] = "same-origin"
+                        startup["ui_directory"] = str(ui_root)
+                    print(json.dumps(startup), flush=True)
                     try:
                         await server.serve(sockets=[listener])
                     finally:
@@ -186,6 +201,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             command.add_argument("--api-port", type=_port, default=8000)
             command.add_argument("--temporal-port", type=_port, default=7233)
             command.add_argument("--temporal-cli")
+            command.add_argument(
+                "--ui",
+                action="store_true",
+                help="Serve the built React workspace from web/dist on the same origin as the API",
+            )
+            command.add_argument(
+                "--ui-dir",
+                type=Path,
+                help="Built UI directory for --ui (default: ./web/dist)",
+            )
     args = parser.parse_args(argv)
     directory = args.state_dir.expanduser().resolve()
     try:
@@ -251,12 +276,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             (directory / ".stop-request").write_text(settings.installation_id, encoding="utf-8")
             print(json.dumps({"status": "stop_requested", "profile": "local-demo"}))
         else:
+            ui_directory = None
+            if getattr(args, "ui_dir", None) is not None and not getattr(args, "ui", False):
+                raise LocalCommandError("Pass --ui when using --ui-dir")
+            if getattr(args, "ui", False):
+                ui_directory = resolve_ui_directory(getattr(args, "ui_dir", None))
             asyncio.run(
                 serve_local(
                     directory,
                     api_port=args.api_port,
                     temporal_port=args.temporal_port,
                     temporal_executable=args.temporal_cli,
+                    ui_directory=ui_directory,
                 )
             )
         return 0
