@@ -35,7 +35,10 @@ class ApiBoundary:
         async def reject(status: int, code: str, message: str) -> None:
             await error_response(request_id, status, code, message)(scope, receive, send)
 
-        if scope.get("path", "").startswith("/api/"):
+        path = scope.get("path", "")
+        # Public SPA discovery for optional Entra sign-in; never returns secrets.
+        public_api = path in {"/api/v1/auth/browser"}
+        if path.startswith("/api/") and not public_api:
             authorization = [value for name, value in headers if name.lower() == b"authorization"]
             if (
                 len(authorization) != 1

@@ -299,6 +299,11 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
     def health() -> dict[str, str]:
         return {"status": "ok", "version": "0.1"}
 
+    @app.get("/api/v1/auth/browser")
+    def browser_auth() -> dict[str, object]:
+        """Public SPA config for optional Entra sign-in; never includes secrets."""
+        return backend.public_browser_auth().as_json()
+
     @app.get(prefix + "/schema")
     def schema(context: SessionDependency) -> dict[str, object]:
         return app.openapi()

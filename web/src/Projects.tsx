@@ -30,6 +30,11 @@ import {
   reorderDesignerStep,
   sameTopology,
 } from "./workflow-edit";
+import {
+  acquireEntraAccessToken,
+  fetchBrowserAuthConfig,
+  type BrowserAuthConfig,
+} from "./entra-auth";
 import "./projects.css";
 
 type Client = ReturnType<typeof createProjectClient>;
@@ -108,6 +113,9 @@ export default function Projects({
   const [organizationId, setOrganizationId] = useState("");
   const [environmentId, setEnvironmentId] = useState("dev");
   const [token, setToken] = useState("");
+  const [browserAuth, setBrowserAuth] = useState<BrowserAuthConfig>({
+    enabled: false,
+  });
   const [session, setSession] = useState<Session | null>(null);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
@@ -197,6 +205,15 @@ export default function Projects({
     [],
   );
   useEffect(() => {
+    let cancelled = false;
+    void fetchBrowserAuthConfig().then((config) => {
+      if (!cancelled) setBrowserAuth(config);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  useEffect(() => {
     if (!dirty) return;
     const protect = (event: BeforeUnloadEvent) => {
       event.preventDefault();
@@ -267,47 +284,81 @@ export default function Projects({
     setToken("");
     resetProject();
   }
+  async function connectWith(
+    connection: ProjectConnection,
+    ticket: number,
+    noticeText: string,
+  ) {
+    if (connection.environmentId !== "dev") {
+      setError("Only the dev environment can be edited in this increment.");
+      return;
+    }
+    const client = createProjectClient(connection);
+    const templateClient = createTemplateClient(connection);
+    const [result, listed] = await Promise.all([
+      client.listProjects(),
+      templateClient.listTemplates(),
+    ]);
+    if (ticket !== generation.current) return;
+    setSession({
+      client,
+      templates: templateClient,
+      organizationId: connection.organizationId,
+      environmentId: connection.environmentId,
+      token: connection.token,
+    });
+    setOrganizationId(connection.organizationId);
+    setEnvironmentId(connection.environmentId);
+    setProjects(result);
+    setTemplates(listed);
+    const first = listed[0];
+    if (first) {
+      setTemplateId(first.template_id);
+      setAssignments(emptyAssignments(first.assignment_slots));
+    }
+    setToken("");
+    setNotice(noticeText);
+  }
   async function connect(event: React.FormEvent) {
     event.preventDefault();
     const ticket = begin();
     if (ticket === null) return;
     try {
-      if (environmentId !== "dev") {
-        setError("Only the dev environment can be edited in this increment.");
-        return;
-      }
-      const connection = {
-        organizationId,
-        environmentId,
-        token,
-      };
-      const client = createProjectClient(connection);
-      const templateClient = createTemplateClient(connection);
-      const [result, listed] = await Promise.all([
-        client.listProjects(),
-        templateClient.listTemplates(),
-      ]);
-      if (ticket !== generation.current) return;
-      setSession({
-        client,
-        templates: templateClient,
-        organizationId,
-        environmentId,
-        token,
-      });
-      setProjects(result);
-      setTemplates(listed);
-      const first = listed[0];
-      if (first) {
-        setTemplateId(first.template_id);
-        setAssignments(emptyAssignments(first.assignment_slots));
-      }
-      setToken("");
-      setNotice(
+      await connectWith(
+        { organizationId, environmentId, token },
+        ticket,
         "Connected to Dev. Create a starter or open a project to edit the supported workflow.",
       );
     } catch (caught) {
       if (ticket === generation.current) setError(failure(caught));
+    } finally {
+      end(ticket);
+    }
+  }
+  async function signInWithMicrosoft() {
+    if (!browserAuth.enabled) return;
+    const ticket = begin();
+    if (ticket === null) return;
+    try {
+      const acquired = await acquireEntraAccessToken(browserAuth);
+      if (ticket !== generation.current) return;
+      await connectWith(
+        {
+          organizationId: acquired.organizationId,
+          environmentId: acquired.environmentId,
+          token: acquired.accessToken,
+        },
+        ticket,
+        "Connected with Microsoft Entra. Create a starter or open a project to edit the supported workflow.",
+      );
+    } catch (caught) {
+      if (ticket === generation.current) {
+        setError(
+          caught instanceof Error && caught.message.startsWith("Entra")
+            ? caught.message
+            : "Microsoft sign-in did not complete. You can paste a token instead.",
+        );
+      }
     } finally {
       end(ticket);
     }
@@ -673,8 +724,9 @@ export default function Projects({
         <form className="connection-form" onSubmit={connect}>
           <h2>Connect to your Dev projects</h2>
           <p>
-            Use a token from your configured host. It stays in memory and is
-            cleared when you disconnect. Browser sign-in is not connected yet.
+            Paste a host token (local-demo) or, when Entra is configured on the
+            host, sign in with Microsoft. Tokens stay in memory and clear on
+            disconnect.
           </p>
           <fieldset disabled={busy}>
             <label htmlFor="project-org">Organization ID</label>
@@ -705,6 +757,15 @@ export default function Projects({
             <button className="project-primary" type="submit">
               Connect
             </button>
+            {browserAuth.enabled && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void signInWithMicrosoft()}
+              >
+                Sign in with Microsoft
+              </button>
+            )}
           </fieldset>
         </form>
       )}
