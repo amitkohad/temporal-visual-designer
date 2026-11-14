@@ -1,8 +1,16 @@
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import WorkflowCanvas from "./Canvas";
-import Projects from "./Projects";
+import Projects, { type DesignerPublishGate } from "./Projects";
+import ReleaseControls from "./ReleaseControls";
+import Tasks from "./Tasks";
+import {
+  emptyPublishGate,
+  releaseTargetsFromGate,
+  type AppView,
+} from "./app-session";
 import { editorReducer, initialState } from "./model";
 import type { DesignerNode } from "./model";
+import type { ProjectConnection } from "./project-api";
 
 const baseline = JSON.stringify(initialState().document);
 const activityKinds = [
@@ -20,18 +28,142 @@ const activityKinds = [
   },
 ];
 type Draft = { label: string; description: string };
+type LeaveTarget = Exclude<AppView, "sample">;
 
 export default function App() {
-  const [projects, setProjects] = useState(false);
-  return projects ? (
-    <Projects onClose={() => setProjects(false)} />
-  ) : (
-    <SampleWorkspace onProjects={() => setProjects(true)} />
+  const [view, setView] = useState<AppView>("sample");
+  const [gate, setGate] = useState<DesignerPublishGate>(emptyPublishGate);
+  const [session, setSession] = useState<ProjectConnection | null>(null);
+  const [taskRunId, setTaskRunId] = useState("");
+
+  const onPublishGateChange = useCallback((next: DesignerPublishGate) => {
+    setGate(next);
+    setSession(next.connection);
+  }, []);
+
+  const openTasks = useCallback((runId: string) => {
+    setTaskRunId(runId);
+    setView("tasks");
+  }, []);
+
+  const targets = releaseTargetsFromGate(gate);
+  const releaseControls = targets ? (
+    <ReleaseControls
+      connection={targets.connection}
+      projectId={targets.projectId}
+      headRevision={targets.headRevision}
+      workflowId={targets.workflowId}
+      validationOk={!gate.publishBlocked}
+      onOpenTasks={openTasks}
+    />
+  ) : null;
+
+  return (
+    <>
+      {view !== "sample" && (
+        <DevLoopNav view={view} onNavigate={setView} />
+      )}
+      {view === "sample" && (
+        <SampleWorkspace onNavigate={setView} />
+      )}
+      {view === "projects" && (
+        <Projects
+          onClose={() => setView("sample")}
+          releaseControls={releaseControls}
+          onPublishGateChange={onPublishGateChange}
+        />
+      )}
+      {view === "release" && (
+        <ReleaseSurface
+          controls={releaseControls}
+          onOpenProjects={() => setView("projects")}
+        />
+      )}
+      {view === "tasks" && (
+        <Tasks
+          onClose={() => setView(session ? "projects" : "sample")}
+          initialRunId={taskRunId}
+          connection={session ?? undefined}
+        />
+      )}
+    </>
   );
 }
 
-function SampleWorkspace({ onProjects }: { onProjects: () => void }) {
-  const [leavingSample, setLeavingSample] = useState(false);
+function DevLoopNav({
+  view,
+  onNavigate,
+}: {
+  view: AppView;
+  onNavigate: (view: AppView) => void;
+}) {
+  const items: { id: AppView; label: string }[] = [
+    { id: "sample", label: "Sample" },
+    { id: "projects", label: "Projects" },
+    { id: "release", label: "Release" },
+    { id: "tasks", label: "Tasks" },
+  ];
+  return (
+    <nav className="dev-loop-nav" aria-label="Dev loop">
+      {items.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          aria-current={view === item.id ? "page" : undefined}
+          onClick={() => onNavigate(item.id)}
+        >
+          {item.label}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+function ReleaseSurface({
+  controls,
+  onOpenProjects,
+}: {
+  controls: React.ReactNode;
+  onOpenProjects: () => void;
+}) {
+  return (
+    <div className="release-surface" aria-label="Release controls">
+      <header className="release-surface-header">
+        <div>
+          <span className="project-eyebrow">NEXUS FLOW DESIGNER</span>
+          <h1>Release</h1>
+        </div>
+        <button type="button" onClick={onOpenProjects}>
+          Open projects
+        </button>
+      </header>
+      <p className="release-surface-boundary">
+        Publish, activate, and start from the shared Dev session. Validate in
+        Projects first; publish stays blocked while authoring issues remain.
+      </p>
+      {controls ?? (
+        <div className="release-surface-empty" role="status">
+          <h2>Connect a project first</h2>
+          <p>
+            Open Projects, connect with org <code>local-demo</code>, environment{" "}
+            <code>dev</code>, and a bearer token, then open a workflow. Release
+            controls appear here once the Designer publish gate is ready.
+          </p>
+          <button type="button" className="primary" onClick={onOpenProjects}>
+            Go to Projects
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SampleWorkspace({
+  onNavigate,
+}: {
+  onNavigate: (view: LeaveTarget) => void;
+}) {
+  const [pendingLeave, setPendingLeave] = useState<LeaveTarget | null>(null);
   const [state, dispatch] = useReducer(editorReducer, undefined, initialState);
   const [palette, setPalette] = useState(false);
   const [search, setSearch] = useState("");
@@ -153,22 +285,47 @@ function SampleWorkspace({ onProjects }: { onProjects: () => void }) {
         </span>
         <span className="environment">DEV</span>
         <span className="sample-context">Sample workspace</span>
-        <button onClick={() => (dirty ? setLeavingSample(true) : onProjects())}>
-          Projects
-        </button>
+        <div className="sample-nav" aria-label="Dev loop">
+          <button
+            type="button"
+            onClick={() =>
+              dirty ? setPendingLeave("projects") : onNavigate("projects")
+            }
+          >
+            Projects
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              dirty ? setPendingLeave("release") : onNavigate("release")
+            }
+          >
+            Release
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              dirty ? setPendingLeave("tasks") : onNavigate("tasks")
+            }
+          >
+            Tasks
+          </button>
+        </div>
         <span className="avatar" aria-label="Local sample user">
           SU
         </span>
       </header>
-      {leavingSample && (
+      {pendingLeave && (
         <section
           role="alertdialog"
           aria-label="Leave sample?"
           className="sample-banner"
         >
           <p>Leave the sample and discard changes in this tab?</p>
-          <button onClick={onProjects}>Discard sample changes</button>
-          <button onClick={() => setLeavingSample(false)}>
+          <button onClick={() => onNavigate(pendingLeave)}>
+            Discard sample changes
+          </button>
+          <button onClick={() => setPendingLeave(null)}>
             Keep sample editing
           </button>
         </section>

@@ -28,6 +28,25 @@ describe("business-user sample workspace", () => {
     expect(screen.queryByText("All changes saved")).not.toBeInTheDocument();
   });
 
+  it("navigates sample → Projects → Release → Tasks without losing the sample entry", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Projects" }));
+    expect(screen.getByRole("heading", { name: "Projects" })).toBeVisible();
+    expect(
+      screen.getByRole("navigation", { name: "Dev loop" }),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Release" }));
+    expect(screen.getByRole("heading", { name: "Release" })).toBeVisible();
+    expect(screen.getByText("Connect a project first")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Tasks" }));
+    expect(screen.getByRole("heading", { name: "Task portal" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Sample" }));
+    expect(
+      screen.getByText("Sample project · changes stay in this tab"),
+    ).toBeVisible();
+  });
+
   it("selects a step, edits text, and restores the same graph through undo and redo", async () => {
     const user = userEvent.setup();
     render(<App />);

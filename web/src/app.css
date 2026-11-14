@@ -51,6 +51,74 @@
   color: var(--muted);
   font-size: 12px;
 }
+.sample-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.dev-loop-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 22px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.92);
+}
+.dev-loop-nav button[aria-current="page"] {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+.release-surface {
+  min-height: calc(100dvh - 52px);
+  background:
+    radial-gradient(circle at top left, #dff3f5 0%, transparent 42%),
+    linear-gradient(180deg, #f3f8f9 0%, #eef4f6 100%);
+  color: var(--ink);
+}
+.release-surface-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  padding: 22px 28px;
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid var(--border);
+}
+.release-surface-header .project-eyebrow {
+  color: var(--teal, #1f6f78);
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  font-weight: 700;
+}
+.release-surface-header h1 {
+  font-size: 23px;
+  margin-top: 6px;
+}
+.release-surface-boundary {
+  padding: 12px 28px;
+  background: #eaf6f6;
+  color: #28575e;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.release-surface-empty {
+  margin: 28px;
+  max-width: 520px;
+}
+.release-surface-empty h2 {
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+.release-surface-empty p {
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+.release-surface .release-controls {
+  margin: 20px 28px;
+}
 .avatar {
   background: var(--surface);
   padding: 9px 12px;
