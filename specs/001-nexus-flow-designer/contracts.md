@@ -320,3 +320,13 @@ transport recipients; headers omit Bcc. Exact wire bytes have a separate content
 digest. Message-ID excludes content/recipients/time and supplies no deduplication
 or payload binding. The encoder performs no fresh permission/storage lookup,
 network, credential resolution or delivery. Future send boundaries remain open.
+
+## MVP Dev-loop subset (UI coordination)
+
+Phase 0 freezes the business-user Dev closed loop for parallel React work
+without widening C01–C10. The selected node subset, layout-versus-executable
+mutation rules, golden-path HTTP sequence, local-demo token pilot identity and
+Phase 1A/1B/1C writable paths are recorded in
+[docs/mvp-dev-loop.md](../../docs/mvp-dev-loop.md). That subset consumes
+existing project, template, activation, start and task contracts; it does not
+replace them or close NF-T001b.

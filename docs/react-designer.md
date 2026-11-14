@@ -85,6 +85,13 @@ are also unavailable through this client because browsers normalize URL paths.
 New node insertion, activity settings,
 assignments, mappings, publication and execution remain unavailable here.
 
+Phase 1 executable authoring, template create, publish/activate/start and the
+task portal must follow the frozen [MVP Dev-loop contracts](mvp-dev-loop.md):
+supported kinds, layout-versus-executable mutation rules, golden-path APIs,
+local-demo token identity for the first pilot, and disjoint writable paths for
+Designer (1A), task portal (1B) and run controls (1C). Do not invent parallel
+payload shapes.
+
 Actual browser/API/storage compatibility can be checked from the repository root:
 
 ```sh
