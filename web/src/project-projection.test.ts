@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   listWorkflows,
+  projectContentForSave,
   projectDocument,
   withDesignerLayout,
+  withExecutableWorkflow,
 } from "./project-projection";
 import type { JsonObject, JsonValue, ProjectRevision } from "./project-api";
 
@@ -357,5 +359,67 @@ describe("presentation-only project projection", () => {
     expect(() => withDesignerLayout(source, "hr", document)).toThrow(
       "Project request failed",
     );
+  });
+  it("writes executable insert while preserving sibling workflows and resources", () => {
+    const source = withMetadata(fixture());
+    const baseline = projectDocument(source, "hr");
+    const document = projectDocument(source, "hr");
+    document.nodes.push({
+      id: "timer-1",
+      kind: "timer",
+      label: "Cooldown",
+      description: "Wait one minute",
+      x: 600,
+      y: 320,
+    });
+    document.edges = [
+      { id: "edge-0", source: "start", target: "review" },
+      { id: "edge-insert", source: "review", target: "timer-1" },
+      { id: "timer-1-next", source: "timer-1", target: "end" },
+    ];
+    const layoutOnly = projectContentForSave(source, "hr", baseline, baseline);
+    expect(layoutOnly.executable).toBe(false);
+    const saved = projectContentForSave(source, "hr", document, baseline);
+    expect(saved.executable).toBe(true);
+    const workflows = saved.content.workflows as JsonObject[];
+    expect(workflows[0].workflow_id).toBe("hr");
+    expect((workflows[0].nodes as JsonObject[]).map((node) => node.node_id)).toEqual(
+      ["start", "review", "end", "timer-1"],
+    );
+    expect(
+      (workflows[0].nodes as JsonObject[]).find(
+        (node) => node.node_id === "timer-1",
+      ),
+    ).toMatchObject({ kind: "wait", input_mapping: { seconds: 60 } });
+    expect(
+      (workflows[0].nodes as JsonObject[]).find(
+        (node) => node.node_id === "review",
+      )?.input_mapping,
+    ).toEqual({ human_task: { user_ids: ["private-user"] } });
+    expect(workflows[1]).toEqual(
+      (source.content.workflows as JsonObject[])[1],
+    );
+    expect(saved.content.forms).toEqual(source.content.forms);
+    expect(
+      (
+        (
+          (saved.content.layout as JsonObject)
+            .nexus_flow_designer as JsonObject
+        ).workflows as JsonObject
+      ).purchase,
+    ).toEqual(
+      (
+        (
+          (source.content.layout as JsonObject)
+            .nexus_flow_designer as JsonObject
+        ).workflows as JsonObject
+      ).purchase,
+    );
+    expect(
+      projectDocument({ ...source, content: saved.content }, "hr").nodes.map(
+        (node) => node.id,
+      ),
+    ).toEqual(["start", "review", "end", "timer-1"]);
+    expect(() => withExecutableWorkflow(source, "hr", baseline)).not.toThrow();
   });
 });

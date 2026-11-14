@@ -13,10 +13,13 @@ import {
   projectList,
   projectRevision,
   saveAcknowledgement,
+  templateList,
+  templateProjectRevision,
 } from "./project-fixtures";
 
 const TOKEN = "acceptance-private-token-do-not-persist";
-const BASE = "/api/v1/organizations/acme/environments/dev/projects";
+const ROOT = "/api/v1/organizations/acme/environments/dev";
+const BASE = `${ROOT}/projects`;
 function response(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), {
     status,
@@ -26,9 +29,25 @@ function response(value: unknown, status = 200) {
 function server() {
   const fetcher = vi.fn<typeof fetch>(async (url, init) => {
     const path = String(url);
+    if (path.includes("/project-templates/") && path.endsWith("/projects"))
+      return response(
+        templateProjectRevision(
+          JSON.parse(String(init?.body)).project_id,
+          JSON.parse(String(init?.body)).name,
+        ),
+        201,
+      );
+    if (path.includes("/project-templates")) return response(templateList());
+    if (path.includes("/validation")) return response([]);
     if (path.includes("?")) return response(projectList());
-    if (init?.method === "PUT")
-      return response(saveAcknowledgement(JSON.parse(String(init.body))));
+    if (init?.method === "PUT") {
+      const body = JSON.parse(String(init.body));
+      const projectId = path.slice(path.lastIndexOf("/") + 1);
+      return response({
+        ...saveAcknowledgement(body),
+        project_id: projectId,
+      });
+    }
     return response(projectRevision());
   });
   vi.stubGlobal("fetch", fetcher);
@@ -439,6 +458,88 @@ describe("connected project layouts through mocked HTTP", () => {
       expect(persisted.nodes.constructor.extension).toBe("retain opaque node");
       expect(saved.content.workflows).toEqual(revision.content.workflows);
     });
+});
+
+describe("executable designer critical path", () => {
+  it("creates a template draft, inserts a wait step, and saves executable content", async () => {
+    const fetcher = server();
+    render(<Projects onClose={vi.fn()} />);
+    const user = await connect();
+    await screen.findByRole("heading", { name: "Create from template" });
+    await user.clear(screen.getByLabelText("Project ID"));
+    await user.type(screen.getByLabelText("Project ID"), "people");
+    await user.clear(screen.getByLabelText("Project name"));
+    await user.type(screen.getByLabelText("Project name"), "People onboarding");
+    for (const slot of ["manager", "hr", "it"]) {
+      await user.type(
+        screen.getByLabelText(`${slot} assignee user ID`),
+        "manager-user",
+      );
+    }
+    await user.click(screen.getByRole("button", { name: "Create draft" }));
+    await screen.findByText(/Created Employee onboarding draft at revision 1/);
+    await user.click(
+      screen.getAllByRole("button", { name: "Select manager" })[0],
+    );
+    await user.click(screen.getByRole("button", { name: "Insert wait" }));
+    await screen.findByText(/Wait step inserted locally/);
+    await user.click(screen.getByRole("button", { name: "Save project" }));
+    await waitFor(() =>
+      expect(
+        fetcher.mock.calls.filter(([, init]) => init?.method === "PUT"),
+      ).toHaveLength(1),
+    );
+    const [, init] = fetcher.mock.calls.find(
+      ([, options]) => options?.method === "PUT",
+    )!;
+    const body = JSON.parse(String(init?.body));
+    expect(body.expected_revision).toBe(1);
+    expect(body.summary).toBe("Update workflow steps");
+    const nodes = body.content.workflows[0].nodes;
+    expect(nodes.some((node: { kind: string }) => node.kind === "wait")).toBe(
+      true,
+    );
+    expect(
+      nodes.find((node: { node_id: string }) => node.node_id === "manager")
+        .input_mapping.human_task.user_ids,
+    ).toEqual(["manager-user"]);
+    await screen.findByText("Saved project revision 2.");
+  });
+
+  it("surfaces validation issues and reports publish blocked for 1C", async () => {
+    const fetcher = server();
+    const gates: { publishBlocked: boolean; validationIssues: unknown[] }[] =
+      [];
+    render(
+      <Projects
+        onClose={vi.fn()}
+        onPublishGateChange={(gate) => {
+          gates.push({
+            publishBlocked: gate.publishBlocked,
+            validationIssues: gate.validationIssues,
+          });
+        }}
+      />,
+    );
+    await open();
+    fetcher.mockImplementationOnce(async () =>
+      response([
+        {
+          path: "/workflows/0/nodes/1",
+          code: "unreachable_node",
+          message: "Node is unreachable from a declared start",
+        },
+      ]),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Validate" }));
+    await screen.findByRole("status", { name: "Validation issues" });
+    expect(screen.getByText(/Publish is blocked/)).toBeVisible();
+    expect(
+      gates.some(
+        (gate) => gate.publishBlocked && gate.validationIssues.length === 1,
+      ),
+    ).toBe(true);
+  });
 });
 
 describe("sample to connected project navigation", () => {
