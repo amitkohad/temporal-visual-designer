@@ -197,7 +197,7 @@ The one-second timer remains a real wait; stepping does not skip it. Query again
 
 You can stop while paused, restart with the same state/ports and query the same session before continuing. Preserve `debugger.json`, `debug-sessions.db`, `dispatch.db`, `temporal.db` and the rest of the directory together. Missing enabled state, orphan databases or a mismatched profile fail before startup rather than recreating history. Profiles and payloads are not credentials to bypass permission checks.
 
-The API remains the testing surface; the React Designer panel, variable inspection, cancellation and parallel stepping are not available yet. Real mode is explicit and can have normal Dev side effects. See [session API walkthrough](designer-debug-sessions.md) and [ADR 0037](decisions/0037-local-debugger.md).
+After `enable-debugger`, the Hosted Dev UI **Debugger** nav surface (`serve --ui`) can start/reconnect sessions, step/continue/cancel at paused boundaries, replace breakpoints, and inspect redacted inputs/outputs. Parallel frontier selection, streaming events and Entra acceptance remain open. Real mode is explicit and can have normal Dev side effects. See [session API walkthrough](designer-debug-sessions.md), [React evidence](../specs/001-nexus-flow-designer/implementation-react-debugger.md) and [ADR 0037](decisions/0037-local-debugger.md).
 
 The enabled debugger supports [redacted frozen input inspection](debug-input-inspection.md). The [sample project](../examples/local-debug-input-project.json) marks a public field and keeps protected/unclassified fields hidden; inspect a created session without publication or activation.
 
