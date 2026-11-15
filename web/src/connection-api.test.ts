@@ -131,9 +131,9 @@ describe("connection helpers", () => {
     expect(options).toHaveLength(2);
     expect(JSON.stringify(options)).not.toContain("password");
     expect(JSON.stringify(options)).not.toContain("smtp.private");
-    expect(createConnectionWrite("https://api.example.com", []).base_origin).toBe(
-      "https://api.example.com",
-    );
+    expect(
+      createConnectionWrite("https://api.example.com", []).base_origin,
+    ).toBe("https://api.example.com");
   });
 });
 
@@ -205,7 +205,10 @@ describe("createConnectionClient", () => {
           next_after_connection_revision: null,
         });
       }
-      if (path.endsWith("/connections/hr/revisions?limit=25") && method === "GET") {
+      if (
+        path.endsWith("/connections/hr/revisions?limit=25") &&
+        method === "GET"
+      ) {
         return response({
           items: [
             {
@@ -339,7 +342,11 @@ describe("createConnectionClient", () => {
       ["EXAMPLE.TEST"],
       { secretReference: "opaque-private-reference" },
     );
-    const emailSaved = await client.putEmailConnection("hr-mail", "v1", emailWrite);
+    const emailSaved = await client.putEmailConnection(
+      "hr-mail",
+      "v1",
+      emailWrite,
+    );
     expect(emailSaved.connector_type).toBe("email");
     expect(emailSaved.transport).toBe("smtp_tls");
     expect(JSON.stringify(emailSaved)).not.toContain("smtp.private");
@@ -351,14 +358,12 @@ describe("createConnectionClient", () => {
   });
 
   it("maps forbidden administration without echoing provider bodies", async () => {
-    const fetcher = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(
-        new Response(JSON.stringify({ detail: "secret=leaked" }), {
-          status: 403,
-          headers: { "content-type": "application/json" },
-        }),
-      );
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ detail: "secret=leaked" }), {
+        status: 403,
+        headers: { "content-type": "application/json" },
+      }),
+    );
     const client = createConnectionClient(connection, fetcher);
     await expect(client.listMockFixtures()).rejects.toMatchObject({
       code: "forbidden",

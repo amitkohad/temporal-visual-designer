@@ -2,10 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import FormRenderer, { draftValuesFromForm } from "../src/FormRenderer";
-import {
-  parseFormDefinition,
-  previewFormDefinition,
-} from "../src/form-api";
+import { parseFormDefinition, previewFormDefinition } from "../src/form-api";
 
 const definition = parseFormDefinition({
   form_id: "demo",
@@ -54,7 +51,10 @@ describe("FormRenderer", () => {
     expect(screen.getByLabelText(/Full name \(required\)/i)).toBeVisible();
     expect(screen.getByLabelText(/Amount/i)).toHaveAttribute("type", "number");
     expect(screen.getByLabelText(/Department/i).tagName).toBe("SELECT");
-    expect(screen.getByLabelText(/Secret/i)).toHaveAttribute("type", "password");
+    expect(screen.getByLabelText(/Secret/i)).toHaveAttribute(
+      "type",
+      "password",
+    );
     expect(screen.getByText("Locked")).toBeVisible();
     expect(screen.getByText("pinned")).toBeVisible();
     await user.type(screen.getByLabelText(/Full name \(required\)/i), "Ada");
@@ -79,7 +79,9 @@ describe("FormRenderer", () => {
         showSubmit={false}
       />,
     );
-    expect(screen.getByRole("heading", { name: "Start form preview" })).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "Start form preview" }),
+    ).toBeVisible();
     const name = screen.getByLabelText(/Full name \(required\)/i);
     expect(name).toHaveAttribute("aria-invalid", "true");
     expect(name).toHaveFocus();

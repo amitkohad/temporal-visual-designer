@@ -325,7 +325,12 @@ export function withDesignerLayout(
         throw new Error();
       ids.add(node.id);
     }
-    return writeLayoutNodes(copy(revision.content), workflowId, document, false);
+    return writeLayoutNodes(
+      copy(revision.content),
+      workflowId,
+      document,
+      false,
+    );
   } catch {
     throw new ProjectApiError("invalid_response");
   }
@@ -344,9 +349,7 @@ export function withExecutableWorkflow(
     }
     const content = copy(revision.content);
     const listed = workflows({ ...revision, content });
-    const index = listed.findIndex(
-      (value) => value.workflow_id === workflowId,
-    );
+    const index = listed.findIndex((value) => value.workflow_id === workflowId);
     if (index < 0) throw new Error();
     const rebuilt = rebuildWorkflowFromDocument(listed[index], document);
     const nextWorkflows = listed.map((value, current) =>

@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  emptyPublishGate,
-  releaseTargetsFromGate,
-} from "./app-session";
+import { emptyPublishGate, releaseTargetsFromGate } from "./app-session";
 import type { DesignerPublishGate } from "./Projects";
 
 const connection = {

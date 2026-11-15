@@ -63,12 +63,8 @@ export default function App() {
 
   return (
     <>
-      {view !== "sample" && (
-        <DevLoopNav view={view} onNavigate={setView} />
-      )}
-      {view === "sample" && (
-        <SampleWorkspace onNavigate={setView} />
-      )}
+      {view !== "sample" && <DevLoopNav view={view} onNavigate={setView} />}
+      {view === "sample" && <SampleWorkspace onNavigate={setView} />}
       {view === "projects" && (
         <Projects
           onClose={() => setView("sample")}
@@ -329,9 +325,7 @@ function SampleWorkspace({
           <button
             type="button"
             onClick={() =>
-              dirty
-                ? setPendingLeave("connections")
-                : onNavigate("connections")
+              dirty ? setPendingLeave("connections") : onNavigate("connections")
             }
           >
             Connections

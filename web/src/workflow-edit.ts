@@ -59,7 +59,9 @@ export function sameTopology(
 }
 
 export function wireKindForVisual(kind: NodeKind): string | null {
-  return Object.hasOwn(visualToWire, kind) ? (visualToWire[kind] ?? null) : null;
+  return Object.hasOwn(visualToWire, kind)
+    ? (visualToWire[kind] ?? null)
+    : null;
 }
 
 export function canInsertAfter(
@@ -100,10 +102,10 @@ export function canReorderStep(
     );
     if (!predecessor || predecessor.kind === "start") return false;
     return (
-      document.edges.filter((edge) => edge.source === predecessor.id)
-        .length === 1 &&
-      document.edges.filter((edge) => edge.target === predecessor.id)
-        .length === 1
+      document.edges.filter((edge) => edge.source === predecessor.id).length ===
+        1 &&
+      document.edges.filter((edge) => edge.target === predecessor.id).length ===
+        1
     );
   }
   const successor = document.nodes.find(
@@ -320,8 +322,7 @@ export function setDecisionRoute(
       route.kind !== "approval_outcome" ||
       !isIdentifier(route.source_node_id) ||
       !document.nodes.some(
-        (item) =>
-          item.id === route.source_node_id && item.kind === "approval",
+        (item) => item.id === route.source_node_id && item.kind === "approval",
       )
     )
       return null;

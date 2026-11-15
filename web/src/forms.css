@@ -99,7 +99,10 @@
 }
 .nf-forms-layout {
   display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(260px, 340px);
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(
+      260px,
+      340px
+    );
   gap: 16px;
   padding: 0 28px 28px;
 }

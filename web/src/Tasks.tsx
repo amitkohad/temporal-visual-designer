@@ -198,10 +198,7 @@ export default function Tasks({
     }
   }
 
-  async function connectWith(
-    connection: TaskConnection,
-    ticket: number,
-  ) {
+  async function connectWith(connection: TaskConnection, ticket: number) {
     if (connection.environmentId !== "dev") {
       setError("Only the dev environment can be used in this increment.");
       end(ticket);

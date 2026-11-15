@@ -492,9 +492,9 @@ describe("executable designer critical path", () => {
       ([url, init]) =>
         String(url).includes("/project-templates/") && init?.method === "POST",
     );
-    expect(JSON.parse(String(createCall?.[1]?.body)).assignments.manager.rule).toBe(
-      "all_approvers",
-    );
+    expect(
+      JSON.parse(String(createCall?.[1]?.body)).assignments.manager.rule,
+    ).toBe("all_approvers");
     await user.click(
       screen.getAllByRole("button", { name: "Select manager" })[0],
     );
@@ -556,7 +556,8 @@ describe("executable designer critical path", () => {
     );
     const body = JSON.parse(
       String(
-        fetcher.mock.calls.find(([, init]) => init?.method === "PUT")?.[1]?.body,
+        fetcher.mock.calls.find(([, init]) => init?.method === "PUT")?.[1]
+          ?.body,
       ),
     );
     const decision = body.content.workflows[0].nodes.find(
