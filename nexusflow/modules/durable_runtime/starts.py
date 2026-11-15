@@ -161,7 +161,7 @@ class _StartBoundary:
         try:
             for value in (request.project_id, request.workflow_id, request.idempotency_key):
                 TypeAdapter(Identifier).validate_python(value)
-            if request.source not in {"manual", "api"}:
+            if request.source not in {"manual", "api", "schedule"}:
                 raise ValueError
             if len(request.input_json.encode()) > 65536:
                 raise ValueError

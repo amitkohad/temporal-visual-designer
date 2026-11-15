@@ -54,11 +54,6 @@ class ScheduleDefinition(Contract):
     input_json: Annotated[str, Field(max_length=65536)] = "{}"
     enabled: bool = True
 
-    @field_validator("timezone")
-    @classmethod
-    def iana_timezone(cls, value: str) -> str:
-        return validate_iana_timezone(value)
-
 
 class ScheduleRecord(Contract):
     definition: ScheduleDefinition

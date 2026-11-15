@@ -90,6 +90,27 @@ class StartWorkflow(JsonRequest):
     source: Literal["manual", "api"] = "manual"
 
 
+class CreateSchedule(JsonRequest):
+    schedule_id: Identifier
+    workflow_id: Identifier
+    cron: Annotated[str, Field(min_length=5, max_length=128)]
+    timezone: Annotated[str, Field(min_length=1, max_length=64)]
+    overlap_policy: Literal["allow", "skip"] = "allow"
+    input: dict[str, JsonValue] = Field(default_factory=dict)
+
+
+class ScheduleView(Contract):
+    schedule_id: Identifier
+    project_id: Identifier
+    workflow_id: Identifier
+    cron: str
+    timezone: str
+    overlap_policy: Literal["allow", "skip"]
+    enabled: bool
+    created_at: str
+    disabled_at: str | None = None
+
+
 class ProjectRevision(Contract):
     project_id: Identifier
     revision: int
