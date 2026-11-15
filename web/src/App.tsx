@@ -5,6 +5,7 @@ import ReleaseControls from "./ReleaseControls";
 import Tasks from "./Tasks";
 import FormBuilder from "./FormBuilder";
 import Connections from "./Connections";
+import AdminCatalog from "./AdminCatalog";
 import {
   emptyPublishGate,
   releaseTargetsFromGate,
@@ -100,6 +101,12 @@ export default function App() {
           connection={session ?? undefined}
         />
       )}
+      {view === "admin" && (
+        <AdminCatalog
+          onClose={() => setView(session ? "projects" : "sample")}
+          connection={session ?? undefined}
+        />
+      )}
     </>
   );
 }
@@ -116,6 +123,7 @@ function DevLoopNav({
     { id: "projects", label: "Projects" },
     { id: "forms", label: "Forms" },
     { id: "connections", label: "Connections" },
+    { id: "admin", label: "Admin" },
     { id: "release", label: "Release" },
     { id: "tasks", label: "Tasks" },
   ];
@@ -327,6 +335,14 @@ function SampleWorkspace({
             }
           >
             Connections
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              dirty ? setPendingLeave("admin") : onNavigate("admin")
+            }
+          >
+            Admin
           </button>
           <button
             type="button"

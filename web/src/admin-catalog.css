@@ -1,0 +1,211 @@
+.nf-admin-catalog {
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at top right, #dff3f5 0%, transparent 40%),
+    linear-gradient(180deg, #f3f8f9 0%, #eef4f6 100%);
+  color: var(--ink);
+}
+.nf-admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  padding: 22px 28px;
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+}
+.nf-admin-eyebrow {
+  color: var(--teal);
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  font-weight: 700;
+}
+.nf-admin-header h1 {
+  font-size: 23px;
+  margin-top: 6px;
+}
+.nf-admin-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.nf-admin-boundary {
+  padding: 12px 28px;
+  background: #eaf6f6;
+  color: #28575e;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.nf-admin-connect {
+  width: min(520px, calc(100% - 32px));
+  margin: 36px auto 16px;
+  padding: 28px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.nf-admin-connect h2 {
+  font-size: 21px;
+  margin-bottom: 12px;
+}
+.nf-admin-connect p,
+.nf-admin-panel p,
+.nf-admin-empty {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+.nf-admin-connect fieldset,
+.nf-admin-panel fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.nf-admin-connect label,
+.nf-admin-panel label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin: 14px 0 8px;
+}
+.nf-admin-connect input,
+.nf-admin-panel input[type="search"],
+.nf-admin-panel input[type="file"] {
+  width: 100%;
+  padding: 10px 12px;
+}
+.nf-admin-connect button {
+  width: 100%;
+  margin-top: 22px;
+}
+.nf-admin-primary {
+  color: white;
+  background: var(--teal);
+  border-color: var(--teal);
+  padding: 10px 16px;
+}
+.nf-admin-notice,
+.nf-admin-error {
+  width: min(960px, calc(100% - 32px));
+  margin: 12px auto 0;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.nf-admin-notice {
+  background: #e8f6ef;
+  color: var(--success);
+}
+.nf-admin-error {
+  background: #f8eaea;
+  color: var(--danger);
+}
+.nf-admin-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: 20px;
+  width: min(1100px, calc(100% - 32px));
+  margin: 20px auto 40px;
+}
+@media (max-width: 860px) {
+  .nf-admin-layout {
+    grid-template-columns: 1fr;
+  }
+}
+.nf-admin-panel {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 22px;
+}
+.nf-admin-panel h2 {
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+.nf-admin-panel h3 {
+  font-size: 14px;
+  margin: 18px 0 8px;
+}
+.nf-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.nf-admin-actions button {
+  padding: 8px 14px;
+}
+.nf-admin-meta {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--muted);
+}
+.nf-admin-meta code {
+  font-size: 11px;
+  word-break: break-all;
+}
+.nf-admin-search-row {
+  display: flex;
+  gap: 8px;
+  align-items: end;
+}
+.nf-admin-search-row > div {
+  flex: 1;
+}
+.nf-admin-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 420px;
+  overflow: auto;
+}
+.nf-admin-list button {
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  background: var(--surface);
+}
+.nf-admin-list button[aria-current="true"] {
+  border-color: var(--accent);
+  background: #eaf6f6;
+}
+.nf-admin-list-title {
+  display: block;
+  font-weight: 700;
+  font-size: 13px;
+}
+.nf-admin-list-meta {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.nf-admin-state {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--teal);
+}
+.nf-admin-state[data-state="deprecated"] {
+  color: #8a6a12;
+}
+.nf-admin-state[data-state="withdrawn"] {
+  color: var(--danger);
+}
+.nf-admin-danger {
+  color: white;
+  background: var(--danger);
+  border-color: var(--danger);
+}
