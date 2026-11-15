@@ -6,6 +6,7 @@ import Tasks from "./Tasks";
 import FormBuilder from "./FormBuilder";
 import Connections from "./Connections";
 import AdminCatalog from "./AdminCatalog";
+import DebuggerPanel from "./DebuggerPanel";
 import {
   emptyPublishGate,
   releaseTargetsFromGate,
@@ -103,6 +104,15 @@ export default function App() {
           connection={session ?? undefined}
         />
       )}
+      {view === "debugger" && (
+        <DebuggerPanel
+          onClose={() => setView(session ? "projects" : "sample")}
+          connection={session ?? undefined}
+          initialProjectId={targets?.projectId}
+          initialWorkflowId={targets?.workflowId}
+          initialSourceRevision={targets?.headRevision}
+        />
+      )}
     </>
   );
 }
@@ -120,6 +130,7 @@ function DevLoopNav({
     { id: "forms", label: "Forms" },
     { id: "connections", label: "Connections" },
     { id: "admin", label: "Admin" },
+    { id: "debugger", label: "Debugger" },
     { id: "release", label: "Release" },
     { id: "tasks", label: "Tasks" },
   ];
@@ -337,6 +348,14 @@ function SampleWorkspace({
             }
           >
             Admin
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              dirty ? setPendingLeave("debugger") : onNavigate("debugger")
+            }
+          >
+            Debugger
           </button>
           <button
             type="button"

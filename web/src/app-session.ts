@@ -9,7 +9,8 @@ export type AppView =
   | "tasks"
   | "forms"
   | "connections"
-  | "admin";
+  | "admin"
+  | "debugger";
 
 export const emptyPublishGate: DesignerPublishGate = {
   connection: null,

@@ -1,0 +1,214 @@
+.nf-debugger-surface {
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at top left, #d9f0f2 0%, transparent 42%),
+    linear-gradient(180deg, #f2f7f8 0%, #e8f0f2 100%);
+  color: var(--ink);
+}
+.nf-debugger-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  padding: 22px 28px;
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+}
+.nf-debugger-eyebrow {
+  color: var(--teal);
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  font-weight: 700;
+}
+.nf-debugger-header h1 {
+  font-size: 23px;
+  margin-top: 6px;
+}
+.nf-debugger-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.nf-debugger-boundary {
+  padding: 12px 28px;
+  background: #eaf6f6;
+  color: #28575e;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.nf-debugger-connect {
+  width: min(520px, calc(100% - 32px));
+  margin: 36px auto 16px;
+  padding: 28px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.nf-debugger-connect h2,
+.nf-debugger-panel h2 {
+  font-size: 21px;
+  margin-bottom: 12px;
+}
+.nf-debugger-panel h3 {
+  font-size: 15px;
+  margin: 18px 0 8px;
+}
+.nf-debugger-connect p,
+.nf-debugger-muted,
+.nf-debugger-panel p {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+.nf-debugger-connect fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.nf-debugger-connect label,
+.nf-debugger-panel label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin: 14px 0 8px;
+}
+.nf-debugger-connect button {
+  width: 100%;
+  margin-top: 22px;
+}
+.nf-debugger-primary {
+  color: white;
+  background: var(--teal);
+  border-color: var(--teal);
+}
+.nf-debugger-primary:hover:not(:disabled) {
+  background: #066f78;
+  border-color: #066f78;
+  color: white;
+}
+.nf-debugger-layout {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  padding: 16px 28px 40px;
+}
+.nf-debugger-panel {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+  min-width: 0;
+}
+.nf-debugger-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.nf-debugger-session-list,
+.nf-debugger-events,
+.nf-debugger-overlay-nodes {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+.nf-debugger-session-list button,
+.nf-debugger-overlay-node {
+  width: 100%;
+  text-align: left;
+  display: grid;
+  gap: 4px;
+  background: var(--surface);
+}
+.nf-debugger-session-list button[aria-pressed="true"],
+.nf-debugger-overlay-node[aria-pressed="true"] {
+  border-color: var(--teal);
+  background: #e8f6f7;
+}
+.nf-debugger-status {
+  margin-bottom: 10px;
+}
+.nf-debugger-overlay {
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px dashed #9ccdd0;
+  border-radius: 12px;
+  background: #f7fbfc;
+}
+.nf-debugger-overlay-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.nf-debugger-overlay-legend [data-kind="current"] {
+  color: #005cbe;
+}
+.nf-debugger-overlay-legend [data-kind="breakpoint"] {
+  color: #a83232;
+}
+.nf-debugger-overlay-legend [data-kind="completed"] {
+  color: #087858;
+}
+.nf-debugger-overlay-status {
+  margin-bottom: 10px;
+}
+.nf-debugger-overlay-node[data-kinds~="current"] {
+  border-color: #7eb3e8;
+}
+.nf-debugger-overlay-node[data-kinds~="breakpoint"] {
+  box-shadow: inset 3px 0 0 #a83232;
+}
+.nf-debugger-overlay-node[data-kinds~="completed"] {
+  opacity: 0.88;
+}
+.nf-debugger-overlay-tags {
+  font-size: 11px;
+  color: var(--muted);
+}
+.nf-debugger-events {
+  font-size: 12px;
+  color: var(--muted);
+}
+.nf-debugger-inspection {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.nf-debugger-inspection pre {
+  margin: 8px 0;
+  padding: 12px;
+  background: #102028;
+  color: #e8f6f7;
+  border-radius: 10px;
+  overflow: auto;
+  max-height: 220px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.nf-debugger-error,
+.nf-debugger-notice {
+  margin: 0 28px 24px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+.nf-debugger-error {
+  background: #f8e8e8;
+  color: var(--danger);
+}
+.nf-debugger-notice {
+  background: #e8f6f0;
+  color: var(--success);
+}
+@media (max-width: 1100px) {
+  .nf-debugger-layout {
+    grid-template-columns: 1fr;
+  }
+}
