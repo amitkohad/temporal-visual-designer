@@ -138,9 +138,7 @@ export default function Projects({
   const [templateId, setTemplateId] = useState("employee-onboarding");
   const [draftProjectId, setDraftProjectId] = useState("");
   const [draftName, setDraftName] = useState("");
-  const [assignments, setAssignments] = useState<Record<string, SlotDraft>>(
-    {},
-  );
+  const [assignments, setAssignments] = useState<Record<string, SlotDraft>>({});
   const [snapshot, setSnapshot] = useState<ProjectRevision | null>(null);
   const [workflowId, setWorkflowId] = useState("");
   const [editors, setEditors] = useState<Record<string, EditorState>>({});
@@ -667,11 +665,7 @@ export default function Projects({
   }
   function moveStep(direction: "earlier" | "later") {
     if (!editor || !selected) return;
-    const next = reorderDesignerStep(
-      editor.document,
-      selected.id,
-      direction,
-    );
+    const next = reorderDesignerStep(editor.document, selected.id, direction);
     if (!next) {
       setError(
         "This step cannot be reordered. Move only mid-chain steps along a single path.",
@@ -1127,7 +1121,9 @@ export default function Projects({
                     <h3>Validation issues</h3>
                     <ul>
                       {validationIssues.map((issue) => (
-                        <li key={`${issue.path}:${issue.code}:${issue.message}`}>
+                        <li
+                          key={`${issue.path}:${issue.code}:${issue.message}`}
+                        >
                           <code>{issue.path || "/"}</code> · {issue.code}:{" "}
                           {issue.message}
                         </li>

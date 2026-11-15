@@ -381,7 +381,8 @@ export function createReleaseClient(
     },
 
     async getActivation(projectId) {
-      if (!isIdentifier(projectId)) throw new ProjectApiError("invalid_request");
+      if (!isIdentifier(projectId))
+        throw new ProjectApiError("invalid_request");
       const value = await request(`/${projectId}/activation`, "GET");
       try {
         return parseActivation(value);

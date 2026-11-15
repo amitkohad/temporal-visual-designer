@@ -1,17 +1,19 @@
 /** Optional Entra SPA sign-in for Hosted Dev pilots. Local-demo token paste remains default. */
 
-export type BrowserAuthConfig = {
-  enabled: false;
-} | {
-  enabled: true;
-  organizationId: string;
-  environmentId: string;
-  tenantId: string;
-  spaClientId: string;
-  authority: string;
-  scopes: string[];
-  redirectUri: string;
-};
+export type BrowserAuthConfig =
+  | {
+      enabled: false;
+    }
+  | {
+      enabled: true;
+      organizationId: string;
+      environmentId: string;
+      tenantId: string;
+      spaClientId: string;
+      authority: string;
+      scopes: string[];
+      redirectUri: string;
+    };
 
 type PublicBrowserAuth = {
   enabled?: unknown;

@@ -383,9 +383,9 @@ describe("presentation-only project projection", () => {
     expect(saved.executable).toBe(true);
     const workflows = saved.content.workflows as JsonObject[];
     expect(workflows[0].workflow_id).toBe("hr");
-    expect((workflows[0].nodes as JsonObject[]).map((node) => node.node_id)).toEqual(
-      ["start", "review", "end", "timer-1"],
-    );
+    expect(
+      (workflows[0].nodes as JsonObject[]).map((node) => node.node_id),
+    ).toEqual(["start", "review", "end", "timer-1"]);
     expect(
       (workflows[0].nodes as JsonObject[]).find(
         (node) => node.node_id === "timer-1",
@@ -396,16 +396,12 @@ describe("presentation-only project projection", () => {
         (node) => node.node_id === "review",
       )?.input_mapping,
     ).toEqual({ human_task: { user_ids: ["private-user"] } });
-    expect(workflows[1]).toEqual(
-      (source.content.workflows as JsonObject[])[1],
-    );
+    expect(workflows[1]).toEqual((source.content.workflows as JsonObject[])[1]);
     expect(saved.content.forms).toEqual(source.content.forms);
     expect(
       (
-        (
-          (saved.content.layout as JsonObject)
-            .nexus_flow_designer as JsonObject
-        ).workflows as JsonObject
+        ((saved.content.layout as JsonObject).nexus_flow_designer as JsonObject)
+          .workflows as JsonObject
       ).purchase,
     ).toEqual(
       (

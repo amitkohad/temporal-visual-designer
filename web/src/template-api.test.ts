@@ -5,7 +5,10 @@ import {
   publishBlockedByValidation,
   templateInputFields,
 } from "./template-api";
-import { templateList, templateProjectRevision } from "../tests/project-fixtures";
+import {
+  templateList,
+  templateProjectRevision,
+} from "../tests/project-fixtures";
 
 const connection = {
   organizationId: "acme",
@@ -114,7 +117,10 @@ describe("template API client", () => {
       if (String(url) === `${ROOT}/project-templates`) return response(extras);
       throw new Error(String(url));
     });
-    const listed = await createTemplateClient(connection, fetcher).listTemplates();
+    const listed = await createTemplateClient(
+      connection,
+      fetcher,
+    ).listTemplates();
     expect(listed.map((item) => item.template_id)).toEqual([
       "employee-onboarding",
       "purchase-requisition",
@@ -140,6 +146,8 @@ describe("template API client", () => {
           it: { user_ids: ["manager-user"] },
         },
       }),
-    ).rejects.toMatchObject({ code: "conflict" } satisfies Partial<ProjectApiError>);
+    ).rejects.toMatchObject({
+      code: "conflict",
+    } satisfies Partial<ProjectApiError>);
   });
 });

@@ -33,15 +33,15 @@ describe("business-user sample workspace", () => {
     render(<App />);
     await user.click(screen.getByRole("button", { name: "Projects" }));
     expect(screen.getByRole("heading", { name: "Projects" })).toBeVisible();
-    expect(
-      screen.getByRole("navigation", { name: "Dev loop" }),
-    ).toBeVisible();
+    expect(screen.getByRole("navigation", { name: "Dev loop" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Forms" }));
     expect(screen.getByRole("heading", { name: "Forms" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Connections" }));
     expect(screen.getByRole("heading", { name: "Connections" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Admin" }));
-    expect(screen.getByRole("heading", { name: "Admin catalog" })).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "Admin catalog" }),
+    ).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Release" }));
     expect(screen.getByRole("heading", { name: "Release" })).toBeVisible();
     expect(screen.getByText("Connect a project first")).toBeVisible();
