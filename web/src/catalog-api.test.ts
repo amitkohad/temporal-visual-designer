@@ -153,7 +153,9 @@ describe("catalog API critical path", () => {
       .fn<typeof globalThis.fetch>()
       .mockResolvedValue(response({ code: "forbidden" }, 403));
     const client = createCatalogClient(connection, fetch);
-    await expect(client.publish(digest)).rejects.toBeInstanceOf(CatalogApiError);
+    await expect(client.publish(digest)).rejects.toBeInstanceOf(
+      CatalogApiError,
+    );
     await expect(client.publish(digest)).rejects.toMatchObject({
       code: "forbidden",
     });

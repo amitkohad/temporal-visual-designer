@@ -247,11 +247,16 @@ function parseEmailConnectionMetadata(
 }
 
 const DNS_LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
-const EMAIL_LOCAL = /^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*$/;
+const EMAIL_LOCAL =
+  /^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*$/;
 
 /** Validate a qualified ASCII DNS hostname (no IP, no port, no lookup). */
 export function validateSmtpHost(value: string): string | null {
-  if (typeof value !== "string" || value.trim().length < 1 || value.trim().length > 253)
+  if (
+    typeof value !== "string" ||
+    value.trim().length < 1 ||
+    value.trim().length > 253
+  )
     return "Enter a DNS-style SMTP hostname.";
   const host = value.trim().toLowerCase();
   if (
@@ -303,11 +308,7 @@ export function validateEmailConnectionWrite(
     return "Email connections use connector email/1.0.0 over smtp_tls.";
   const hostIssue = validateSmtpHost(body.smtp_host);
   if (hostIssue) return hostIssue;
-  if (
-    !Number.isSafeInteger(body.port) ||
-    body.port < 1 ||
-    body.port > 65535
-  )
+  if (!Number.isSafeInteger(body.port) || body.port < 1 || body.port > 65535)
     return "Port must be an integer from 1 to 65535.";
   const senderIssue = validateSenderEmail(body.sender);
   if (senderIssue) return senderIssue;
@@ -438,7 +439,10 @@ export function validateHttpsOrigin(value: string): string | null {
       url.hostname.length > 253
     )
       return "Origins must be https DNS hosts with no path, query, or credentials.";
-    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(url.hostname) || url.hostname.includes(":"))
+    if (
+      /^\d{1,3}(\.\d{1,3}){3}$/.test(url.hostname) ||
+      url.hostname.includes(":")
+    )
       return "IP literals are not allowed; use a DNS hostname.";
     return null;
   } catch {
@@ -647,7 +651,11 @@ export function createConnectionClient(
         throw new ProjectApiError("invalid_response");
       }
     },
-    async listConnectionRevisions(connectionId, limit = 25, beforeRevision = null) {
+    async listConnectionRevisions(
+      connectionId,
+      limit = 25,
+      beforeRevision = null,
+    ) {
       if (
         !isIdentifier(connectionId) ||
         !Number.isSafeInteger(limit) ||
@@ -708,7 +716,11 @@ export function createConnectionClient(
         JSON.stringify(payload),
       );
       try {
-        return parseEmailConnectionMetadata(value, organizationId, environmentId);
+        return parseEmailConnectionMetadata(
+          value,
+          organizationId,
+          environmentId,
+        );
       } catch {
         throw new ProjectApiError("invalid_response");
       }
@@ -720,7 +732,11 @@ export function createConnectionClient(
         `/email-connections/${connectionId}/revisions/${revision}`,
       );
       try {
-        return parseEmailConnectionMetadata(value, organizationId, environmentId);
+        return parseEmailConnectionMetadata(
+          value,
+          organizationId,
+          environmentId,
+        );
       } catch {
         throw new ProjectApiError("invalid_response");
       }
@@ -852,7 +868,9 @@ export function createConnectionWrite(
   allowedOrigins: string[],
   secretReference?: string,
 ): HTTPConnectionWrite {
-  const origins = [...new Set(allowedOrigins.map((item) => item.trim()).filter(Boolean))];
+  const origins = [
+    ...new Set(allowedOrigins.map((item) => item.trim()).filter(Boolean)),
+  ];
   if (!origins.includes(baseOrigin.trim())) origins.unshift(baseOrigin.trim());
   return {
     connector_type: "http",
@@ -881,7 +899,10 @@ export function createEmailConnectionWrite(
   const at = sender.trim().lastIndexOf("@");
   const normalizedSender =
     at > 0
-      ? `${sender.trim().slice(0, at)}@${sender.trim().slice(at + 1).toLowerCase()}`
+      ? `${sender.trim().slice(0, at)}@${sender
+          .trim()
+          .slice(at + 1)
+          .toLowerCase()}`
       : sender.trim();
   return {
     connector_type: "email",

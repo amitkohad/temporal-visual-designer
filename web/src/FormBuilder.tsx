@@ -59,10 +59,7 @@ function messageFor(error: unknown): string {
   return failureMessages.unavailable;
 }
 
-export default function FormBuilder({
-  onClose,
-  connection,
-}: FormBuilderProps) {
+export default function FormBuilder({ onClose, connection }: FormBuilderProps) {
   const [organizationId, setOrganizationId] = useState(
     connection?.organizationId ?? "local-demo",
   );
@@ -191,7 +188,9 @@ export default function FormBuilder({
     setIssues(validateFormDefinition(form));
     try {
       setPreviewValues(
-        draftValuesFromForm(previewFormDefinition(form, {}, form.form_id === "new-form" ? 1 : 1)),
+        draftValuesFromForm(
+          previewFormDefinition(form, {}, form.form_id === "new-form" ? 1 : 1),
+        ),
       );
     } catch {
       setPreviewValues({});
@@ -225,10 +224,7 @@ export default function FormBuilder({
     });
   }
 
-  async function saveForm(options?: {
-    bind?: boolean;
-    alsoCatalog?: boolean;
-  }) {
+  async function saveForm(options?: { bind?: boolean; alsoCatalog?: boolean }) {
     if (!session || !revision || !projectId) return;
     if (!begin()) return;
     try {
@@ -317,7 +313,8 @@ export default function FormBuilder({
       <p className="nf-forms-boundary">
         Author managed form schemas, preview the accessible renderer, and bind
         inline definitions onto approval steps. Runtime still uses pinned{" "}
-        <code>human_task.form</code> snapshots — not Entra/production acceptance.
+        <code>human_task.form</code> snapshots — not Entra/production
+        acceptance.
       </p>
       {!session && (
         <form className="nf-forms-connect" onSubmit={connect}>
@@ -402,7 +399,9 @@ export default function FormBuilder({
                   <button
                     type="button"
                     aria-current={
-                      selectedKey === `catalog:${form.form_id}` ? "true" : undefined
+                      selectedKey === `catalog:${form.form_id}`
+                        ? "true"
+                        : undefined
                     }
                     onClick={() =>
                       selectDefinition(form, `catalog:${form.form_id}`)
@@ -480,9 +479,7 @@ export default function FormBuilder({
             <div className="nf-form-builder-fields">
               {drafts.map((draft, index) => (
                 <div className="nf-form-field-card" key={`field-card-${index}`}>
-                  <h4>
-                    Field {index + 1}
-                  </h4>
+                  <h4>Field {index + 1}</h4>
                   <div className="nf-form-field-grid">
                     <div>
                       <label htmlFor={`field-id-${index}`}>Field ID</label>
@@ -594,7 +591,9 @@ export default function FormBuilder({
                         updateDraft(index, { writeOnly: event.target.checked })
                       }
                     />
-                    <label htmlFor={`field-writeonly-${index}`}>Write-only</label>
+                    <label htmlFor={`field-writeonly-${index}`}>
+                      Write-only
+                    </label>
                   </div>
                   <div className="nf-form-field-row">
                     <button
@@ -740,7 +739,9 @@ export default function FormBuilder({
                 values={previewValues}
                 mode={previewMode === "start" ? "start" : "preview"}
                 heading={
-                  previewMode === "start" ? "Start form preview" : "Task form preview"
+                  previewMode === "start"
+                    ? "Start form preview"
+                    : "Task form preview"
                 }
                 showSubmit={false}
                 onChange={(fieldId, value: JsonValue) =>

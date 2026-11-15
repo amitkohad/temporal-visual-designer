@@ -150,9 +150,7 @@ describe("Connections", () => {
     expect(
       screen.getByRole("heading", { name: "Register email SMTP connection" }),
     ).toBeVisible();
-    expect(
-      screen.getAllByText(/not live SMTP/i).length,
-    ).toBeGreaterThan(0);
+    expect(screen.getAllByText(/not live SMTP/i).length).toBeGreaterThan(0);
 
     await user.clear(screen.getByLabelText("Base origin"));
     await user.type(
@@ -171,9 +169,7 @@ describe("Connections", () => {
     await waitFor(() =>
       expect(screen.getByText(/Saved HTTP connection/)).toBeVisible(),
     );
-    expect(
-      screen.getByText((text) => text.includes(digest)),
-    ).toBeVisible();
+    expect(screen.getByText((text) => text.includes(digest))).toBeVisible();
 
     await user.clear(screen.getByLabelText("SMTP host"));
     await user.type(screen.getByLabelText("SMTP host"), "smtp.example.test");

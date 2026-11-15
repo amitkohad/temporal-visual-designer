@@ -52,7 +52,9 @@ const response = (value: unknown, statusCode = 200) =>
     headers: { "content-type": "application/json" },
   });
 const fetcher = (value: unknown, statusCode = 200) =>
-  vi.fn<typeof globalThis.fetch>().mockResolvedValue(response(value, statusCode));
+  vi
+    .fn<typeof globalThis.fetch>()
+    .mockResolvedValue(response(value, statusCode));
 
 afterEach(() => vi.useRealTimers());
 
@@ -67,9 +69,7 @@ describe("release API critical path", () => {
       .mockResolvedValueOnce(response(status));
     const client = createReleaseClient(connection, fetch);
 
-    expect(
-      await client.publish("hr", 2, "pub-key-1"),
-    ).toEqual(release);
+    expect(await client.publish("hr", 2, "pub-key-1")).toEqual(release);
     expect(await client.getActivation("hr")).toEqual({
       revision: 0,
       release_id: null,
@@ -129,9 +129,9 @@ describe("release API critical path", () => {
     await expect(
       createReleaseClient(connection, fetch).publish("hr", 1, "same-key"),
     ).rejects.toMatchObject({ code: "conflict" });
-    expect(JSON.parse(String(fetch.mock.calls[0][1]?.body)).idempotency_key).toBe(
-      "same-key",
-    );
+    expect(
+      JSON.parse(String(fetch.mock.calls[0][1]?.body)).idempotency_key,
+    ).toBe("same-key");
     await expect(
       createReleaseClient(connection, fetcher({}, 401)).start("hr", {
         workflowId: "onboarding",

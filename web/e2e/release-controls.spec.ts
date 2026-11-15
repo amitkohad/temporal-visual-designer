@@ -134,11 +134,19 @@ test("publish activate start status critical path through mocked HTTP", async ({
     page.getByRole("heading", { name: "Publish and start", exact: true }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Publish release", exact: true }).click();
-  await expect(page.getByRole("definition").filter({ hasText: "rel-e2e" })).toBeVisible();
+  await page
+    .getByRole("button", { name: "Publish release", exact: true })
+    .click();
+  await expect(
+    page.getByRole("definition").filter({ hasText: "rel-e2e" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Activate", exact: true }).click();
-  await expect(page.getByText("rev 1 · rel-e2e", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Start execution", exact: true }).click();
+  await expect(
+    page.getByText("rev 1 · rel-e2e", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Start execution", exact: true })
+    .click();
   await expect(page.getByText("run-e2e", { exact: true })).toBeVisible();
   await expect(page.getByText(/completed · node review/)).toBeVisible();
   await expect(page.getByText("run_id=run-e2e", { exact: true })).toBeVisible();

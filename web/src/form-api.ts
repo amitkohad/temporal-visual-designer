@@ -350,7 +350,8 @@ export function definitionFromDrafts(
   const field_order: string[] = [];
   for (const draft of drafts) {
     if (!isIdentifier(draft.field_id)) throw new Error("invalid field id");
-    if (field_order.includes(draft.field_id)) throw new Error("duplicate field");
+    if (field_order.includes(draft.field_id))
+      throw new Error("duplicate field");
     field_order.push(draft.field_id);
     const schema: FormFieldSchema = { type: draft.type };
     if (draft.title.trim()) schema.title = draft.title.trim();
@@ -581,7 +582,11 @@ export function bindFormToApproval(
     if (workflow.workflow_id !== workflowId || !Array.isArray(workflow.nodes))
       return workflow;
     const nodes = workflow.nodes.map((node) => {
-      if (!isObject(node) || node.node_id !== nodeId || node.kind !== "approval")
+      if (
+        !isObject(node) ||
+        node.node_id !== nodeId ||
+        node.kind !== "approval"
+      )
         return node;
       found = true;
       const mapping = isObject(node.input_mapping) ? node.input_mapping : {};

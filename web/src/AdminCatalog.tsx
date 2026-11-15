@@ -107,8 +107,7 @@ export default function AdminCatalog({
         (item) =>
           item.reference.activity_id === selected.reference.activity_id &&
           item.reference.version === selected.reference.version &&
-          item.reference.artifact_digest ===
-            selected.reference.artifact_digest,
+          item.reference.artifact_digest === selected.reference.artifact_digest,
       );
       if (match) setSelected(match);
     }
@@ -156,7 +155,9 @@ export default function AdminCatalog({
     if (!begin()) return;
     try {
       if (file.size < 1 || file.size > 6 * 1024 * 1024) {
-        throw new Error("ZIP must be between 1 byte and 6 MiB for HTTP upload.");
+        throw new Error(
+          "ZIP must be between 1 byte and 6 MiB for HTTP upload.",
+        );
       }
       const next = await session.client.importBundle(file);
       setImported(next);
@@ -259,8 +260,8 @@ export default function AdminCatalog({
         <form className="nf-admin-connect" onSubmit={connect}>
           <h2>Connect</h2>
           <p>
-            Use the same org/env bearer session as Projects. Publisher rights are
-            separate from ordinary authoring grants.
+            Use the same org/env bearer session as Projects. Publisher rights
+            are separate from ordinary authoring grants.
           </p>
           <fieldset disabled={busy}>
             <label htmlFor="admin-org">Organization ID</label>
@@ -311,9 +312,9 @@ export default function AdminCatalog({
           <section className="nf-admin-panel" aria-label="Import and publish">
             <h2>Import and publish</h2>
             <p>
-              Upload raw <code>application/zip</code> bytes. Identical retries keep
-              the first validated import. Publish makes the digest visible to the
-              palette.
+              Upload raw <code>application/zip</code> bytes. Identical retries
+              keep the first validated import. Publish makes the digest visible
+              to the palette.
             </p>
             <fieldset disabled={busy}>
               <label htmlFor="admin-zip">Activity bundle ZIP</label>

@@ -168,9 +168,7 @@ describe("AdminCatalog critical path", () => {
         client={client}
       />,
     );
-    expect(
-      await screen.findByText(/activity_publisher/i),
-    ).toBeVisible();
+    expect(await screen.findByText(/activity_publisher/i)).toBeVisible();
     expect(
       screen.queryByRole("button", { name: "Publish to catalog" }),
     ).not.toBeInTheDocument();

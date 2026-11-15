@@ -140,9 +140,7 @@ async def test_authorization_denial_precedes_registry_secret_and_dns(worker):
 
 
 @pytest.mark.asyncio
-async def test_credential_free_connection_still_rejects_configured_secrets(
-    tmp_path, monkeypatch
-):
+async def test_credential_free_connection_still_rejects_configured_secrets(tmp_path, monkeypatch):
     def forbidden(*args, **kwargs):
         raise AssertionError("Only injected DNS; no actual network")
 
@@ -167,9 +165,7 @@ async def test_credential_free_connection_still_rejects_configured_secrets(
 
 
 @pytest.mark.asyncio
-async def test_credential_free_path_unchanged_without_secret_reference(
-    tmp_path, monkeypatch
-):
+async def test_credential_free_path_unchanged_without_secret_reference(tmp_path, monkeypatch):
     def forbidden(*args, **kwargs):
         raise AssertionError("Only injected DNS; no actual network")
 

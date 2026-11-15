@@ -45,10 +45,16 @@ export interface CatalogEntry {
 }
 
 export interface CatalogClient {
-  importBundle(archive: ArrayBuffer | Uint8Array | Blob): Promise<ActivityImport>;
+  importBundle(
+    archive: ArrayBuffer | Uint8Array | Blob,
+  ): Promise<ActivityImport>;
   readImport(digest: string): Promise<ActivityImport>;
   publish(artifactDigest: string): Promise<CatalogEntry>;
-  search(query?: string, limit?: number, offset?: number): Promise<CatalogEntry[]>;
+  search(
+    query?: string,
+    limit?: number,
+    offset?: number,
+  ): Promise<CatalogEntry[]>;
   resolve(reference: ActivityRef): Promise<CatalogEntry>;
   transition(
     reference: ActivityRef,
@@ -220,9 +226,12 @@ function parseEntry(
 }
 
 /** Best-effort display fields from import or catalog manifest JSON. */
-export function catalogDisplayLabel(
-  entry: CatalogEntry | ActivityImport,
-): { activityId: string; version: string; displayName: string; category: string } {
+export function catalogDisplayLabel(entry: CatalogEntry | ActivityImport): {
+  activityId: string;
+  version: string;
+  displayName: string;
+  category: string;
+} {
   if ("reference" in entry) {
     let displayName = entry.reference.activity_id;
     let category = "";

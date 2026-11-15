@@ -291,10 +291,7 @@ export default function FormRenderer({
                 onChange={(event) => {
                   const raw = event.target.value;
                   if (type === "number" || type === "integer") {
-                    onChange(
-                      field.field_id,
-                      raw === "" ? "" : Number(raw),
-                    );
+                    onChange(field.field_id, raw === "" ? "" : Number(raw));
                     return;
                   }
                   onChange(field.field_id, raw);

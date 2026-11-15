@@ -21,9 +21,15 @@ const content = {
     {
       workflow_id: "main",
       schema_version: "0.1",
-      input_schema: { type: "object", properties: {}, additionalProperties: false },
+      input_schema: {
+        type: "object",
+        properties: {},
+        additionalProperties: false,
+      },
       output_schema: {},
-      start_definitions: [{ start_id: "manual", node_id: "start", kind: "manual" }],
+      start_definitions: [
+        { start_id: "manual", node_id: "start", kind: "manual" },
+      ],
       nodes: [
         {
           node_id: "start",
@@ -159,9 +165,9 @@ describe("FormBuilder", () => {
       };
     };
     expect(body.expected_revision).toBe(1);
-    expect(body.content.forms.some((form) => form.form_id === "confirm-form")).toBe(
-      true,
-    );
+    expect(
+      body.content.forms.some((form) => form.form_id === "confirm-form"),
+    ).toBe(true);
     const manager = body.content.workflows[0]!.nodes.find(
       (node) => node.node_id === "manager",
     );
