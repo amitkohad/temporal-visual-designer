@@ -120,8 +120,22 @@ Export a stable control surface for Designer/App integration (connection,
 project id, head revision, workflow id, disable flags, started/activated
 callbacks). Include a deep-link affordance to the task inbox by `run_id`.
 
+## Phase 3.1 — Forms (incremental)
+
+After the Phase 1 Dev loop, Forms authoring mounts as a sibling nav surface:
+
+- `web/src/form-api.ts`, `web/src/form-api.test.ts`
+- `web/src/FormBuilder.tsx`, `web/src/FormRenderer.tsx`, `web/src/forms.css`
+- `web/tests/FormBuilder.test.tsx`, `web/tests/FormRenderer.test.tsx`
+
+Persists through existing project save (`content.forms[]` + inline
+`human_task.form`). See
+[implementation-react-forms.md](../specs/001-nexus-flow-designer/implementation-react-forms.md).
+
 ## Out of MVP
 
-Custom activities, general expressions, form builder, live HTTP/email effects,
-Admin/catalog/promote UI, debugger UI, Entra, and F10 ops. No new backend
-routes unless a real gap is escalated to the coordinator.
+Custom activities, general expressions, live HTTP/email effects,
+Admin/catalog/promote UI, debugger UI, and F10 ops. No new backend
+routes unless a real gap is escalated to the coordinator. Form builder is
+no longer out of MVP once Phase 3.1 lands; attachments and full expression
+conditions remain open.

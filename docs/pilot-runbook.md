@@ -75,21 +75,24 @@ API exposes `GET /api/v1/auth/browser` and Connect shows **Sign in with Microsof
 Local-demo token paste remains available. Full enablement, app registration, and
 honest live-tenant remaining work: [entra-pilot.md](entra-pilot.md).
 
-## Click-through (Sample → Projects → Release → Tasks)
+## Click-through (Sample → Projects → Forms → Release → Tasks)
 
 1. Open the printed `url` (default `http://127.0.0.1:8000`).
 2. **Sample** — local in-memory canvas (optional).
 3. **Projects** — Connect with the values above → create a starter
    (`employee-onboarding` or `purchase-requisition`) or open a draft → edit supported
    steps → Validate when prompted.
-4. **Release** — Publish → Activate → Start a run (or use Release controls embedded
+4. **Forms** — author or edit managed form schemas, preview the accessible renderer,
+   and bind inline definitions onto approval steps (optional when templates already
+   include forms).
+5. **Release** — Publish → Activate → Start a run (or use Release controls embedded
    in Projects when the publish gate is ready).
-5. **Tasks** — open inbox for the run → submit the managed form if required →
+6. **Tasks** — open inbox for the run → submit the managed form if required →
    Approve or Reject → confirm the run completes on Release/status.
 
 Details for API-only demos remain in [local-development.md](local-development.md)
-and [mvp-dev-loop.md](mvp-dev-loop.md). Navigation is Sample / Projects / Release /
-Tasks in the React app (`web/src/App.tsx`).
+and [mvp-dev-loop.md](mvp-dev-loop.md). Navigation is Sample / Projects / Forms /
+Release / Tasks in the React app (`web/src/App.tsx`).
 
 ## Backup `.nexusflow-local`
 

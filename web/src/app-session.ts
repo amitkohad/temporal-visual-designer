@@ -2,7 +2,7 @@
 import type { DesignerPublishGate } from "./Projects";
 import type { ProjectConnection } from "./project-api";
 
-export type AppView = "sample" | "projects" | "release" | "tasks";
+export type AppView = "sample" | "projects" | "release" | "tasks" | "forms";
 
 export const emptyPublishGate: DesignerPublishGate = {
   connection: null,
