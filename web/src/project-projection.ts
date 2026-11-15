@@ -3,6 +3,7 @@ import type { DesignerDocument, DesignerNode, NodeKind } from "./model";
 import { isIdentifier, isObject, ProjectApiError } from "./project-api";
 import type { JsonObject, JsonValue, ProjectRevision } from "./project-api";
 import {
+  parseDecisionRoute,
   rebuildWorkflowFromDocument,
   sameTopology,
   wireKindForVisual,
@@ -182,6 +183,10 @@ function project(
     });
     const nodeLayout = own(nodesLayout, value.node_id);
     if (nodeLayout !== undefined && !layoutNode(nodeLayout)) throw new Error();
+    const route =
+      value.kind === "decision" && isObject(value.input_mapping)
+        ? parseDecisionRoute(value.input_mapping.route)
+        : undefined;
     return {
       id: value.node_id,
       kind: kinds[value.kind],
@@ -205,6 +210,7 @@ function project(
             ? 140 + index * 140
             : 160 + Math.floor(index / 4) * 160
           : ((nodeLayout as JsonObject).y as number),
+      ...(route ? { decisionRoute: route } : {}),
     };
   });
   const edges = workflow.edges.map((value, index) => {

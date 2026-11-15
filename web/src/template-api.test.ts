@@ -3,6 +3,7 @@ import { ProjectApiError } from "./project-api";
 import {
   createTemplateClient,
   publishBlockedByValidation,
+  templateInputFields,
 } from "./template-api";
 import { templateList, templateProjectRevision } from "../tests/project-fixtures";
 
@@ -89,6 +90,39 @@ describe("template API client", () => {
     expect(issues).toHaveLength(1);
     expect(publishBlockedByValidation(issues)).toBe(true);
     expect(publishBlockedByValidation([])).toBe(false);
+  });
+
+  it("accepts additional catalog templates beyond the two pilot starters", async () => {
+    const extras = [
+      ...templateList(),
+      {
+        template_id: "vendor-onboarding",
+        version: "1",
+        name: "Vendor onboarding",
+        description: "Extra catalog starter returned by the host.",
+        workflow_id: "vendor-onboarding",
+        assignment_slots: ["manager"],
+        input_schema: {
+          type: "object",
+          properties: { vendor_name: { type: "string" } },
+          required: ["vendor_name"],
+          additionalProperties: false,
+        },
+      },
+    ];
+    const fetcher = vi.fn<typeof fetch>(async (url) => {
+      if (String(url) === `${ROOT}/project-templates`) return response(extras);
+      throw new Error(String(url));
+    });
+    const listed = await createTemplateClient(connection, fetcher).listTemplates();
+    expect(listed.map((item) => item.template_id)).toEqual([
+      "employee-onboarding",
+      "purchase-requisition",
+      "vendor-onboarding",
+    ]);
+    expect(templateInputFields(listed[2].input_schema)).toEqual([
+      { name: "vendor_name", type: "string", required: true },
+    ]);
   });
 
   it("maps HTTP failures to private codes without echoing bodies", async () => {

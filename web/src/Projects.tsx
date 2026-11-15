@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import WorkflowCanvas from "./Canvas";
 import { editorReducer } from "./model";
-import type { DesignerDocument, EditorAction, EditorState } from "./model";
+import type {
+  DecisionRoute,
+  DesignerDocument,
+  EditorAction,
+  EditorState,
+} from "./model";
 import { createProjectClient, ProjectApiError } from "./project-api";
 import type {
   ProjectConnection,
@@ -17,6 +22,7 @@ import {
 import {
   createTemplateClient,
   publishBlockedByValidation,
+  templateInputFields,
   type TemplateClient,
   type TemplateInfo,
   type ValidationIssue,
@@ -27,8 +33,11 @@ import {
   canReorderStep,
   commitDocument,
   deleteDesignerStep,
+  insertDecisionStep,
+  renameDecisionBranch,
   reorderDesignerStep,
   sameTopology,
+  setDecisionRoute,
 } from "./workflow-edit";
 import {
   acquireEntraAccessToken,
@@ -102,8 +111,15 @@ function own<T>(
   return record && Object.hasOwn(record, key) ? record[key] : undefined;
 }
 
-const emptyAssignments = (slots: string[]) =>
-  Object.fromEntries(slots.map((slot) => [slot, ""]));
+type SlotDraft = {
+  userId: string;
+  rule: "any_one" | "all_approvers";
+};
+
+const emptyAssignments = (slots: string[]): Record<string, SlotDraft> =>
+  Object.fromEntries(
+    slots.map((slot) => [slot, { userId: "", rule: "any_one" as const }]),
+  );
 
 export default function Projects({
   onClose,
@@ -122,7 +138,9 @@ export default function Projects({
   const [templateId, setTemplateId] = useState("employee-onboarding");
   const [draftProjectId, setDraftProjectId] = useState("");
   const [draftName, setDraftName] = useState("");
-  const [assignments, setAssignments] = useState<Record<string, string>>({});
+  const [assignments, setAssignments] = useState<Record<string, SlotDraft>>(
+    {},
+  );
   const [snapshot, setSnapshot] = useState<ProjectRevision | null>(null);
   const [workflowId, setWorkflowId] = useState("");
   const [editors, setEditors] = useState<Record<string, EditorState>>({});
@@ -416,14 +434,20 @@ export default function Projects({
     if (ticket === null) return;
     try {
       const payloadAssignments = Object.fromEntries(
-        selectedTemplate.assignment_slots.map((slot) => [
-          slot,
-          {
+        selectedTemplate.assignment_slots.map((slot) => {
+          const draft = assignments[slot] ?? {
+            userId: "",
             rule: "any_one" as const,
-            user_ids: [assignments[slot]?.trim()].filter(Boolean) as string[],
-            group_ids: [] as string[],
-          },
-        ]),
+          };
+          return [
+            slot,
+            {
+              rule: draft.rule,
+              user_ids: [draft.userId.trim()].filter(Boolean) as string[],
+              group_ids: [] as string[],
+            },
+          ];
+        }),
       );
       const created = await session.templates.createProject(templateId, {
         project_id: draftProjectId.trim(),
@@ -571,6 +595,62 @@ export default function Projects({
         : "Wait step inserted locally. Save project to update the executable workflow.",
     );
   }
+  function insertDecision() {
+    if (!editor || !selected) return;
+    const next = insertDecisionStep(editor.document, selected.id);
+    if (!next) {
+      setError(
+        "Select a step with exactly one outgoing path to insert a decision after it.",
+      );
+      return;
+    }
+    const created = next.nodes.find(
+      (node) =>
+        node.kind === "decision" &&
+        !editor.document.nodes.some((item) => item.id === node.id),
+    );
+    replaceDocument(next, created?.id ?? selected.id);
+    setNotice(
+      "Decision inserted locally with approved/rejected branches. proof.v1 cannot execute decision nodes — keep linear approval/wait for runnable pilots. Save to update the executable workflow.",
+    );
+  }
+  function applyBranchLabel(edgeId: string, port: string) {
+    if (!editor) return;
+    const next = renameDecisionBranch(editor.document, edgeId, port);
+    if (!next) {
+      setError(
+        "Branch labels must be unique identifiers (letters, digits, _ . -) on the decision.",
+      );
+      return;
+    }
+    replaceDocument(next, editor.selectedId);
+    setNotice(
+      "Branch label updated locally. Save project to update the executable workflow.",
+    );
+  }
+  function applyDecisionRoute(sourceNodeId: string) {
+    if (!editor || !selected || selected.kind !== "decision") return;
+    const route: DecisionRoute | undefined = sourceNodeId
+      ? {
+          schema_version: "0.1",
+          kind: "approval_outcome",
+          source_node_id: sourceNodeId,
+        }
+      : undefined;
+    const next = setDecisionRoute(editor.document, selected.id, route);
+    if (!next) {
+      setError(
+        "Pick a prior approval step for the approval-outcome route, or clear the route.",
+      );
+      return;
+    }
+    replaceDocument(next, selected.id);
+    setNotice(
+      route
+        ? "Decision route set to approval outcome. This is authoring metadata only — proof.v1 does not evaluate decision routes."
+        : "Decision route cleared locally. Save project to update the executable workflow.",
+    );
+  }
   function removeStep() {
     if (!editor || !selected) return;
     const next = deleteDesignerStep(editor.document, selected.id);
@@ -716,9 +796,9 @@ export default function Projects({
         </div>
       </header>
       <p className="project-boundary">
-        Connected Dev authoring · create starters, edit supported approval/wait
-        steps, validate, and save executable revisions. Publish stays blocked
-        while validation reports issues.
+        Connected Dev authoring · create descriptor-backed starters, edit
+        approval/wait/decision steps, validate, and save executable revisions.
+        Publish stays blocked while validation reports issues.
       </p>
       {!session && (
         <form className="connection-form" onSubmit={connect}>
@@ -810,7 +890,48 @@ export default function Projects({
                     </option>
                   ))}
                 </select>
-                {selectedTemplate && <p>{selectedTemplate.description}</p>}
+                {selectedTemplate && (
+                  <div
+                    className="template-descriptor"
+                    role="region"
+                    aria-label="Template details"
+                  >
+                    <p>{selectedTemplate.description}</p>
+                    <dl>
+                      <div>
+                        <dt>Template ID</dt>
+                        <dd>
+                          <code>{selectedTemplate.template_id}</code>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Workflow</dt>
+                        <dd>
+                          <code>{selectedTemplate.workflow_id}</code>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Version</dt>
+                        <dd>{selectedTemplate.version}</dd>
+                      </div>
+                      <div>
+                        <dt>Approval slots</dt>
+                        <dd>{selectedTemplate.assignment_slots.join(", ")}</dd>
+                      </div>
+                      <div>
+                        <dt>Start inputs</dt>
+                        <dd>
+                          {templateInputFields(selectedTemplate.input_schema)
+                            .map(
+                              (field) =>
+                                `${field.name} (${field.type}${field.required ? ", required" : ""})`,
+                            )
+                            .join("; ") || "None declared"}
+                        </dd>
+                      </div>
+                    </dl>
+                  </div>
+                )}
                 <label htmlFor="template-project-id">Project ID</label>
                 <input
                   id="template-project-id"
@@ -829,26 +950,56 @@ export default function Projects({
                   maxLength={200}
                   required
                 />
-                {selectedTemplate?.assignment_slots.map((slot) => (
-                  <div key={slot}>
-                    <label htmlFor={`template-slot-${slot}`}>
-                      {slot} assignee user ID
-                    </label>
-                    <input
-                      id={`template-slot-${slot}`}
-                      value={assignments[slot] ?? ""}
-                      onChange={(event) =>
-                        setAssignments((previous) => ({
-                          ...previous,
-                          [slot]: event.target.value,
-                        }))
-                      }
-                      autoComplete="off"
-                      maxLength={128}
-                      required
-                    />
-                  </div>
-                ))}
+                {selectedTemplate?.assignment_slots.map((slot) => {
+                  const draft = assignments[slot] ?? {
+                    userId: "",
+                    rule: "any_one" as const,
+                  };
+                  return (
+                    <div key={slot} className="template-slot">
+                      <label htmlFor={`template-slot-${slot}`}>
+                        {slot} assignee user ID
+                      </label>
+                      <input
+                        id={`template-slot-${slot}`}
+                        value={draft.userId}
+                        onChange={(event) =>
+                          setAssignments((previous) => ({
+                            ...previous,
+                            [slot]: {
+                              ...draft,
+                              userId: event.target.value,
+                            },
+                          }))
+                        }
+                        autoComplete="off"
+                        maxLength={128}
+                        required
+                      />
+                      <label htmlFor={`template-rule-${slot}`}>
+                        {slot} approval rule
+                      </label>
+                      <select
+                        id={`template-rule-${slot}`}
+                        value={draft.rule}
+                        onChange={(event) =>
+                          setAssignments((previous) => ({
+                            ...previous,
+                            [slot]: {
+                              ...draft,
+                              rule: event.target.value as
+                                | "any_one"
+                                | "all_approvers",
+                            },
+                          }))
+                        }
+                      >
+                        <option value="any_one">Any one approver</option>
+                        <option value="all_approvers">All approvers</option>
+                      </select>
+                    </div>
+                  );
+                })}
                 <button className="project-primary" type="submit">
                   Create draft
                 </button>
@@ -892,8 +1043,9 @@ export default function Projects({
               <div className="project-empty">
                 <h2>Choose a project</h2>
                 <p>
-                  Create an onboarding or purchase starter, or open a Dev
-                  project to edit supported steps, labels and layout.
+                  Create a starter from the template catalog descriptor, or open
+                  a Dev project to edit supported steps, branch labels and
+                  layout.
                 </p>
               </div>
             )}
@@ -1057,6 +1209,67 @@ export default function Projects({
                         <button type="submit">Apply changes</button>
                       </fieldset>
                     </form>
+                    {selected.kind === "decision" && (
+                      <section
+                        className="decision-authoring"
+                        aria-label="Decision branches"
+                      >
+                        <h4>Decision branches</h4>
+                        <p className="decision-limit">
+                          Minimal subset: rename branch ports and optionally
+                          bind the split to one prior approval outcome. Not a
+                          general expression language. proof.v1 cannot execute
+                          decision nodes.
+                        </p>
+                        <label htmlFor="decision-route-source">
+                          Route on approval outcome from
+                        </label>
+                        <select
+                          id="decision-route-source"
+                          disabled={busy}
+                          value={selected.decisionRoute?.source_node_id ?? ""}
+                          onChange={(event) =>
+                            applyDecisionRoute(event.target.value)
+                          }
+                        >
+                          <option value="">No route binding</option>
+                          {editor.document.nodes
+                            .filter((node) => node.kind === "approval")
+                            .map((node) => (
+                              <option key={node.id} value={node.id}>
+                                {node.label} ({node.id})
+                              </option>
+                            ))}
+                        </select>
+                        <ul className="decision-branches">
+                          {editor.document.edges
+                            .filter((edge) => edge.source === selected.id)
+                            .map((edge) => {
+                              const target = editor.document.nodes.find(
+                                (node) => node.id === edge.target,
+                              );
+                              return (
+                                <li key={edge.id}>
+                                  <label htmlFor={`branch-${edge.id}`}>
+                                    Branch to {target?.label ?? edge.target}
+                                  </label>
+                                  <input
+                                    id={`branch-${edge.id}`}
+                                    defaultValue={edge.label ?? ""}
+                                    maxLength={128}
+                                    disabled={busy}
+                                    onBlur={(event) => {
+                                      const next = event.target.value.trim();
+                                      if (next === (edge.label ?? "")) return;
+                                      applyBranchLabel(edge.id, next);
+                                    }}
+                                  />
+                                </li>
+                              );
+                            })}
+                        </ul>
+                      </section>
+                    )}
                     <fieldset disabled={busy} className="connected-steps">
                       <legend>Supported steps</legend>
                       <button
@@ -1072,6 +1285,13 @@ export default function Projects({
                         onClick={() => insertStep("timer")}
                       >
                         Insert wait
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!canInsert}
+                        onClick={insertDecision}
+                      >
+                        Insert decision
                       </button>
                       <button
                         type="button"

@@ -172,6 +172,60 @@ def test_decision_requires_connected_distinct_branch_ports() -> None:
     assert validate_graph(content)[0].code == "invalid_split"
 
 
+def test_decision_approval_outcome_route_must_reference_approval() -> None:
+    payload = json.loads(
+        project(
+            {"start": "start", "a": "approval", "d": "decision", "end": "end"},
+            [("start", "a"), ("a", "d"), ("d", "end"), ("d", "end")],
+        ).model_dump_json()
+    )
+    workflow = payload["workflows"][0]
+    workflow["nodes"][2]["named_ports"]["outputs"] = ["approved", "rejected"]
+    workflow["edges"] = [
+        {
+            "source_node_id": "start",
+            "source_port": "out",
+            "target_node_id": "a",
+            "target_port": "in",
+        },
+        {
+            "source_node_id": "a",
+            "source_port": "out",
+            "target_node_id": "d",
+            "target_port": "in",
+        },
+        {
+            "source_node_id": "d",
+            "source_port": "approved",
+            "target_node_id": "end",
+            "target_port": "in",
+        },
+        {
+            "source_node_id": "d",
+            "source_port": "rejected",
+            "target_node_id": "end",
+            "target_port": "in",
+        },
+    ]
+    workflow["nodes"][2]["input_mapping"] = {
+        "route": {
+            "schema_version": "0.1",
+            "kind": "approval_outcome",
+            "source_node_id": "missing",
+        }
+    }
+    issues = validate_graph(ProjectContent.model_validate_json(json.dumps(payload)))
+    assert any(item.code == "invalid_decision_route_source" for item in issues)
+    workflow["nodes"][2]["input_mapping"] = {
+        "route": {
+            "schema_version": "0.1",
+            "kind": "approval_outcome",
+            "source_node_id": "a",
+        }
+    }
+    assert validate_graph(ProjectContent.model_validate_json(json.dumps(payload))) == ()
+
+
 def test_error_route_does_not_make_a_parallel_branch_complete() -> None:
     payload = json.loads(diamond().model_dump_json())
     workflow = payload["workflows"][0]

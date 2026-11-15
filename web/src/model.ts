@@ -9,6 +9,13 @@ export type NodeKind =
   | "end"
   | "timer";
 
+/** Minimal decision route subset — approval outcome only; not a general expression language. */
+export type DecisionRoute = {
+  schema_version: "0.1";
+  kind: "approval_outcome";
+  source_node_id: string;
+};
+
 export interface DesignerNode {
   id: string;
   kind: NodeKind;
@@ -16,6 +23,8 @@ export interface DesignerNode {
   description: string;
   x: number;
   y: number;
+  /** Present on decision nodes when an approval-outcome route is authored. */
+  decisionRoute?: DecisionRoute;
 }
 
 export interface DesignerEdge {

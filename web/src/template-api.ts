@@ -53,7 +53,30 @@ export interface TemplateClient {
 
 const MAX_BYTES = 6 * 1024 * 1024;
 const encoder = new TextEncoder();
-const MVP_TEMPLATES = new Set(["employee-onboarding", "purchase-requisition"]);
+
+/** Summarize a template input schema for the starter picker (descriptor fields). */
+export type TemplateInputField = {
+  name: string;
+  type: string;
+  required: boolean;
+};
+
+export function templateInputFields(
+  schema: JsonObject,
+): TemplateInputField[] {
+  if (!isObject(schema) || schema.type !== "object" || !isObject(schema.properties))
+    return [];
+  const required = new Set(
+    Array.isArray(schema.required)
+      ? schema.required.filter((item): item is string => typeof item === "string")
+      : [],
+  );
+  return Object.entries(schema.properties).map(([name, value]) => {
+    const type =
+      isObject(value) && typeof value.type === "string" ? value.type : "unknown";
+    return { name, type, required: required.has(name) };
+  });
+}
 
 function positive(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
@@ -214,7 +237,6 @@ function parseTemplate(value: unknown): TemplateInfo {
   if (
     !isObject(value) ||
     !isIdentifier(value.template_id) ||
-    !MVP_TEMPLATES.has(value.template_id) ||
     value.version !== "1" ||
     typeof value.name !== "string" ||
     value.name.length < 1 ||
@@ -382,7 +404,8 @@ export function createTemplateClient(
     async listTemplates() {
       const value = await request("/project-templates");
       try {
-        if (!Array.isArray(value) || value.length > 20) throw new Error();
+        if (!Array.isArray(value) || value.length < 1 || value.length > 20)
+          throw new Error();
         const ids = new Set<string>();
         const templates = value.map((item) => {
           const template = parseTemplate(item);
@@ -390,15 +413,13 @@ export function createTemplateClient(
           ids.add(template.template_id);
           return template;
         });
-        if (![...MVP_TEMPLATES].every((id) => ids.has(id))) throw new Error();
         return templates;
       } catch {
         throw new ProjectApiError("invalid_response");
       }
     },
     async getTemplate(id) {
-      if (!isIdentifier(id) || !MVP_TEMPLATES.has(id))
-        throw new ProjectApiError("invalid_request");
+      if (!isIdentifier(id)) throw new ProjectApiError("invalid_request");
       const value = await request("/project-templates/" + id);
       try {
         const template = parseTemplate(value);
@@ -412,8 +433,7 @@ export function createTemplateClient(
       let body: string;
       let projectId: string;
       try {
-        if (!isIdentifier(templateId) || !MVP_TEMPLATES.has(templateId))
-          throw new Error();
+        if (!isIdentifier(templateId)) throw new Error();
         if (
           !requestBody ||
           !isIdentifier(requestBody.project_id) ||
