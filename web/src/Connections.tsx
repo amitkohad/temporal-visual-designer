@@ -3,14 +3,20 @@ import ConnectionPicker from "./ConnectionPicker";
 import {
   createConnectionClient,
   createConnectionWrite,
+  createEmailConnectionWrite,
   mergePickOptions,
   pickOptionsFromFixtures,
   pickOptionsFromRevisions,
+  validateEmailConnectionWrite,
   validateHttpsOrigin,
   validateMockFixtureWrite,
+  validateRecipientDomain,
+  validateSenderEmail,
+  validateSmtpHost,
   type ConnectionClient,
   type ConnectionMetadata,
   type ConnectionPickOption,
+  type EmailConnectionMetadata,
   type HTTPMockFixtureMetadata,
   type HttpMethod,
 } from "./connection-api";
@@ -40,7 +46,7 @@ const failureMessages: Record<string, string> = {
   not_found: "That connection revision or mock fixture was not found.",
   conflict: "That revision already exists with different content. Use a new revision label.",
   unavailable:
-    "The host is unavailable, or connection/mock providers are not enabled. Confirm serve --ui and enable-mock-fixtures.",
+    "The host is unavailable, or connection/email/mock providers are not enabled. Confirm serve --ui, enable-mock-fixtures, and email registry wiring.",
   invalid_response: "The host returned an unexpected response.",
 };
 
@@ -95,6 +101,19 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
     useState<HTTPMockFixtureMetadata | null>(null);
   const [selectedConnection, setSelectedConnection] =
     useState<ConnectionMetadata | null>(null);
+  const [emailConnectionId, setEmailConnectionId] = useState("hr-mail");
+  const [emailConnectionRevision, setEmailConnectionRevision] = useState("v1");
+  const [smtpHost, setSmtpHost] = useState("smtp.example.test");
+  const [smtpPort, setSmtpPort] = useState("465");
+  const [emailSender, setEmailSender] = useState("noreply@example.test");
+  const [allowedRecipientDomains, setAllowedRecipientDomains] =
+    useState("example.test");
+  const [emailSecretReference, setEmailSecretReference] = useState("");
+  const [emailRevisions, setEmailRevisions] = useState<EmailConnectionMetadata[]>(
+    [],
+  );
+  const [selectedEmailConnection, setSelectedEmailConnection] =
+    useState<EmailConnectionMetadata | null>(null);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [error, setError] = useState("");
@@ -131,10 +150,41 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
     );
   }
 
+  async function refreshEmailCatalog(
+    client: ConnectionClient,
+    id: string,
+    revision: string,
+  ) {
+    let nextEmailRevisions: EmailConnectionMetadata[] = [];
+    if (isIdentifier(id)) {
+      try {
+        const page = await client.listEmailConnectionRevisions(id, 25);
+        nextEmailRevisions = page.items;
+      } catch (err) {
+        if (
+          !(
+            err instanceof ProjectApiError &&
+            (err.code === "not_found" || err.code === "unavailable")
+          )
+        ) {
+          throw err;
+        }
+      }
+    }
+    setEmailRevisions(nextEmailRevisions);
+    const match = nextEmailRevisions.find(
+      (item) =>
+        item.connection_id === id && item.connection_revision === revision,
+    );
+    setSelectedEmailConnection(match ?? null);
+  }
+
   async function refreshCatalog(
     client: ConnectionClient,
     id: string,
     revision: string,
+    emailId = emailConnectionId,
+    emailRevision = emailConnectionRevision,
   ) {
     let nextRevisions: ConnectionMetadata[] = [];
     let nextFixtures: HTTPMockFixtureMetadata[] = [];
@@ -169,6 +219,7 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
         item.connection_id === id && item.connection_revision === revision,
     );
     setSelectedFixture(fixture ?? null);
+    await refreshEmailCatalog(client, emailId, emailRevision);
   }
 
   async function connectWith(next: ProjectConnection) {
@@ -181,9 +232,15 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
       setSession({ connection: next, client });
       setOrganizationId(next.organizationId);
       setEnvironmentId(next.environmentId);
-      await refreshCatalog(client, connectionId, connectionRevision);
+      await refreshCatalog(
+        client,
+        connectionId,
+        connectionRevision,
+        emailConnectionId,
+        emailConnectionRevision,
+      );
       setNotice(
-        "Connected. Register an HTTP connection revision, then author a Dev mock fixture. Mocks are not live SMTP/HTTP.",
+        "Connected. Register HTTP or email SMTP metadata, then author a Dev HTTP mock fixture. Metadata registration is not live send.",
       );
     } catch (err) {
       setSession(null);
@@ -258,6 +315,72 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
     }
   }
 
+  async function saveEmailConnection(event: React.FormEvent) {
+    event.preventDefault();
+    if (!session) return;
+    if (!begin()) return;
+    try {
+      if (
+        !isIdentifier(emailConnectionId) ||
+        !isIdentifier(emailConnectionRevision)
+      ) {
+        throw new Error(
+          "Email connection ID and revision must be stable identifiers.",
+        );
+      }
+      const hostIssue = validateSmtpHost(smtpHost.trim());
+      if (hostIssue) throw new Error(hostIssue);
+      const senderIssue = validateSenderEmail(emailSender.trim());
+      if (senderIssue) throw new Error(senderIssue);
+      const domains = allowedRecipientDomains
+        .split(/[\n,]/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+      for (const domain of domains) {
+        const issue = validateRecipientDomain(domain);
+        if (issue) throw new Error(issue);
+      }
+      if (
+        emailSecretReference.trim() &&
+        !isIdentifier(emailSecretReference.trim())
+      ) {
+        throw new Error(
+          "Secret reference must be an opaque identifier label, not a credential.",
+        );
+      }
+      const port = Number(smtpPort);
+      const body = createEmailConnectionWrite(
+        smtpHost,
+        emailSender,
+        domains,
+        {
+          port: Number.isFinite(port) ? port : 465,
+          secretReference: emailSecretReference.trim() || undefined,
+        },
+      );
+      const issue = validateEmailConnectionWrite(body);
+      if (issue) throw new Error(issue);
+      const metadata = await session.client.putEmailConnection(
+        emailConnectionId,
+        emailConnectionRevision,
+        body,
+      );
+      setSelectedEmailConnection(metadata);
+      await refreshEmailCatalog(
+        session.client,
+        emailConnectionId,
+        emailConnectionRevision,
+      );
+      setNotice(
+        `Saved email SMTP connection ${metadata.connection_id}/${metadata.connection_revision}. Host/sender stay private; digest ${metadata.definition_digest.slice(0, 18)}… Not a live send.`,
+      );
+    } catch (err) {
+      setError(messageFor(err));
+    } finally {
+      end();
+    }
+  }
+
   async function saveMock(event: React.FormEvent) {
     event.preventDefault();
     if (!session) return;
@@ -299,7 +422,13 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
     if (!session) return;
     if (!begin()) return;
     try {
-      await refreshCatalog(session.client, connectionId, connectionRevision);
+      await refreshCatalog(
+        session.client,
+        connectionId,
+        connectionRevision,
+        emailConnectionId,
+        emailConnectionRevision,
+      );
       if (isIdentifier(connectionId) && isIdentifier(connectionRevision)) {
         try {
           const metadata = await session.client.getConnection(
@@ -326,12 +455,41 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
           setSelectedFixture(null);
         }
       }
-      setNotice("Refreshed connection revisions and Dev mock fixtures.");
+      if (
+        isIdentifier(emailConnectionId) &&
+        isIdentifier(emailConnectionRevision)
+      ) {
+        try {
+          const metadata = await session.client.getEmailConnection(
+            emailConnectionId,
+            emailConnectionRevision,
+          );
+          setSelectedEmailConnection(metadata);
+        } catch (err) {
+          if (!(err instanceof ProjectApiError && err.code === "not_found")) {
+            throw err;
+          }
+          setSelectedEmailConnection(null);
+        }
+      }
+      setNotice(
+        "Refreshed HTTP connection revisions, email SMTP revisions, and Dev mock fixtures.",
+      );
     } catch (err) {
       setError(messageFor(err));
     } finally {
       end();
     }
+  }
+
+  function onPickEmail(id: string, revision: string) {
+    setEmailConnectionId(id);
+    setEmailConnectionRevision(revision);
+    const match = emailRevisions.find(
+      (item) =>
+        item.connection_id === id && item.connection_revision === revision,
+    );
+    setSelectedEmailConnection(match ?? null);
   }
 
   return (
@@ -351,6 +509,8 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
                 setRevisions([]);
                 setFixtures([]);
                 setOptions([]);
+                setEmailRevisions([]);
+                setSelectedEmailConnection(null);
                 setNotice("Disconnected.");
               }}
             >
@@ -363,10 +523,13 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
         </div>
       </header>
       <p className="nf-connections-boundary">
-        Register Dev HTTP connection revisions and author JSON mock fixtures
-        through existing admin APIs. Mocks are digest-pinned fixtures for local
-        testing — they are not live SMTP, public egress, or production providers.
-        Workflow activity palette wiring and live HTTP execution stay Phase 3.4+.
+        Register Dev HTTP connection revisions, email SMTP connection metadata,
+        and author JSON mock fixtures through existing admin APIs. Email metadata
+        registration is available here; live send needs{" "}
+        <code>enable-live-email</code> + <code>put-smtp-secret</code> and is not
+        production SMTP. Mocks are digest-pinned fixtures for local testing —
+        they are not live SMTP, public egress, or production providers. This UI
+        does not send mail.
       </p>
       {error && (
         <p className="nf-connections-error" role="alert">
@@ -466,6 +629,47 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
                 </ul>
               )}
             </section>
+            <section className="nf-connections-panel">
+              <h2>Email SMTP revisions</h2>
+              {emailRevisions.length === 0 ? (
+                <p>
+                  No email revisions listed yet. Save an email SMTP connection
+                  below.
+                </p>
+              ) : (
+                <ul className="nf-connections-list">
+                  {emailRevisions.map((item) => {
+                    const current =
+                      item.connection_id === emailConnectionId &&
+                      item.connection_revision === emailConnectionRevision;
+                    return (
+                      <li
+                        key={`email-${item.connection_id}/${item.connection_revision}`}
+                      >
+                        <button
+                          type="button"
+                          aria-current={current ? "true" : undefined}
+                          disabled={busy}
+                          onClick={() =>
+                            onPickEmail(
+                              item.connection_id,
+                              item.connection_revision,
+                            )
+                          }
+                        >
+                          <strong>
+                            {item.connection_id} / {item.connection_revision}
+                          </strong>
+                          <small>
+                            rev {item.revision} · {item.definition_digest}
+                          </small>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
           </aside>
           <div className="nf-connections-stack">
             <form className="nf-connections-panel" onSubmit={saveConnection}>
@@ -518,6 +722,108 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
                   <br />
                   Secret reference present:{" "}
                   {selectedConnection.has_secret_reference ? "yes" : "no"}
+                </div>
+              )}
+            </form>
+            <form className="nf-connections-panel" onSubmit={saveEmailConnection}>
+              <h2>Register email SMTP connection</h2>
+              <p>
+                Metadata-only SMTP TLS registry. Host, sender, recipient domains,
+                and secret reference labels are never returned by GET; only
+                digests and flags are public. This form does not dial SMTP or
+                send mail.
+              </p>
+              <fieldset disabled={busy}>
+                <label htmlFor="email-conn-id">Email connection ID</label>
+                <input
+                  id="email-conn-id"
+                  value={emailConnectionId}
+                  onChange={(event) => setEmailConnectionId(event.target.value)}
+                  autoComplete="off"
+                  maxLength={128}
+                  spellCheck={false}
+                />
+                <label htmlFor="email-conn-revision">Email revision</label>
+                <input
+                  id="email-conn-revision"
+                  value={emailConnectionRevision}
+                  onChange={(event) =>
+                    setEmailConnectionRevision(event.target.value)
+                  }
+                  autoComplete="off"
+                  maxLength={128}
+                  spellCheck={false}
+                />
+                <label htmlFor="email-smtp-host">SMTP host</label>
+                <input
+                  id="email-smtp-host"
+                  value={smtpHost}
+                  onChange={(event) => setSmtpHost(event.target.value)}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <label htmlFor="email-smtp-port">Port</label>
+                <input
+                  id="email-smtp-port"
+                  value={smtpPort}
+                  onChange={(event) => setSmtpPort(event.target.value)}
+                  inputMode="numeric"
+                  autoComplete="off"
+                />
+                <label htmlFor="email-sender">Sender</label>
+                <input
+                  id="email-sender"
+                  value={emailSender}
+                  onChange={(event) => setEmailSender(event.target.value)}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <label htmlFor="email-allowed-domains">
+                  Allowed recipient domains
+                </label>
+                <textarea
+                  id="email-allowed-domains"
+                  className="nf-connections-json"
+                  value={allowedRecipientDomains}
+                  onChange={(event) =>
+                    setAllowedRecipientDomains(event.target.value)
+                  }
+                  spellCheck={false}
+                />
+                <label htmlFor="email-secret-ref">
+                  Secret reference (optional label)
+                </label>
+                <input
+                  id="email-secret-ref"
+                  value={emailSecretReference}
+                  onChange={(event) =>
+                    setEmailSecretReference(event.target.value)
+                  }
+                  autoComplete="off"
+                  maxLength={128}
+                  spellCheck={false}
+                />
+                <div className="nf-connections-actions">
+                  <button type="submit" className="nf-connections-primary">
+                    Save email connection revision
+                  </button>
+                </div>
+              </fieldset>
+              {selectedEmailConnection && (
+                <div className="nf-connections-meta" aria-live="polite">
+                  Saved email metadata:{" "}
+                  <code>
+                    {selectedEmailConnection.connection_id}/
+                    {selectedEmailConnection.connection_revision}
+                  </code>
+                  <br />
+                  Transport: <code>{selectedEmailConnection.transport}</code>
+                  <br />
+                  Digest:{" "}
+                  <code>{selectedEmailConnection.definition_digest}</code>
+                  <br />
+                  Secret reference present:{" "}
+                  {selectedEmailConnection.has_secret_reference ? "yes" : "no"}
                 </div>
               )}
             </form>
