@@ -6,7 +6,6 @@ import type {
   JsonValue,
   TaskClient,
   TaskConnection,
-  TaskFormField,
   TaskFormView,
   TaskView,
 } from "./task-api";
@@ -15,6 +14,7 @@ import {
   fetchBrowserAuthConfig,
   type BrowserAuthConfig,
 } from "./entra-auth";
+import FormRenderer, { draftValuesFromForm } from "./FormRenderer";
 import "./tasks.css";
 import "./tokens.css";
 
@@ -62,46 +62,8 @@ function commandId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function fieldSchema(field: TaskFormField): JsonObject {
-  try {
-    const parsed = JSON.parse(field.schema_json) as unknown;
-    return typeof parsed === "object" &&
-      parsed !== null &&
-      !Array.isArray(parsed)
-      ? (parsed as JsonObject)
-      : {};
-  } catch {
-    return {};
-  }
-}
-
-function fieldType(field: TaskFormField): string {
-  const schema = fieldSchema(field);
-  return typeof schema.type === "string" ? schema.type : "string";
-}
-
-function displayValue(value: JsonValue | undefined): string {
-  if (value === undefined) return "—";
-  if (value === null) return "null";
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (typeof value === "number" || typeof value === "string")
-    return String(value);
-  return JSON.stringify(value);
-}
-
 function draftFromForm(form: TaskFormView): JsonObject {
-  const draft: JsonObject = {};
-  for (const field of form.fields) {
-    if (!field.editable) continue;
-    if (Object.hasOwn(form.values, field.field_id)) {
-      draft[field.field_id] = form.values[field.field_id];
-      continue;
-    }
-    if (fieldType(field) === "boolean") draft[field.field_id] = false;
-    else if (fieldType(field) === "number") draft[field.field_id] = 0;
-    else draft[field.field_id] = "";
-  }
-  return draft;
+  return draftValuesFromForm(form);
 }
 
 export default function Tasks({
@@ -581,96 +543,20 @@ export default function Tasks({
                   {selected.status}
                 </span>
                 {formBound && form && (
-                  <form
-                    className="task-form-fields"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      void submitForm();
-                    }}
-                  >
-                    <h3>Managed form</h3>
-                    <fieldset disabled={busy || selected.status !== "pending"}>
-                      {form.fields.map((field) => {
-                        const schema = fieldSchema(field);
-                        const type = fieldType(field);
-                        const value = field.editable
-                          ? draft[field.field_id]
-                          : form.values[field.field_id];
-                        if (!field.editable) {
-                          return (
-                            <div key={field.field_id}>
-                              <label htmlFor={`task-field-${field.field_id}`}>
-                                {field.label}
-                              </label>
-                              <div
-                                id={`task-field-${field.field_id}`}
-                                className="task-readonly-value"
-                              >
-                                {displayValue(value)}
-                              </div>
-                            </div>
-                          );
-                        }
-                        if (type === "boolean") {
-                          return (
-                            <div className="task-checkbox" key={field.field_id}>
-                              <input
-                                id={`task-field-${field.field_id}`}
-                                type="checkbox"
-                                checked={value === true}
-                                required={
-                                  field.required || schema.const === true
-                                }
-                                onChange={(event) =>
-                                  setField(field.field_id, event.target.checked)
-                                }
-                              />
-                              <label htmlFor={`task-field-${field.field_id}`}>
-                                {field.label}
-                                {field.required ? " (required)" : ""}
-                              </label>
-                            </div>
-                          );
-                        }
-                        return (
-                          <div key={field.field_id}>
-                            <label htmlFor={`task-field-${field.field_id}`}>
-                              {field.label}
-                              {field.required ? " (required)" : ""}
-                            </label>
-                            <input
-                              id={`task-field-${field.field_id}`}
-                              type={type === "number" ? "number" : "text"}
-                              value={
-                                value === undefined || value === null
-                                  ? ""
-                                  : String(value)
-                              }
-                              required={field.required}
-                              onChange={(event) => {
-                                const next =
-                                  type === "number"
-                                    ? event.target.value === ""
-                                      ? ""
-                                      : Number(event.target.value)
-                                    : event.target.value;
-                                setField(field.field_id, next);
-                              }}
-                            />
-                          </div>
-                        );
-                      })}
-                    </fieldset>
-                    <div className="task-actions">
-                      <button
-                        className="task-primary"
-                        disabled={busy || selected.status !== "pending"}
-                        type="submit"
-                      >
-                        Submit form
-                      </button>
-                    </div>
-                  </form>
+                  <div className="task-form-fields">
+                    <FormRenderer
+                      form={form}
+                      values={draft}
+                      mode="task"
+                      idPrefix="task"
+                      disabled={busy || selected.status !== "pending"}
+                      onChange={setField}
+                      onSubmit={() => {
+                        void submitForm();
+                      }}
+                      submitLabel="Submit form"
+                    />
+                  </div>
                 )}
                 {!formBound && (
                   <p className="task-meta">

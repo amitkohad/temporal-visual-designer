@@ -28,7 +28,7 @@ describe("business-user sample workspace", () => {
     expect(screen.queryByText("All changes saved")).not.toBeInTheDocument();
   });
 
-  it("navigates sample → Projects → Release → Tasks without losing the sample entry", async () => {
+  it("navigates sample → Projects → Forms → Release → Tasks without losing the sample entry", async () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(screen.getByRole("button", { name: "Projects" }));
@@ -36,6 +36,8 @@ describe("business-user sample workspace", () => {
     expect(
       screen.getByRole("navigation", { name: "Dev loop" }),
     ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Forms" }));
+    expect(screen.getByRole("heading", { name: "Forms" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Release" }));
     expect(screen.getByRole("heading", { name: "Release" })).toBeVisible();
     expect(screen.getByText("Connect a project first")).toBeVisible();

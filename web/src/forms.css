@@ -1,0 +1,244 @@
+.nf-forms-surface {
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at top right, #dff3f5 0%, transparent 40%),
+    linear-gradient(180deg, #f3f8f9 0%, #eef4f6 100%);
+  color: var(--ink);
+}
+.nf-forms-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  padding: 22px 28px;
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+}
+.nf-forms-eyebrow {
+  color: var(--teal);
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  font-weight: 700;
+}
+.nf-forms-header h1 {
+  font-size: 23px;
+  margin-top: 6px;
+}
+.nf-forms-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.nf-forms-boundary {
+  padding: 12px 28px;
+  background: #eaf6f6;
+  color: #28575e;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.nf-forms-connect {
+  width: min(520px, calc(100% - 32px));
+  margin: 36px auto 16px;
+  padding: 28px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.nf-forms-connect h2 {
+  font-size: 21px;
+  margin-bottom: 12px;
+}
+.nf-forms-connect p,
+.nf-forms-panel p {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+.nf-forms-connect fieldset,
+.nf-form-builder-fields fieldset,
+.nf-form-renderer fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.nf-forms-connect label,
+.nf-form-builder-fields label,
+.nf-form-field > label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin: 14px 0 8px;
+}
+.nf-forms-connect button {
+  width: 100%;
+  margin-top: 22px;
+}
+.nf-form-primary {
+  color: white;
+  background: var(--teal);
+  border-color: var(--teal);
+  font-weight: 600;
+}
+.nf-form-primary:hover:not(:disabled) {
+  background: #006b75;
+  color: white;
+}
+.nf-forms-error,
+.nf-forms-notice {
+  margin: 12px 28px;
+  line-height: 1.6;
+  font-size: 13px;
+}
+.nf-forms-error {
+  color: var(--danger);
+}
+.nf-forms-notice {
+  color: var(--success);
+}
+.nf-forms-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(260px, 340px);
+  gap: 16px;
+  padding: 0 28px 28px;
+}
+.nf-forms-panel {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+  min-height: 420px;
+}
+.nf-forms-panel h2,
+.nf-forms-panel h3 {
+  font-size: 16px;
+  margin-bottom: 10px;
+}
+.nf-forms-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.nf-forms-list button {
+  width: 100%;
+  text-align: left;
+}
+.nf-forms-list button[aria-current="true"] {
+  border-color: var(--teal);
+  background: #e8f6f7;
+}
+.nf-form-builder-toolbar,
+.nf-form-actions,
+.nf-form-field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.nf-form-field-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  margin-top: 12px;
+  background: var(--surface);
+}
+.nf-form-field-card h4 {
+  font-size: 13px;
+  margin: 0 0 8px;
+}
+.nf-form-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+.nf-form-field-grid .nf-span-2 {
+  grid-column: 1 / -1;
+}
+.nf-form-check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.nf-form-check-row label {
+  margin: 0;
+  font-weight: 500;
+}
+.nf-form-renderer {
+  display: grid;
+  gap: 8px;
+}
+.nf-form-field {
+  margin-top: 8px;
+}
+.nf-form-checkbox {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  column-gap: 10px;
+}
+.nf-form-checkbox input {
+  width: auto;
+  margin-top: 4px;
+}
+.nf-form-checkbox label {
+  margin: 0;
+}
+.nf-form-readonly {
+  padding: 11px 12px;
+  background: #eef3f5;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-height: 40px;
+}
+.nf-form-help {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.nf-form-field-error {
+  margin-top: 6px;
+  color: var(--danger);
+  font-size: 12px;
+}
+.nf-form-mode-hint {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.nf-form-renderer select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f4f7f8;
+  color: var(--ink);
+  padding: 11px 12px;
+  min-height: 40px;
+}
+.nf-forms-binding {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+@media (max-width: 1100px) {
+  .nf-forms-layout {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 720px) {
+  .nf-form-field-grid {
+    grid-template-columns: 1fr;
+  }
+  .nf-forms-header,
+  .nf-forms-boundary,
+  .nf-forms-layout,
+  .nf-forms-error,
+  .nf-forms-notice {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}

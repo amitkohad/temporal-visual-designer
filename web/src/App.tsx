@@ -3,6 +3,7 @@ import WorkflowCanvas from "./Canvas";
 import Projects, { type DesignerPublishGate } from "./Projects";
 import ReleaseControls from "./ReleaseControls";
 import Tasks from "./Tasks";
+import FormBuilder from "./FormBuilder";
 import {
   emptyPublishGate,
   releaseTargetsFromGate,
@@ -86,6 +87,12 @@ export default function App() {
           connection={session ?? undefined}
         />
       )}
+      {view === "forms" && (
+        <FormBuilder
+          onClose={() => setView(session ? "projects" : "sample")}
+          connection={session ?? undefined}
+        />
+      )}
     </>
   );
 }
@@ -100,6 +107,7 @@ function DevLoopNav({
   const items: { id: AppView; label: string }[] = [
     { id: "sample", label: "Sample" },
     { id: "projects", label: "Projects" },
+    { id: "forms", label: "Forms" },
     { id: "release", label: "Release" },
     { id: "tasks", label: "Tasks" },
   ];
@@ -293,6 +301,14 @@ function SampleWorkspace({
             }
           >
             Projects
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              dirty ? setPendingLeave("forms") : onNavigate("forms")
+            }
+          >
+            Forms
           </button>
           <button
             type="button"
