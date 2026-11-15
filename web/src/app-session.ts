@@ -10,6 +10,7 @@ export type AppView =
   | "forms"
   | "connections"
   | "admin"
+  | "promote"
   | "debugger";
 
 export const emptyPublishGate: DesignerPublishGate = {
