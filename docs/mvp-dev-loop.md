@@ -21,7 +21,7 @@ nodes, at most 200 edges, and no `error_routes`. Supported wire kinds:
 | `start` | `start` | Required; not inserted mid-chain |
 | `end` | `end` | Required terminal |
 | `approval` | `approval` | Insert, delete, reorder, labels |
-| `decision` | `decision` | Labels; preserve edge `source_port` labels |
+| `decision` | `decision` | Labels; rename branch `source_port` labels; optional `input_mapping.route` approval_outcome subset (authoring only; proof.v1 cannot execute decisions) |
 | `wait` | `timer` | Insert, delete, reorder, labels |
 | `set_data` | `update` | Present / relabel in MVP |
 | `child_workflow` | `subworkflow` | Present / relabel in MVP |

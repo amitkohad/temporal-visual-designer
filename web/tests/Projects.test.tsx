@@ -466,6 +466,12 @@ describe("executable designer critical path", () => {
     render(<Projects onClose={vi.fn()} />);
     const user = await connect();
     await screen.findByRole("heading", { name: "Create from template" });
+    expect(
+      screen.getByRole("region", { name: "Template details" }),
+    ).toHaveTextContent(/employee_name/);
+    expect(screen.getByLabelText("manager approval rule")).toHaveValue(
+      "any_one",
+    );
     await user.clear(screen.getByLabelText("Project ID"));
     await user.type(screen.getByLabelText("Project ID"), "people");
     await user.clear(screen.getByLabelText("Project name"));
@@ -476,8 +482,19 @@ describe("executable designer critical path", () => {
         "manager-user",
       );
     }
+    await user.selectOptions(
+      screen.getByLabelText("manager approval rule"),
+      "all_approvers",
+    );
     await user.click(screen.getByRole("button", { name: "Create draft" }));
     await screen.findByText(/Created Employee onboarding draft at revision 1/);
+    const createCall = fetcher.mock.calls.find(
+      ([url, init]) =>
+        String(url).includes("/project-templates/") && init?.method === "POST",
+    );
+    expect(JSON.parse(String(createCall?.[1]?.body)).assignments.manager.rule).toBe(
+      "all_approvers",
+    );
     await user.click(
       screen.getAllByRole("button", { name: "Select manager" })[0],
     );
@@ -504,6 +521,53 @@ describe("executable designer critical path", () => {
         .input_mapping.human_task.user_ids,
     ).toEqual(["manager-user"]);
     await screen.findByText("Saved project revision 2.");
+  });
+
+  it("inserts a decision, binds approval_outcome, and saves branch ports", async () => {
+    const fetcher = server();
+    render(<Projects onClose={vi.fn()} />);
+    const user = await connect();
+    await screen.findByRole("heading", { name: "Create from template" });
+    await user.clear(screen.getByLabelText("Project ID"));
+    await user.type(screen.getByLabelText("Project ID"), "routing");
+    await user.clear(screen.getByLabelText("Project name"));
+    await user.type(screen.getByLabelText("Project name"), "Routing draft");
+    for (const slot of ["manager", "hr", "it"]) {
+      await user.type(
+        screen.getByLabelText(`${slot} assignee user ID`),
+        "manager-user",
+      );
+    }
+    await user.click(screen.getByRole("button", { name: "Create draft" }));
+    await screen.findByText(/Created Employee onboarding draft at revision 1/);
+    await user.click(
+      screen.getAllByRole("button", { name: "Select manager" })[0],
+    );
+    await user.click(screen.getByRole("button", { name: "Insert decision" }));
+    await screen.findByRole("region", { name: "Decision branches" });
+    expect(screen.getByLabelText("Route on approval outcome from")).toHaveValue(
+      "manager",
+    );
+    await user.click(screen.getByRole("button", { name: "Save project" }));
+    await waitFor(() =>
+      expect(
+        fetcher.mock.calls.filter(([, init]) => init?.method === "PUT"),
+      ).toHaveLength(1),
+    );
+    const body = JSON.parse(
+      String(
+        fetcher.mock.calls.find(([, init]) => init?.method === "PUT")?.[1]?.body,
+      ),
+    );
+    const decision = body.content.workflows[0].nodes.find(
+      (node: { kind: string }) => node.kind === "decision",
+    );
+    expect(decision.named_ports.outputs).toEqual(["approved", "rejected"]);
+    expect(decision.input_mapping.route).toEqual({
+      schema_version: "0.1",
+      kind: "approval_outcome",
+      source_node_id: "manager",
+    });
   });
 
   it("surfaces validation issues and reports publish blocked for 1C", async () => {

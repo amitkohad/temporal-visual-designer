@@ -40,6 +40,52 @@ def _workflow(workflow: WorkflowDefinition, prefix: str) -> list[ValidationIssue
                 "Use a decision or parallel block to split normal execution",
             )
 
+    # Minimal decision-route subset for authoring (F03-T002b slice). Not a general
+    # expression language; only approval_outcome bindings are accepted when present.
+    for node in workflow.nodes:
+        if node.kind != "decision":
+            continue
+        route = node.input_mapping.get("route")
+        if route is None:
+            continue
+        path = f"{prefix}/nodes/{indexes[node.node_id]}/input_mapping/route"
+        if not isinstance(route, dict):
+            issues.append(
+                ValidationIssue(path, "invalid_decision_route", "Decision route must be an object")
+            )
+            continue
+        if set(route) - {"schema_version", "kind", "source_node_id"}:
+            issues.append(
+                ValidationIssue(
+                    path,
+                    "invalid_decision_route",
+                    "Decision route only supports the approval_outcome subset",
+                )
+            )
+            continue
+        if (
+            route.get("schema_version") != "0.1"
+            or route.get("kind") != "approval_outcome"
+            or not isinstance(route.get("source_node_id"), str)
+        ):
+            issues.append(
+                ValidationIssue(
+                    path,
+                    "invalid_decision_route",
+                    "Decision route must use schema_version 0.1 and kind approval_outcome",
+                )
+            )
+            continue
+        source = nodes.get(route["source_node_id"])
+        if source is None or source.kind != "approval":
+            issues.append(
+                ValidationIssue(
+                    path,
+                    "invalid_decision_route_source",
+                    "Decision approval_outcome routes must reference an approval step",
+                )
+            )
+
     # Reverse topological processing computes postdominators without recursion.
     degree = {key: len(targets) for key, targets in adjacency.items()}
     pending = [key for key in nodes if degree[key] == 0]

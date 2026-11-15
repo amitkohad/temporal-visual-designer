@@ -185,6 +185,79 @@
 .template-create button {
   margin-top: 14px;
 }
+.template-descriptor {
+  margin: 10px 0 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f7faf9;
+}
+.template-descriptor p {
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-size: 12px;
+}
+.template-descriptor dl {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+.template-descriptor dl > div {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.template-descriptor dt {
+  color: var(--muted);
+  font-weight: 600;
+}
+.template-descriptor dd {
+  margin: 0;
+  word-break: break-word;
+}
+.template-slot {
+  margin-top: 4px;
+}
+.decision-authoring {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.decision-authoring h4 {
+  font-size: 13px;
+  margin: 0 0 8px;
+}
+.decision-limit {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+  margin: 0 0 10px;
+}
+.decision-authoring label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin: 10px 0 6px;
+}
+.decision-authoring select,
+.decision-authoring input {
+  width: 100%;
+  font: inherit;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 8px 10px;
+  background: white;
+}
+.decision-branches {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+.decision-branches li {
+  margin: 0 0 8px;
+}
 .project-release-slot {
   padding: 12px 20px;
   border-bottom: 1px solid var(--border);

@@ -6,9 +6,12 @@ import {
   canReorderStep,
   defaultWireNode,
   deleteDesignerStep,
+  insertDecisionStep,
   rebuildWorkflowFromDocument,
+  renameDecisionBranch,
   reorderDesignerStep,
   sameTopology,
+  setDecisionRoute,
 } from "./workflow-edit";
 import type { JsonObject } from "./project-api";
 
@@ -194,5 +197,50 @@ describe("workflow edit helpers", () => {
     expect(defaultWireNode("approval", "approval-1", wire()).kind).toBe(
       "approval",
     );
+  });
+
+  it("inserts a decision with branch labels and approval_outcome route writeback", () => {
+    const document = linear();
+    const withDecision = insertDecisionStep(document, "manager")!;
+    const decision = withDecision.nodes.find((node) => node.kind === "decision")!;
+    expect(decision.decisionRoute).toEqual({
+      schema_version: "0.1",
+      kind: "approval_outcome",
+      source_node_id: "manager",
+    });
+    expect(
+      withDecision.edges.filter((edge) => edge.source === decision.id).map(
+        (edge) => edge.label,
+      ),
+    ).toEqual(["approved", "rejected"]);
+    const renamed = renameDecisionBranch(
+      withDecision,
+      `${decision.id}-approved`,
+      "ok",
+    )!;
+    expect(
+      renamed.edges.find((edge) => edge.id === `${decision.id}-approved`)
+        ?.label,
+    ).toBe("ok");
+    const routed = setDecisionRoute(renamed, decision.id, {
+      schema_version: "0.1",
+      kind: "approval_outcome",
+      source_node_id: "hr",
+    })!;
+    const rebuilt = rebuildWorkflowFromDocument(wire(), routed);
+    const wireDecision = (rebuilt.nodes as JsonObject[]).find(
+      (node) => node.node_id === decision.id,
+    );
+    expect(wireDecision).toMatchObject({
+      kind: "decision",
+      named_ports: { inputs: ["in"], outputs: ["ok", "rejected"] },
+      input_mapping: {
+        route: {
+          schema_version: "0.1",
+          kind: "approval_outcome",
+          source_node_id: "hr",
+        },
+      },
+    });
   });
 });

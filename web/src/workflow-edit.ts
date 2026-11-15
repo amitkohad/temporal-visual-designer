@@ -1,5 +1,6 @@
 /** MVP executable graph edits for the connected Designer subset. */
 import type {
+  DecisionRoute,
   DesignerDocument,
   DesignerEdge,
   DesignerNode,
@@ -24,9 +25,28 @@ const visualToWire: Partial<Record<NodeKind, string>> = {
 
 export type InsertableKind = "approval" | "timer";
 
+export function parseDecisionRoute(value: unknown): DecisionRoute | undefined {
+  if (
+    !isObject(value) ||
+    value.schema_version !== "0.1" ||
+    value.kind !== "approval_outcome" ||
+    !isIdentifier(value.source_node_id)
+  )
+    return undefined;
+  return {
+    schema_version: "0.1",
+    kind: "approval_outcome",
+    source_node_id: value.source_node_id,
+  };
+}
+
 export function topologyKey(document: DesignerDocument): string {
   return JSON.stringify({
-    nodes: document.nodes.map((node) => [node.id, node.kind]),
+    nodes: document.nodes.map((node) => [
+      node.id,
+      node.kind,
+      node.decisionRoute ?? null,
+    ]),
     edges: document.edges,
   });
 }
@@ -186,22 +206,151 @@ function swapAdjacent(
 
 export function allocateStepId(
   document: DesignerDocument,
-  kind: InsertableKind,
+  kind: InsertableKind | "decision",
 ): string {
   let sequence = 1;
   while (
     document.nodes.some((node) => node.id === `${kind}-${sequence}`) ||
-    document.edges.some((edge) => edge.id === `${kind}-${sequence}-next`)
+    document.edges.some(
+      (edge) =>
+        edge.id === `${kind}-${sequence}-next` ||
+        edge.id.startsWith(`${kind}-${sequence}-`),
+    )
   )
     sequence += 1;
   return `${kind}-${sequence}`;
 }
 
+/** Insert a decision that splits the single outgoing path into approved/rejected branches. */
+export function insertDecisionStep(
+  document: DesignerDocument,
+  afterId: string,
+): DesignerDocument | null {
+  if (!canInsertAfter(document, afterId)) return null;
+  const source = document.nodes.find((node) => node.id === afterId);
+  if (!source) return null;
+  const outgoing = document.edges.find((edge) => edge.source === afterId);
+  if (!outgoing) return null;
+  const end =
+    document.nodes.find((node) => node.kind === "end") ??
+    document.nodes[document.nodes.length - 1];
+  if (!end) return null;
+  const id = allocateStepId(document, "decision");
+  const priorApproval =
+    source.kind === "approval"
+      ? source
+      : document.nodes.find((node) => node.kind === "approval");
+  const node: DesignerNode = {
+    id,
+    kind: "decision",
+    label: "Route result",
+    description: "Routes on an approval outcome (authoring subset)",
+    x: clamp(source.x + 120, 80, 1090),
+    y: clamp(source.y + 96, 40, 740),
+    ...(priorApproval
+      ? {
+          decisionRoute: {
+            schema_version: "0.1" as const,
+            kind: "approval_outcome" as const,
+            source_node_id: priorApproval.id,
+          },
+        }
+      : {}),
+  };
+  const approved: DesignerEdge = {
+    id: `${id}-approved`,
+    source: id,
+    target: outgoing.target,
+    label: "approved",
+  };
+  const rejected: DesignerEdge = {
+    id: `${id}-rejected`,
+    source: id,
+    target: end.id,
+    label: "rejected",
+  };
+  return {
+    nodes: [...document.nodes, node],
+    edges: [
+      ...document.edges.map((edge) =>
+        edge.id === outgoing.id ? { ...edge, target: id } : edge,
+      ),
+      approved,
+      rejected,
+    ],
+  };
+}
+
+export function renameDecisionBranch(
+  document: DesignerDocument,
+  edgeId: string,
+  port: string,
+): DesignerDocument | null {
+  const trimmed = port.trim();
+  if (!isIdentifier(trimmed)) return null;
+  const edge = document.edges.find((item) => item.id === edgeId);
+  if (!edge) return null;
+  const source = document.nodes.find((node) => node.id === edge.source);
+  if (!source || source.kind !== "decision") return null;
+  const siblings = document.edges.filter((item) => item.source === edge.source);
+  if (
+    siblings.some(
+      (item) => item.id !== edgeId && (item.label ?? "") === trimmed,
+    )
+  )
+    return null;
+  return {
+    nodes: document.nodes,
+    edges: document.edges.map((item) =>
+      item.id === edgeId ? { ...item, label: trimmed } : item,
+    ),
+  };
+}
+
+export function setDecisionRoute(
+  document: DesignerDocument,
+  nodeId: string,
+  route: DecisionRoute | undefined,
+): DesignerDocument | null {
+  const node = document.nodes.find((item) => item.id === nodeId);
+  if (!node || node.kind !== "decision") return null;
+  if (route !== undefined) {
+    if (
+      route.schema_version !== "0.1" ||
+      route.kind !== "approval_outcome" ||
+      !isIdentifier(route.source_node_id) ||
+      !document.nodes.some(
+        (item) =>
+          item.id === route.source_node_id && item.kind === "approval",
+      )
+    )
+      return null;
+  }
+  return {
+    ...document,
+    nodes: document.nodes.map((item) => {
+      if (item.id !== nodeId) return item;
+      if (route === undefined) {
+        return {
+          id: item.id,
+          kind: item.kind,
+          label: item.label,
+          description: item.description,
+          x: item.x,
+          y: item.y,
+        };
+      }
+      return { ...item, decisionRoute: route };
+    }),
+  };
+}
+
 /** Default wire payload for an inserted MVP step. Preserves template assignment shape when available. */
 export function defaultWireNode(
-  kind: "approval" | "wait",
+  kind: "approval" | "wait" | "decision",
   nodeId: string,
   workflow?: JsonObject,
+  route?: DecisionRoute,
 ): JsonObject {
   if (!isIdentifier(nodeId)) throw new Error("invalid node id");
   if (kind === "wait") {
@@ -210,6 +359,22 @@ export function defaultWireNode(
       kind: "wait",
       named_ports: { inputs: ["in"], outputs: ["out"] },
       input_mapping: { seconds: 60 },
+    };
+  }
+  if (kind === "decision") {
+    return {
+      node_id: nodeId,
+      kind: "decision",
+      named_ports: { inputs: ["in"], outputs: ["approved", "rejected"] },
+      input_mapping: route
+        ? {
+            route: {
+              schema_version: "0.1",
+              kind: "approval_outcome",
+              source_node_id: route.source_node_id,
+            },
+          }
+        : {},
     };
   }
   let humanTask: JsonObject = {
@@ -259,6 +424,21 @@ export function rebuildWorkflowFromDocument(
     prior.set(value.node_id, value);
   }
   const ids = new Set<string>();
+  const branchPorts = new Map<string, string[]>();
+  for (const node of document.nodes) {
+    if (node.kind !== "decision") continue;
+    const ports = document.edges
+      .filter((edge) => edge.source === node.id)
+      .map((edge) => edge.label)
+      .filter((label): label is string => typeof label === "string");
+    if (
+      ports.length < 2 ||
+      ports.some((port) => !isIdentifier(port)) ||
+      new Set(ports).size !== ports.length
+    )
+      throw new Error();
+    branchPorts.set(node.id, ports);
+  }
   const nodes: JsonObject[] = document.nodes.map((node) => {
     if (ids.has(node.id) || !isIdentifier(node.id)) throw new Error();
     ids.add(node.id);
@@ -267,9 +447,59 @@ export function rebuildWorkflowFromDocument(
     const existing = prior.get(node.id);
     if (existing) {
       if (existing.kind !== wireKind) throw new Error();
+      if (wireKind === "decision") {
+        const outputs = branchPorts.get(node.id);
+        if (!outputs) throw new Error();
+        const priorMapping = isObject(existing.input_mapping)
+          ? { ...existing.input_mapping }
+          : {};
+        if (node.decisionRoute) {
+          priorMapping.route = {
+            schema_version: "0.1",
+            kind: "approval_outcome",
+            source_node_id: node.decisionRoute.source_node_id,
+          };
+        } else if (Object.hasOwn(priorMapping, "route")) {
+          delete priorMapping.route;
+        }
+        const named =
+          isObject(existing.named_ports) &&
+          Array.isArray(existing.named_ports.inputs)
+            ? existing.named_ports
+            : { inputs: ["in"], outputs: outputs };
+        return {
+          ...existing,
+          node_id: node.id,
+          kind: wireKind,
+          named_ports: {
+            ...named,
+            inputs: named.inputs,
+            outputs,
+          },
+          input_mapping: priorMapping,
+        };
+      }
       return { ...existing, node_id: node.id, kind: wireKind };
     }
-    if (wireKind !== "approval" && wireKind !== "wait") throw new Error();
+    if (
+      wireKind !== "approval" &&
+      wireKind !== "wait" &&
+      wireKind !== "decision"
+    )
+      throw new Error();
+    if (wireKind === "decision") {
+      const outputs = branchPorts.get(node.id) ?? ["approved", "rejected"];
+      const created = defaultWireNode(
+        "decision",
+        node.id,
+        workflow,
+        node.decisionRoute,
+      );
+      return {
+        ...created,
+        named_ports: { inputs: ["in"], outputs },
+      };
+    }
     return defaultWireNode(wireKind, node.id, workflow);
   });
   const ports = new Map(
@@ -289,7 +519,6 @@ export function rebuildWorkflowFromDocument(
       ];
     }),
   );
-  const priorEdges = workflow.edges.filter(isObject) as JsonObject[];
   const edges: JsonObject[] = document.edges.map((edge) => {
     if (
       !isIdentifier(edge.source) ||
@@ -301,20 +530,10 @@ export function rebuildWorkflowFromDocument(
     const sourceNode = document.nodes.find((node) => node.id === edge.source)!;
     const sourcePorts = ports.get(edge.source)!;
     const targetPorts = ports.get(edge.target)!;
-    let sourcePort =
+    const sourcePort =
       sourceNode.kind === "decision"
         ? (edge.label ?? sourcePorts.outputs[0])
         : sourcePorts.outputs[0];
-    const matched = priorEdges.find(
-      (item) =>
-        item.source_node_id === edge.source &&
-        item.target_node_id === edge.target &&
-        (sourceNode.kind !== "decision" ||
-          item.source_port === edge.label ||
-          edge.label === undefined),
-    );
-    if (matched && isIdentifier(matched.source_port))
-      sourcePort = matched.source_port;
     const targetPort = targetPorts.inputs[0];
     if (
       !isIdentifier(sourcePort) ||
