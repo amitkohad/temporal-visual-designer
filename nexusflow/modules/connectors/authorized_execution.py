@@ -190,8 +190,13 @@ class AuthorizedHTTPAttemptExecutor:
     ) -> HTTPAuthorizationCredential | None:
         validate = cast(
             Callable[
-                [Scope, HTTPDestinationRequest, ApprovedHTTPDestination, object | None],
-                object | None,
+                [
+                    Scope,
+                    HTTPDestinationRequest,
+                    ApprovedHTTPDestination,
+                    HTTPAuthorizationCredential | None,
+                ],
+                HTTPAuthorizationCredential | None,
             ],
             self.planner.revalidate_authorized,
         )
@@ -211,9 +216,7 @@ class AuthorizedHTTPAttemptExecutor:
         if request.authorization is not None:
             raise HTTPExecutionError("invalid_request") from None
         header = None if credential is None else credential.authorization_header()
-        return HTTPAttemptRequest(
-            request.method, request.body, request.content_type, header
-        )
+        return HTTPAttemptRequest(request.method, request.body, request.content_type, header)
 
     async def execute(
         self, scope: Scope, destination: HTTPDestinationRequest, request: HTTPAttemptRequest
@@ -254,10 +257,16 @@ class AuthorizedHTTPAttemptExecutor:
                 if type(prepared) is not tuple or len(prepared) != 2:
                     raise _InvalidProviderResult
                 approved, credential = prepared
-                if credential is not None and type(credential) is not HTTPAuthorizationCredential:
+                if credential is None:
+                    selected_credential: HTTPAuthorizationCredential | None = None
+                elif type(credential) is HTTPAuthorizationCredential:
+                    selected_credential = HTTPAuthorizationCredential(
+                        credential.scheme, credential.token
+                    )
+                else:
                     raise _InvalidProviderResult
                 approved = self._plan(approved, scope, destination)
-                credential = self._revalidate(scope, destination, approved, credential)
+                credential = self._revalidate(scope, destination, approved, selected_credential)
                 authorized = self._authorized_request(request, credential)
                 self._checkpoint(deadline, cancellation_count)
 

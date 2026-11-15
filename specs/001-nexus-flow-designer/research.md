@@ -218,3 +218,15 @@ private Bcc envelope recipients and bounded wire validation avoid implicit
 SMTPUTF8 requirements. Trusted persisted time replaces ambient clock access;
 context-derived identity is separate from byte integrity and future durable
 effect binding. No transport or sending permit is inferred from encoded bytes.
+
+## Secret-aware live HTTP JSON decision
+
+[ADR 0065](../../docs/decisions/0065-http-secret-resolution.md) introduces an
+explicit `SecretResolver` and authorized planner/executor without weakening the
+credential-free path. Opaque connection `secret_reference` labels resolve to
+Bearer credentials only inside authorized workers; pinned transport may emit a
+single Authorization header. [ADR 0066](../../docs/decisions/0066-temporal-live-http.md)
+registers opt-in dual-mode proof dispatch and local-demo `enable-live-http`.
+File-backed local secrets are not production Key Vault; controlled TLS is not
+public egress; built-in publication and F04-T007 custom Python isolation remain
+separate gates.

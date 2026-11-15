@@ -7,6 +7,7 @@ from nexusflow.modules.connectors.destination_types import (
     ApprovedHTTPDestination,
     HTTPDestinationRequest,
 )
+from nexusflow.modules.connectors.secret_types import HTTPAuthorizationCredential
 
 
 class CredentialFreeDestinationPlanner(Protocol):
@@ -22,15 +23,15 @@ class CredentialFreeDestinationPlanner(Protocol):
 class AuthorizedDestinationPlanner(Protocol):
     async def prepare_authorized(
         self, scope: Scope, request: HTTPDestinationRequest
-    ) -> tuple[ApprovedHTTPDestination, object | None]: ...
+    ) -> tuple[ApprovedHTTPDestination, HTTPAuthorizationCredential | None]: ...
 
     def revalidate_authorized(
         self,
         scope: Scope,
         request: HTTPDestinationRequest,
         approved: ApprovedHTTPDestination,
-        credential: object | None,
-    ) -> object | None: ...
+        credential: HTTPAuthorizationCredential | None,
+    ) -> HTTPAuthorizationCredential | None: ...
 
 
 HTTPExecutionErrorCode = Literal[

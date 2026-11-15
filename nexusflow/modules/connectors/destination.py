@@ -202,7 +202,8 @@ class HTTPDestinationPlanner:
         except SecretResolverError as error:
             raise DestinationError(
                 error.code
-                if error.code in {"invalid_request", "forbidden", "credentials_required", "unavailable"}
+                if error.code
+                in {"invalid_request", "forbidden", "credentials_required", "unavailable"}
                 else "unavailable"
             ) from None
         except Exception:

@@ -52,4 +52,6 @@ class HTTPAuthorizationCredential:
 
 
 class SecretResolver(Protocol):
-    def resolve(self, scope: Scope, secret_reference: Identifier) -> HTTPAuthorizationCredential: ...
+    def resolve(
+        self, scope: Scope, secret_reference: Identifier
+    ) -> HTTPAuthorizationCredential: ...

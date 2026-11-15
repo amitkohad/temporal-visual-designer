@@ -77,9 +77,7 @@ def open_live_http_activities(
             secrets = LocalSecretStore(root / secrets_file, selected)
             authorization = LocalLiveHTTPWorkerAuthorization(selected)
             resolver = AsyncIPv4Resolver()
-            planner = HTTPDestinationPlanner(
-                connections, authorization, resolver, secrets=secrets
-            )
+            planner = HTTPDestinationPlanner(connections, authorization, resolver, secrets=secrets)
             live = AuthorizedHTTPAttemptExecutor(
                 planner, PinnedHTTPTransport(), timeout_seconds=min(30, duration)
             )
@@ -89,9 +87,7 @@ def open_live_http_activities(
                 stack.callback(scenarios.close)
                 policy = ExplicitDevHTTPMockPolicy(authorization, (selected,))
                 mock = HTTPMockExecutor(policy, scenarios, timeout_seconds=min(5, duration))
-            adapter = HTTPJSONActivityAdapter(
-                live=live, mock=mock, timeout_seconds=duration
-            )
+            adapter = HTTPJSONActivityAdapter(live=live, mock=mock, timeout_seconds=duration)
             activities = HTTPJSONActivities(
                 adapter, selected, namespace, task_queue, timeout_seconds=duration
             )

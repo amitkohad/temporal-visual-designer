@@ -72,9 +72,7 @@ def _constant(_value: str) -> None:
     raise ValueError
 
 
-def load_live_http_profile(
-    directory: Path, settings: LocalSettings
-) -> LocalLiveHTTPProfile | None:
+def load_live_http_profile(directory: Path, settings: LocalSettings) -> LocalLiveHTTPProfile | None:
     """Read bounded markers/schema only; never adopt, repair or recreate local state."""
     marker = directory / _MARKER
     secrets = directory / _SECRETS
@@ -134,9 +132,7 @@ def enable_live_http(directory: Path) -> LocalLiveHTTPProfile:
     profile = LocalLiveHTTPProfile(installation_id=settings.installation_id, scope=scope)
     identity = SQLiteIdentityRepository(directory / "identity.db")
     try:
-        identity.add_membership(
-            settings.organization_id, TENANT_ID, "workload", _WORKLOAD
-        )
+        identity.add_membership(settings.organization_id, TENANT_ID, "workload", _WORKLOAD)
         identity.save_grant(
             Grant(_GRANT, scope, TENANT_ID, "workload", _WORKLOAD, "worker"),
             expected_revision=0,

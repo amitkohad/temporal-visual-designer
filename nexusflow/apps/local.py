@@ -191,9 +191,7 @@ async def serve_local(
                 await run_gateway()
             else:
                 mock_database = (
-                    None
-                    if mock_profile is None
-                    else directory / mock_profile.fixtures_database
+                    None if mock_profile is None else directory / mock_profile.fixtures_database
                 )
                 with open_live_http_activities(
                     directory,
@@ -318,9 +316,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     raise LocalCommandError(
                         "Enable live HTTP before storing local secret references"
                     )
-                LocalSecretStore(
-                    directory / live_profile.secrets_file, live_profile.scope
-                ).put(args.reference, scheme="Bearer", token=args.bearer_token)
+                LocalSecretStore(directory / live_profile.secrets_file, live_profile.scope).put(
+                    args.reference, scheme="Bearer", token=args.bearer_token
+                )
             print(
                 json.dumps(
                     {
