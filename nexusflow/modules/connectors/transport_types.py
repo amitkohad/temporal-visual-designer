@@ -14,6 +14,7 @@ class HTTPAttemptRequest:
     content_type: Literal["application/json", "text/plain", "application/octet-stream"] = (
         "application/json"
     )
+    authorization: str | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True)

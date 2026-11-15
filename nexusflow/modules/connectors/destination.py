@@ -1,4 +1,4 @@
-"""Worker-authorized, pinned HTTP destination planning without dispatch or secrets."""
+"""Worker-authorized, pinned HTTP destination planning without public secret values."""
 
 import asyncio
 import json
@@ -20,6 +20,11 @@ from nexusflow.modules.connectors.policy import (
     redirect_url,
     request_url,
 )
+from nexusflow.modules.connectors.secret_types import (
+    HTTPAuthorizationCredential,
+    SecretResolver,
+    SecretResolverError,
+)
 from nexusflow.modules.connectors.service import ConnectionService
 from nexusflow.modules.connectors.types import (
     ConnectionRecord,
@@ -38,6 +43,7 @@ class HTTPDestinationPlanner:
         *,
         dns_timeout_seconds: float = 5.0,
         max_redirects: int = 5,
+        secrets: SecretResolver | None = None,
     ) -> None:
         if (
             type(dns_timeout_seconds) not in (int, float)
@@ -52,6 +58,7 @@ class HTTPDestinationPlanner:
         self.resolver = resolver
         self.dns_timeout_seconds = float(dns_timeout_seconds)
         self.max_redirects = max_redirects
+        self.secrets = secrets
 
     @staticmethod
     def _request(
@@ -177,6 +184,32 @@ class HTTPDestinationPlanner:
         url = request_url(definition.base_origin, request.path)
         return await self._approve(scope, request, definition, url, 0)
 
+    def _credential(
+        self, scope: Scope, definition: HTTPConnectionWrite
+    ) -> HTTPAuthorizationCredential | None:
+        reference = definition.secret_reference
+        if reference is None:
+            return None
+        if self.secrets is None:
+            raise DestinationError("credentials_required") from None
+        try:
+            credential = self.secrets.resolve(scope, reference)
+            if type(credential) is not HTTPAuthorizationCredential:
+                raise ValueError
+            HTTPAuthorizationCredential(credential.scheme, credential.token)
+        except DestinationError:
+            raise
+        except SecretResolverError as error:
+            raise DestinationError(
+                error.code
+                if error.code
+                in {"invalid_request", "forbidden", "credentials_required", "unavailable"}
+                else "unavailable"
+            ) from None
+        except Exception:
+            raise DestinationError("credentials_required") from None
+        return credential
+
     async def prepare_credential_free(
         self, scope: Scope, request: HTTPDestinationRequest
     ) -> ApprovedHTTPDestination:
@@ -187,6 +220,17 @@ class HTTPDestinationPlanner:
             raise DestinationError("credentials_required") from None
         url = request_url(definition.base_origin, request.path)
         return await self._approve(scope, request, definition, url, 0)
+
+    async def prepare_authorized(
+        self, scope: Scope, request: HTTPDestinationRequest
+    ) -> tuple[ApprovedHTTPDestination, HTTPAuthorizationCredential | None]:
+        """Approve an initial hop, resolving configured secrets before DNS."""
+        scope, request = self._request(scope, request)
+        definition = self._connection(scope, request)
+        credential = self._credential(scope, definition)
+        url = request_url(definition.base_origin, request.path)
+        approved = await self._approve(scope, request, definition, url, 0)
+        return approved, credential
 
     def revalidate_credential_free(
         self, scope: Scope, request: HTTPDestinationRequest, approved: ApprovedHTTPDestination
@@ -242,6 +286,64 @@ class HTTPDestinationPlanner:
                 raise ValueError
         except Exception:
             raise DestinationError("invalid_request") from None
+
+    def revalidate_authorized(
+        self,
+        scope: Scope,
+        request: HTTPDestinationRequest,
+        approved: ApprovedHTTPDestination,
+        credential: HTTPAuthorizationCredential | None,
+    ) -> HTTPAuthorizationCredential | None:
+        """Recheck authorization, binding and secret resolution without DNS."""
+        scope, request = self._request(scope, request)
+        definition = self._connection(scope, request)
+        resolved = self._credential(scope, definition)
+        if (resolved is None) != (credential is None):
+            raise DestinationError("credentials_required") from None
+        if resolved is not None and credential is not None and resolved.scheme != credential.scheme:
+            raise DestinationError("credentials_required") from None
+        try:
+            if (
+                type(approved) is not ApprovedHTTPDestination
+                or type(approved.scope) is not Scope
+                or Scope.model_validate(
+                    {
+                        "organization_id": approved.scope.organization_id,
+                        "environment_id": approved.scope.environment_id,
+                    },
+                    strict=True,
+                )
+                != scope
+                or approved.scope != scope
+                or any(
+                    type(value) is not str
+                    for value in (
+                        approved.connection_id,
+                        approved.connection_revision,
+                        approved.definition_digest,
+                        approved.operation_id,
+                        approved.url,
+                        approved.origin,
+                        approved.host,
+                    )
+                )
+                or approved.connection_id != request.connection_id
+                or approved.connection_revision != request.connection_revision
+                or approved.operation_id != request.operation_id
+                or approved.definition_digest != digest(definition.model_dump(mode="json"))
+                or type(approved.port) is not int
+                or not 1 <= approved.port <= 65535
+                or type(approved.redirect_count) is not int
+                or approved.redirect_count != 0
+                or approved.url != request_url(definition.base_origin, request.path)
+                or checked_url(approved.url, definition.allowed_origins)
+                != (approved.url, approved.origin, approved.host, approved.port)
+                or checked_ipv4(approved.ipv4_addresses) != approved.ipv4_addresses
+            ):
+                raise ValueError
+        except Exception:
+            raise DestinationError("invalid_request") from None
+        return resolved
 
     async def prepare_redirect(
         self,

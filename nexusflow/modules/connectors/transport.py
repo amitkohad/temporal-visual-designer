@@ -230,17 +230,20 @@ class PinnedHTTPTransport:
                 authority = destination.host + (
                     f":{destination.port}" if destination.port != 443 else ""
                 )
+                headers = [
+                    ("Host", authority),
+                    ("Connection", "close"),
+                    ("Accept-Encoding", "identity"),
+                    ("Content-Type", request.content_type),
+                    ("Content-Length", str(len(request.body))),
+                ]
+                if request.authorization is not None:
+                    headers.append(("Authorization", request.authorization))
                 head = connection.send(
                     h11.Request(
                         method=request.method,
                         target=target,
-                        headers=[
-                            ("Host", authority),
-                            ("Connection", "close"),
-                            ("Accept-Encoding", "identity"),
-                            ("Content-Type", request.content_type),
-                            ("Content-Length", str(len(request.body))),
-                        ],
+                        headers=headers,
                     )
                 )
                 payload = head or b""

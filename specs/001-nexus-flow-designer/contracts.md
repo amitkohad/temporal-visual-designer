@@ -321,6 +321,20 @@ digest. Message-ID excludes content/recipients/time and supplies no deduplicatio
 or payload binding. The encoder performs no fresh permission/storage lookup,
 network, credential resolution or delivery. Future send boundaries remain open.
 
+## C09 secret-aware live HTTP JSON subset
+
+[ADR 0065](../../docs/decisions/0065-http-secret-resolution.md) and
+[ADR 0066](../../docs/decisions/0066-temporal-live-http.md) freeze
+`SecretResolver` / `HTTPAuthorizationCredential`, authorized destination
+prepare/revalidate, optional private Bearer `authorization` on attempts,
+`AuthorizedHTTPAttemptExecutor`, dual-mode `HTTPJSONActivities` proof dispatch
+and opt-in local-demo `enable-live-http` / `put-secret` composition. Credential-free
+executors still reject configured secrets before DNS. Live forbids fixture digests;
+mock still requires them. Status-only outputs omit Authorization. Default launcher
+registration remains off until the live profile exists. Production secret providers,
+public egress, durable live-effect recovery, palette publication and F04-T007 remain
+outside this subset.
+
 ## MVP Dev-loop subset (UI coordination)
 
 Phase 0 freezes the business-user Dev closed loop for parallel React work
