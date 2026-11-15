@@ -10,6 +10,7 @@ Program gate: NF-T003 and later implementation authorization are required before
   - [x] **RT-T01g** Freeze explicitly registered task completion destinations, exact-run update and permanent receipt contracts (ADR 0021).
   - [x] **RT-T01h** Freeze opt-in task-managed approval compilation/activity contracts and compatibility of existing manual plans (ADR 0022).
   - [ ] **RT-T01b** Freeze remaining control flow, checkpoint, event, webhook, schedule and full compatibility contracts.
+    - [x] **RT-T01i** Freeze schedule-start subset: IANA timezone, five-field cron, `allow`/`skip` overlap, occurrence idempotency and typed errors (ADR 0069; `durable_runtime/schedule_types.py`).
 - [ ] **RT-T02 [P]** Implement deterministic interpreter in `nexusflow/modules/05-durable-runtime/core/`. Prerequisite RT-T01. Maps RT-FR-02–04/06, RT-A1/A5/A7. Own no adapters/tests.
 - [ ] **RT-T03 [P]** Implement Temporal bridge, start adapters, deduplication, version binding, checkpoint and projections in `nexusflow/modules/05-durable-runtime/adapters/`. Prerequisite RT-T01; use frozen core fake until RT-T02 integration. Maps RT-FR-01/03–07, RT-A2–A6.
   - [x] **RT-T03a** Implement isolated SQLite start intent reservation, scoped input deduplication/conflicts, preflight and immutable release/configuration binding with retry recovery through required ports.
