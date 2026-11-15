@@ -91,8 +91,8 @@ honest live-tenant remaining work: [entra-pilot.md](entra-pilot.md).
    Approve or Reject → confirm the run completes on Release/status.
 
 Details for API-only demos remain in [local-development.md](local-development.md)
-and [mvp-dev-loop.md](mvp-dev-loop.md). Navigation is Sample / Projects / Release /
-Tasks in the React app (`web/src/App.tsx`).
+and [mvp-dev-loop.md](mvp-dev-loop.md). Navigation is Sample / Projects / Forms /
+Release / Tasks in the React app (`web/src/App.tsx`).
 
 ## Backup `.nexusflow-local`
 
