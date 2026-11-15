@@ -202,16 +202,18 @@ describe("workflow edit helpers", () => {
   it("inserts a decision with branch labels and approval_outcome route writeback", () => {
     const document = linear();
     const withDecision = insertDecisionStep(document, "manager")!;
-    const decision = withDecision.nodes.find((node) => node.kind === "decision")!;
+    const decision = withDecision.nodes.find(
+      (node) => node.kind === "decision",
+    )!;
     expect(decision.decisionRoute).toEqual({
       schema_version: "0.1",
       kind: "approval_outcome",
       source_node_id: "manager",
     });
     expect(
-      withDecision.edges.filter((edge) => edge.source === decision.id).map(
-        (edge) => edge.label,
-      ),
+      withDecision.edges
+        .filter((edge) => edge.source === decision.id)
+        .map((edge) => edge.label),
     ).toEqual(["approved", "rejected"]);
     const renamed = renameDecisionBranch(
       withDecision,

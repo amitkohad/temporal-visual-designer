@@ -99,9 +99,7 @@ def test_worker_authorization_grants_execute_in_dev_only():
     with pytest.raises(PermissionError):
         worker.authorize(SCOPE, "connection.manage", "api")
     with pytest.raises(ValueError):
-        LocalLiveHTTPWorkerAuthorization(
-            Scope(organization_id="local-demo", environment_id="prod")
-        )
+        LocalLiveHTTPWorkerAuthorization(Scope(organization_id="local-demo", environment_id="prod"))
 
 
 def test_secret_store_put_and_resolve_never_echo_tokens(tmp_path):

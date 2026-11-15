@@ -39,12 +39,14 @@ type Session = {
 };
 
 const failureMessages: Record<string, string> = {
-  invalid_request: "Check the organization, environment, token, and field values.",
+  invalid_request:
+    "Check the organization, environment, token, and field values.",
   unauthorized: "The token was rejected. Mint a fresh local-demo token.",
   forbidden:
     "This identity cannot manage connections. On local-demo run enable-mock-fixtures for the administrator grant.",
   not_found: "That connection revision or mock fixture was not found.",
-  conflict: "That revision already exists with different content. Use a new revision label.",
+  conflict:
+    "That revision already exists with different content. Use a new revision label.",
   unavailable:
     "The host is unavailable, or connection/email/mock providers are not enabled. Confirm serve --ui, enable-mock-fixtures, and email registry wiring.",
   invalid_response: "The host returned an unexpected response.",
@@ -70,7 +72,8 @@ function parseJsonObject(
     }
     return value as import("./project-api").JsonObject;
   } catch (error) {
-    if (error instanceof Error && error.message.includes("JSON object")) throw error;
+    if (error instanceof Error && error.message.includes("JSON object"))
+      throw error;
     throw new Error(`${label} must be valid JSON`);
   }
 }
@@ -87,7 +90,9 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
   const [connectionId, setConnectionId] = useState("hr-api");
   const [connectionRevision, setConnectionRevision] = useState("v1");
   const [baseOrigin, setBaseOrigin] = useState("https://api.example.com");
-  const [allowedOrigins, setAllowedOrigins] = useState("https://api.example.com");
+  const [allowedOrigins, setAllowedOrigins] = useState(
+    "https://api.example.com",
+  );
   const [secretReference, setSecretReference] = useState("");
   const [revisions, setRevisions] = useState<ConnectionMetadata[]>([]);
   const [fixtures, setFixtures] = useState<HTTPMockFixtureMetadata[]>([]);
@@ -109,9 +114,9 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
   const [allowedRecipientDomains, setAllowedRecipientDomains] =
     useState("example.test");
   const [emailSecretReference, setEmailSecretReference] = useState("");
-  const [emailRevisions, setEmailRevisions] = useState<EmailConnectionMetadata[]>(
-    [],
-  );
+  const [emailRevisions, setEmailRevisions] = useState<
+    EmailConnectionMetadata[]
+  >([]);
   const [selectedEmailConnection, setSelectedEmailConnection] =
     useState<EmailConnectionMetadata | null>(null);
   const [busy, setBusy] = useState(false);
@@ -263,11 +268,13 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
     setConnectionId(id);
     setConnectionRevision(revision);
     const match = revisions.find(
-      (item) => item.connection_id === id && item.connection_revision === revision,
+      (item) =>
+        item.connection_id === id && item.connection_revision === revision,
     );
     setSelectedConnection(match ?? null);
     const fixture = fixtures.find(
-      (item) => item.connection_id === id && item.connection_revision === revision,
+      (item) =>
+        item.connection_id === id && item.connection_revision === revision,
     );
     setSelectedFixture(fixture ?? null);
   }
@@ -278,7 +285,9 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
     if (!begin()) return;
     try {
       if (!isIdentifier(connectionId) || !isIdentifier(connectionRevision)) {
-        throw new Error("Connection ID and revision must be stable identifiers.");
+        throw new Error(
+          "Connection ID and revision must be stable identifiers.",
+        );
       }
       const originError = validateHttpsOrigin(baseOrigin.trim());
       if (originError) throw new Error(originError);
@@ -291,7 +300,9 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
         if (issue) throw new Error(issue);
       }
       if (secretReference.trim() && !isIdentifier(secretReference.trim())) {
-        throw new Error("Secret reference must be an opaque identifier label, not a credential.");
+        throw new Error(
+          "Secret reference must be an opaque identifier label, not a credential.",
+        );
       }
       const body = createConnectionWrite(
         baseOrigin,
@@ -349,15 +360,10 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
         );
       }
       const port = Number(smtpPort);
-      const body = createEmailConnectionWrite(
-        smtpHost,
-        emailSender,
-        domains,
-        {
-          port: Number.isFinite(port) ? port : 465,
-          secretReference: emailSecretReference.trim() || undefined,
-        },
-      );
+      const body = createEmailConnectionWrite(smtpHost, emailSender, domains, {
+        port: Number.isFinite(port) ? port : 465,
+        secretReference: emailSecretReference.trim() || undefined,
+      });
       const issue = validateEmailConnectionWrite(body);
       if (issue) throw new Error(issue);
       const metadata = await session.client.putEmailConnection(
@@ -524,8 +530,8 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
       </header>
       <p className="nf-connections-boundary">
         Register Dev HTTP connection revisions, email SMTP connection metadata,
-        and author JSON mock fixtures through existing admin APIs. Email metadata
-        registration is available here; live send needs{" "}
+        and author JSON mock fixtures through existing admin APIs. Email
+        metadata registration is available here; live send needs{" "}
         <code>enable-live-email</code> + <code>put-smtp-secret</code> and is not
         production SMTP. Mocks are digest-pinned fixtures for local testing —
         they are not live SMTP, public egress, or production providers. This UI
@@ -582,7 +588,10 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
       )}
       {session && (
         <div className="nf-connections-layout">
-          <aside className="nf-connections-stack" aria-label="Known connections">
+          <aside
+            className="nf-connections-stack"
+            aria-label="Known connections"
+          >
             <section className="nf-connections-panel">
               <h2>Connection picker</h2>
               <ConnectionPicker
@@ -593,7 +602,11 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
                 disabled={busy}
               />
               <div className="nf-connections-actions">
-                <button type="button" disabled={busy} onClick={() => void loadSelected()}>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void loadSelected()}
+                >
                   Refresh
                 </button>
               </div>
@@ -601,7 +614,10 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
             <section className="nf-connections-panel">
               <h2>Dev mock fixtures</h2>
               {fixtures.length === 0 ? (
-                <p>No fixtures listed yet. Save a mock after registering a connection.</p>
+                <p>
+                  No fixtures listed yet. Save a mock after registering a
+                  connection.
+                </p>
               ) : (
                 <ul className="nf-connections-list">
                   {fixtures.map((item) => {
@@ -609,7 +625,9 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
                       item.connection_id === connectionId &&
                       item.connection_revision === connectionRevision;
                     return (
-                      <li key={`${item.connection_id}/${item.connection_revision}`}>
+                      <li
+                        key={`${item.connection_id}/${item.connection_revision}`}
+                      >
                         <button
                           type="button"
                           aria-current={current ? "true" : undefined}
@@ -695,7 +713,9 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
                   onChange={(event) => setAllowedOrigins(event.target.value)}
                   spellCheck={false}
                 />
-                <label htmlFor="conn-secret-ref">Secret reference (optional label)</label>
+                <label htmlFor="conn-secret-ref">
+                  Secret reference (optional label)
+                </label>
                 <input
                   id="conn-secret-ref"
                   value={secretReference}
@@ -725,13 +745,16 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
                 </div>
               )}
             </form>
-            <form className="nf-connections-panel" onSubmit={saveEmailConnection}>
+            <form
+              className="nf-connections-panel"
+              onSubmit={saveEmailConnection}
+            >
               <h2>Register email SMTP connection</h2>
               <p>
-                Metadata-only SMTP TLS registry. Host, sender, recipient domains,
-                and secret reference labels are never returned by GET; only
-                digests and flags are public. This form does not dial SMTP or
-                send mail.
+                Metadata-only SMTP TLS registry. Host, sender, recipient
+                domains, and secret reference labels are never returned by GET;
+                only digests and flags are public. This form does not dial SMTP
+                or send mail.
               </p>
               <fieldset disabled={busy}>
                 <label htmlFor="email-conn-id">Email connection ID</label>
@@ -839,7 +862,9 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
                 <select
                   id="mock-method"
                   value={method}
-                  onChange={(event) => setMethod(event.target.value as HttpMethod)}
+                  onChange={(event) =>
+                    setMethod(event.target.value as HttpMethod)
+                  }
                 >
                   {(
                     [
@@ -873,7 +898,9 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
                   inputMode="numeric"
                   autoComplete="off"
                 />
-                <label htmlFor="mock-request-json">Request JSON (optional)</label>
+                <label htmlFor="mock-request-json">
+                  Request JSON (optional)
+                </label>
                 <textarea
                   id="mock-request-json"
                   className="nf-connections-json"
@@ -881,7 +908,9 @@ export default function Connections({ onClose, connection }: ConnectionsProps) {
                   onChange={(event) => setRequestJson(event.target.value)}
                   spellCheck={false}
                 />
-                <label htmlFor="mock-response-json">Response JSON (optional)</label>
+                <label htmlFor="mock-response-json">
+                  Response JSON (optional)
+                </label>
                 <textarea
                   id="mock-response-json"
                   className="nf-connections-json"

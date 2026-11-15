@@ -163,7 +163,10 @@ export default function ReleaseControls({
     activation.release_id !== null &&
     activation.revision >= 1;
 
-  async function run<T>(label: string, work: () => Promise<T>): Promise<T | null> {
+  async function run<T>(
+    label: string,
+    work: () => Promise<T>,
+  ): Promise<T | null> {
     setBusy(true);
     setError("");
     setNotice("");
@@ -314,7 +317,9 @@ export default function ReleaseControls({
         </div>
         <div>
           <dt>Status</dt>
-          <dd>{status ? statusSummary(status) : executionId ? "polling…" : "—"}</dd>
+          <dd>
+            {status ? statusSummary(status) : executionId ? "polling…" : "—"}
+          </dd>
         </div>
       </dl>
 
@@ -357,7 +362,9 @@ declare global {
 }
 
 const e2eProps =
-  typeof window !== "undefined" ? window.__NEXUS_RELEASE_CONTROLS_E2E__ : undefined;
+  typeof window !== "undefined"
+    ? window.__NEXUS_RELEASE_CONTROLS_E2E__
+    : undefined;
 const e2eRoot =
   typeof document !== "undefined" ? document.getElementById("root") : null;
 if (e2eProps && e2eRoot && !e2eRoot.dataset.releaseControlsMounted) {

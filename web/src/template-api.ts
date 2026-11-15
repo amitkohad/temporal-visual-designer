@@ -61,19 +61,25 @@ export type TemplateInputField = {
   required: boolean;
 };
 
-export function templateInputFields(
-  schema: JsonObject,
-): TemplateInputField[] {
-  if (!isObject(schema) || schema.type !== "object" || !isObject(schema.properties))
+export function templateInputFields(schema: JsonObject): TemplateInputField[] {
+  if (
+    !isObject(schema) ||
+    schema.type !== "object" ||
+    !isObject(schema.properties)
+  )
     return [];
   const required = new Set(
     Array.isArray(schema.required)
-      ? schema.required.filter((item): item is string => typeof item === "string")
+      ? schema.required.filter(
+          (item): item is string => typeof item === "string",
+        )
       : [],
   );
   return Object.entries(schema.properties).map(([name, value]) => {
     const type =
-      isObject(value) && typeof value.type === "string" ? value.type : "unknown";
+      isObject(value) && typeof value.type === "string"
+        ? value.type
+        : "unknown";
     return { name, type, required: required.has(name) };
   });
 }

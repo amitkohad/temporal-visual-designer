@@ -103,7 +103,9 @@ describe("ReleaseControls critical path", () => {
       />,
     );
 
-    await waitFor(() => expect(client.getActivation).toHaveBeenCalledWith("hr"));
+    await waitFor(() =>
+      expect(client.getActivation).toHaveBeenCalledWith("hr"),
+    );
 
     await user.click(screen.getByRole("button", { name: "Publish release" }));
     await waitFor(() =>
