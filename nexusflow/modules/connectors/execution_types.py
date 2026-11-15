@@ -19,6 +19,20 @@ class CredentialFreeDestinationPlanner(Protocol):
     ) -> None: ...
 
 
+class AuthorizedDestinationPlanner(Protocol):
+    async def prepare_authorized(
+        self, scope: Scope, request: HTTPDestinationRequest
+    ) -> tuple[ApprovedHTTPDestination, object | None]: ...
+
+    def revalidate_authorized(
+        self,
+        scope: Scope,
+        request: HTTPDestinationRequest,
+        approved: ApprovedHTTPDestination,
+        credential: object | None,
+    ) -> object | None: ...
+
+
 HTTPExecutionErrorCode = Literal[
     "invalid_request",
     "forbidden",

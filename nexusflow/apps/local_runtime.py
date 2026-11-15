@@ -150,15 +150,21 @@ async def local_runtime(
     temporal_executable: str | None = None,
     port: int = 7233,
     task_profile: LocalTaskProfile | None = None,
+    live_http_activities: list | None = None,
 ) -> AsyncIterator[TemporalRuntimeGateway]:
     """Run a persistent local server; installation lock must be held by caller.
 
     The optional synthetic task profile registers managed approval creation and
-    owns completion delivery. No custom Python activities are executed.
+    owns completion delivery. Optional live HTTP activities own
+    ``nexusflow.proof.dispatch`` when provided. No custom Python sandbox is used.
     """
     _validate(placement, port)
     executable = _executable(temporal_executable)
     directory = directory.resolve()
+    if live_http_activities is not None and (
+        type(live_http_activities) is not list or len(live_http_activities) > 8
+    ):
+        raise ValueError("Local live HTTP activities must be an explicit list")
     if task_profile is not None:
         settings = load_settings(directory)
         if (
@@ -200,12 +206,10 @@ async def local_runtime(
                     )
                 return client
 
-            if task_profile is None:
-                async with Worker(
-                    client, task_queue=placement.task_queue, workflows=[ProofWorkflow]
-                ):
-                    yield TemporalRuntimeGateway(clients, journal)
-            else:
+            registered: list = list(live_http_activities or [])
+            creation = None
+            dispatcher = None
+            if task_profile is not None:
                 tasks = TaskService(
                     directory / task_profile.tasks_database,
                     LocalTaskWorkerAuthorization(placement.scope),
@@ -215,16 +219,21 @@ async def local_runtime(
                 completions = SQLiteCompletionJournal(directory / task_profile.completion_database)
                 resources.callback(completions.close)
                 creation = TaskCreationActivities(tasks, completions, client, placement.scope)
+                registered.append(creation.create)
                 dispatcher = CompletionDispatcher(
                     tasks,
                     placement.scope,
                     TemporalCompletionSink(client, completions, placement.scope),
                 )
-                async with Worker(
-                    client,
-                    task_queue=placement.task_queue,
-                    workflows=[ProofWorkflow],
-                    activities=[creation.create],
-                ):
+            worker_options: dict = {
+                "task_queue": placement.task_queue,
+                "workflows": [ProofWorkflow],
+            }
+            if registered:
+                worker_options["activities"] = registered
+            async with Worker(client, **worker_options):
+                if dispatcher is None:
+                    yield TemporalRuntimeGateway(clients, journal)
+                else:
                     async with run_completion_dispatcher(dispatcher):
                         yield TemporalRuntimeGateway(clients, journal)

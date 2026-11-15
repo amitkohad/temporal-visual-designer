@@ -14,10 +14,13 @@ from typing import BinaryIO
 import uvicorn
 
 from nexusflow.apps.api import create_app
+from nexusflow.apps.live_http_worker import open_live_http_activities
 from nexusflow.apps.local_bootstrap import initialize, issue_token, load_settings, open_backend
 from nexusflow.apps.local_debug import enable_debugger, load_debug_profile
+from nexusflow.apps.local_live_http import enable_live_http, load_live_http_profile
 from nexusflow.apps.local_mocks import enable_mock_fixtures, load_mock_fixture_profile
 from nexusflow.apps.local_runtime import local_runtime
+from nexusflow.apps.local_secrets import LocalSecretStore
 from nexusflow.apps.local_tasks import enable_tasks, load_task_profile
 from nexusflow.apps.local_ui import (
     PilotUiError,
@@ -96,7 +99,8 @@ async def serve_local(
         settings = load_settings(directory)
         task_profile = load_task_profile(directory, settings)
         load_debug_profile(directory, settings)
-        load_mock_fixture_profile(directory, settings)
+        mock_profile = load_mock_fixture_profile(directory, settings)
+        live_http_profile = load_live_http_profile(directory, settings)
         identity = SQLiteIdentityRepository(directory / "identity.db")
         try:
             placement = next(
@@ -125,60 +129,81 @@ async def serve_local(
                 listener.setblocking(False)
             except OSError:
                 raise LocalCommandError("The local API port is unavailable") from None
-            async with local_runtime(
-                directory,
-                placement,
-                temporal_executable=temporal_executable,
-                port=temporal_port,
-                task_profile=task_profile,
-            ) as gateway:
-                with open_backend(directory, gateway) as backend:
-                    application = create_app(backend)
-                    if ui_root is not None:
-                        attach_pilot_ui(application, ui_root)
-                    server = uvicorn.Server(
-                        uvicorn.Config(
-                            application,
-                            host="127.0.0.1",
-                            port=api_port,
-                            access_log=False,
-                            log_level="warning",
-                            proxy_headers=False,
-                            server_header=False,
+
+            async def run_gateway(live_http_activities: list | None = None) -> None:
+                async with local_runtime(
+                    directory,
+                    placement,
+                    temporal_executable=temporal_executable,
+                    port=temporal_port,
+                    task_profile=task_profile,
+                    live_http_activities=live_http_activities,
+                ) as gateway:
+                    with open_backend(directory, gateway) as backend:
+                        application = create_app(backend)
+                        if ui_root is not None:
+                            attach_pilot_ui(application, ui_root)
+                        server = uvicorn.Server(
+                            uvicorn.Config(
+                                application,
+                                host="127.0.0.1",
+                                port=api_port,
+                                access_log=False,
+                                log_level="warning",
+                                proxy_headers=False,
+                                server_header=False,
+                            )
                         )
-                    )
 
-                    async def watch_stop() -> None:
-                        while not server.should_exit:
-                            if stop_request.exists():
-                                try:
-                                    requested = stop_request.read_text(encoding="utf-8")
-                                except OSError:
-                                    requested = ""
-                                if requested == settings.installation_id:
-                                    stop_request.unlink(missing_ok=True)
-                                    server.should_exit = True
-                                    return
-                            await asyncio.sleep(0.1)
+                        async def watch_stop() -> None:
+                            while not server.should_exit:
+                                if stop_request.exists():
+                                    try:
+                                        requested = stop_request.read_text(encoding="utf-8")
+                                    except OSError:
+                                        requested = ""
+                                    if requested == settings.installation_id:
+                                        stop_request.unlink(missing_ok=True)
+                                        server.should_exit = True
+                                        return
+                                await asyncio.sleep(0.1)
 
-                    watcher = asyncio.create_task(watch_stop())
-                    startup = {
-                        "profile": "local-demo",
-                        "url": f"http://127.0.0.1:{api_port}",
-                        "organization_id": settings.organization_id,
-                        "environment_id": "dev",
-                        "state_directory": str(directory),
-                    }
-                    if ui_root is not None:
-                        startup["ui"] = "same-origin"
-                        startup["ui_directory"] = str(ui_root)
-                    print(json.dumps(startup), flush=True)
-                    try:
-                        await server.serve(sockets=[listener])
-                    finally:
-                        watcher.cancel()
-                        with suppress(asyncio.CancelledError):
-                            await watcher
+                        watcher = asyncio.create_task(watch_stop())
+                        startup = {
+                            "profile": "local-demo",
+                            "url": f"http://127.0.0.1:{api_port}",
+                            "organization_id": settings.organization_id,
+                            "environment_id": "dev",
+                            "state_directory": str(directory),
+                        }
+                        if ui_root is not None:
+                            startup["ui"] = "same-origin"
+                            startup["ui_directory"] = str(ui_root)
+                        print(json.dumps(startup), flush=True)
+                        try:
+                            await server.serve(sockets=[listener])
+                        finally:
+                            watcher.cancel()
+                            with suppress(asyncio.CancelledError):
+                                await watcher
+
+            if live_http_profile is None:
+                await run_gateway()
+            else:
+                mock_database = (
+                    None
+                    if mock_profile is None
+                    else directory / mock_profile.fixtures_database
+                )
+                with open_live_http_activities(
+                    directory,
+                    live_http_profile.scope,
+                    placement.temporal_namespace,
+                    placement.task_queue,
+                    secrets_file=live_http_profile.secrets_file,
+                    mock_fixtures_database=mock_database,
+                ) as activities:
+                    await run_gateway([activities.dispatch])
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -189,6 +214,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "enable-tasks",
         "enable-debugger",
         "enable-mock-fixtures",
+        "enable-live-http",
+        "put-secret",
         "token",
         "serve",
         "stop",
@@ -197,6 +224,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         command.add_argument("--state-dir", type=Path, default=Path(".nexusflow-local"))
         if name == "token":
             command.add_argument("--lifetime-seconds", type=int, default=3600)
+        if name == "put-secret":
+            command.add_argument("--reference", required=True)
+            command.add_argument("--bearer-token", required=True)
         if name == "serve":
             command.add_argument("--api-port", type=_port, default=8000)
             command.add_argument("--temporal-port", type=_port, default=7233)
@@ -264,6 +294,39 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "administrator_role": "organization_administrator",
                         "organization_id": mock_profile.scope.organization_id,
                         "environment_id": mock_profile.scope.environment_id,
+                    }
+                )
+            )
+        elif args.command == "enable-live-http":
+            with installation_lock(directory):
+                live_profile = enable_live_http(directory)
+            print(
+                json.dumps(
+                    {
+                        "profile": "local-demo",
+                        "live_http": "enabled",
+                        "organization_id": live_profile.scope.organization_id,
+                        "environment_id": live_profile.scope.environment_id,
+                    }
+                )
+            )
+        elif args.command == "put-secret":
+            with installation_lock(directory):
+                settings = load_settings(directory)
+                live_profile = load_live_http_profile(directory, settings)
+                if live_profile is None:
+                    raise LocalCommandError(
+                        "Enable live HTTP before storing local secret references"
+                    )
+                LocalSecretStore(
+                    directory / live_profile.secrets_file, live_profile.scope
+                ).put(args.reference, scheme="Bearer", token=args.bearer_token)
+            print(
+                json.dumps(
+                    {
+                        "profile": "local-demo",
+                        "secret_reference": args.reference,
+                        "scheme": "Bearer",
                     }
                 )
             )
