@@ -14,9 +14,12 @@ from typing import BinaryIO
 import uvicorn
 
 from nexusflow.apps.api import create_app
+from nexusflow.apps.live_email_worker import open_live_email_activities
 from nexusflow.apps.live_http_worker import open_live_http_activities
 from nexusflow.apps.local_bootstrap import initialize, issue_token, load_settings, open_backend
 from nexusflow.apps.local_debug import enable_debugger, load_debug_profile
+from nexusflow.apps.local_email_secrets import LocalEmailSecretStore
+from nexusflow.apps.local_live_email import enable_live_email, load_live_email_profile
 from nexusflow.apps.local_live_http import enable_live_http, load_live_http_profile
 from nexusflow.apps.local_mocks import enable_mock_fixtures, load_mock_fixture_profile
 from nexusflow.apps.local_runtime import local_runtime
@@ -28,6 +31,7 @@ from nexusflow.apps.local_ui import (
     require_ui_directory,
     resolve_ui_directory,
 )
+from nexusflow.modules.connectors.proof_dispatch import CombinedProofDispatch
 from nexusflow.modules.identity_environments.repository import SQLiteIdentityRepository
 
 
@@ -101,6 +105,7 @@ async def serve_local(
         load_debug_profile(directory, settings)
         mock_profile = load_mock_fixture_profile(directory, settings)
         live_http_profile = load_live_http_profile(directory, settings)
+        live_email_profile = load_live_email_profile(directory, settings)
         identity = SQLiteIdentityRepository(directory / "identity.db")
         try:
             placement = next(
@@ -187,21 +192,48 @@ async def serve_local(
                             with suppress(asyncio.CancelledError):
                                 await watcher
 
-            if live_http_profile is None:
+            if live_http_profile is None and live_email_profile is None:
                 await run_gateway()
             else:
                 mock_database = (
                     None if mock_profile is None else directory / mock_profile.fixtures_database
                 )
-                with open_live_http_activities(
-                    directory,
-                    live_http_profile.scope,
-                    placement.temporal_namespace,
-                    placement.task_queue,
-                    secrets_file=live_http_profile.secrets_file,
-                    mock_fixtures_database=mock_database,
-                ) as activities:
-                    await run_gateway([activities.dispatch])
+                from contextlib import ExitStack
+
+                with ExitStack() as stack:
+                    http_activities = None
+                    email_activities = None
+                    if live_http_profile is not None:
+                        http_activities = stack.enter_context(
+                            open_live_http_activities(
+                                directory,
+                                live_http_profile.scope,
+                                placement.temporal_namespace,
+                                placement.task_queue,
+                                secrets_file=live_http_profile.secrets_file,
+                                mock_fixtures_database=mock_database,
+                            )
+                        )
+                    if live_email_profile is not None:
+                        email_activities = stack.enter_context(
+                            open_live_email_activities(
+                                directory,
+                                live_email_profile.scope,
+                                placement.temporal_namespace,
+                                placement.task_queue,
+                                secrets_file=live_email_profile.secrets_file,
+                            )
+                        )
+                    if http_activities is not None and email_activities is not None:
+                        dispatch = CombinedProofDispatch(
+                            http=http_activities, email=email_activities
+                        ).dispatch
+                    elif http_activities is not None:
+                        dispatch = http_activities.dispatch
+                    else:
+                        assert email_activities is not None
+                        dispatch = email_activities.dispatch
+                    await run_gateway([dispatch])
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -213,7 +245,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "enable-debugger",
         "enable-mock-fixtures",
         "enable-live-http",
+        "enable-live-email",
         "put-secret",
+        "put-smtp-secret",
         "token",
         "serve",
         "stop",
@@ -225,6 +259,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         if name == "put-secret":
             command.add_argument("--reference", required=True)
             command.add_argument("--bearer-token", required=True)
+        if name == "put-smtp-secret":
+            command.add_argument("--reference", required=True)
+            command.add_argument("--username", required=True)
+            command.add_argument("--password", required=True)
         if name == "serve":
             command.add_argument("--api-port", type=_port, default=8000)
             command.add_argument("--temporal-port", type=_port, default=7233)
@@ -308,6 +346,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                     }
                 )
             )
+        elif args.command == "enable-live-email":
+            with installation_lock(directory):
+                live_profile = enable_live_email(directory)
+            print(
+                json.dumps(
+                    {
+                        "profile": "local-demo",
+                        "live_email": "enabled",
+                        "organization_id": live_profile.scope.organization_id,
+                        "environment_id": live_profile.scope.environment_id,
+                    }
+                )
+            )
         elif args.command == "put-secret":
             with installation_lock(directory):
                 settings = load_settings(directory)
@@ -325,6 +376,31 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "profile": "local-demo",
                         "secret_reference": args.reference,
                         "scheme": "Bearer",
+                    }
+                )
+            )
+        elif args.command == "put-smtp-secret":
+            with installation_lock(directory):
+                settings = load_settings(directory)
+                live_profile = load_live_email_profile(directory, settings)
+                if live_profile is None:
+                    raise LocalCommandError(
+                        "Enable live email before storing local SMTP secret references"
+                    )
+                LocalEmailSecretStore(
+                    directory / live_profile.secrets_file, live_profile.scope
+                ).put(
+                    args.reference,
+                    scheme="login",
+                    username=args.username,
+                    password=args.password,
+                )
+            print(
+                json.dumps(
+                    {
+                        "profile": "local-demo",
+                        "secret_reference": args.reference,
+                        "scheme": "login",
                     }
                 )
             )

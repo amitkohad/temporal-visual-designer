@@ -251,6 +251,9 @@ def _backend(
     from nexusflow.apps.local_debug import load_debug_profile
     from nexusflow.apps.local_mocks import load_mock_fixture_profile
     from nexusflow.apps.local_tasks import LocalTaskAssignments, LocalTaskFields, load_task_profile
+    from nexusflow.modules.connectors.email_connection_repository import (
+        SQLiteEmailConnectionRepository,
+    )
     from nexusflow.modules.connectors.mock_repository import SQLiteHTTPMockScenarios
     from nexusflow.modules.connectors.repository import SQLiteConnectionRepository
     from nexusflow.modules.designer_debugger.repository import SQLiteDebugSessionRepository
@@ -276,6 +279,8 @@ def _backend(
         stack.callback(starts.close)
         connections = SQLiteConnectionRepository(directory / "connections.db")
         stack.callback(connections.close)
+        email_connections = SQLiteEmailConnectionRepository(directory / "email-connections.db")
+        stack.callback(email_connections.close)
         debug_sessions = None
         debug_runtime = None
         if debug_profile is not None:
@@ -320,6 +325,7 @@ def _backend(
             debug_sessions=debug_sessions,
             debug_runtime=debug_runtime,
             connections=connections,
+            email_connections=email_connections,
             mock_fixtures=mock_fixtures,
             mock_fixture_dev_scopes=(mock_profile.scope,) if mock_profile else (),
             browser_auth=browser_auth,

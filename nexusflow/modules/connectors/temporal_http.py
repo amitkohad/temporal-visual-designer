@@ -129,8 +129,8 @@ class HTTPJSONActivities:
         except Exception:
             raise _InvalidOutput from None
 
-    @activity.defn(name="nexusflow.proof.dispatch")
-    async def dispatch(self, call: ActivityCall) -> str:
+    async def run(self, call: ActivityCall) -> str:
+        """Shared dispatch body usable from a combined proof-dispatch owner."""
         task = asyncio.current_task()
         cancellation_count = task.cancelling() if task is not None else 0
         try:
@@ -182,3 +182,7 @@ class HTTPJSONActivities:
             raise self._error(error.code) from None
         except Exception:
             raise self._error("unavailable") from None
+
+    @activity.defn(name="nexusflow.proof.dispatch")
+    async def dispatch(self, call: ActivityCall) -> str:
+        return await self.run(call)
