@@ -23,6 +23,7 @@ from nexusflow.apps.local_live_email import enable_live_email, load_live_email_p
 from nexusflow.apps.local_live_http import enable_live_http, load_live_http_profile
 from nexusflow.apps.local_mocks import enable_mock_fixtures, load_mock_fixture_profile
 from nexusflow.apps.local_runtime import local_runtime
+from nexusflow.apps.local_schedules import enable_schedules, load_schedule_profile
 from nexusflow.apps.local_secrets import LocalSecretStore
 from nexusflow.apps.local_tasks import enable_tasks, load_task_profile
 from nexusflow.apps.local_ui import (
@@ -104,6 +105,7 @@ async def serve_local(
         task_profile = load_task_profile(directory, settings)
         load_debug_profile(directory, settings)
         mock_profile = load_mock_fixture_profile(directory, settings)
+        schedule_profile = load_schedule_profile(directory, settings)
         live_http_profile = load_live_http_profile(directory, settings)
         live_email_profile = load_live_email_profile(directory, settings)
         identity = SQLiteIdentityRepository(directory / "identity.db")
@@ -174,6 +176,38 @@ async def serve_local(
                                 await asyncio.sleep(0.1)
 
                         watcher = asyncio.create_task(watch_stop())
+                        schedule_task = None
+                        if schedule_profile is not None and backend.schedules is not None:
+                            from nexusflow.apps.api_backend import PlacedStartDispatcher
+                            from nexusflow.apps.local_schedules import (
+                                LocalScheduleFireAuthorization,
+                            )
+                            from nexusflow.modules.durable_runtime.schedules import (
+                                AsyncScheduleService,
+                                UtcClock,
+                                run_schedule_poller,
+                            )
+                            from nexusflow.modules.durable_runtime.starts import AsyncStartService
+                            from nexusflow.modules.package_promotion.service import (
+                                ActivatedReleaseResolver,
+                            )
+
+                            fire_auth = LocalScheduleFireAuthorization(schedule_profile.scope)
+                            fire = AsyncScheduleService(
+                                backend.schedules,
+                                fire_auth,
+                                AsyncStartService(
+                                    backend.starts,
+                                    fire_auth,
+                                    ActivatedReleaseResolver(backend.activations),
+                                    PlacedStartDispatcher(backend.runtime, placement),
+                                ),
+                                backend.starts,
+                                UtcClock(),
+                            )
+                            schedule_task = asyncio.create_task(
+                                run_schedule_poller(fire, schedule_profile.scope)
+                            )
                         startup = {
                             "profile": "local-demo",
                             "url": f"http://127.0.0.1:{api_port}",
@@ -181,6 +215,8 @@ async def serve_local(
                             "environment_id": "dev",
                             "state_directory": str(directory),
                         }
+                        if schedule_profile is not None:
+                            startup["schedules"] = "enabled"
                         if ui_root is not None:
                             startup["ui"] = "same-origin"
                             startup["ui_directory"] = str(ui_root)
@@ -191,6 +227,10 @@ async def serve_local(
                             watcher.cancel()
                             with suppress(asyncio.CancelledError):
                                 await watcher
+                            if schedule_task is not None:
+                                schedule_task.cancel()
+                                with suppress(asyncio.CancelledError):
+                                    await schedule_task
 
             if live_http_profile is None and live_email_profile is None:
                 await run_gateway()
@@ -246,6 +286,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "enable-mock-fixtures",
         "enable-live-http",
         "enable-live-email",
+        "enable-schedules",
         "put-secret",
         "put-smtp-secret",
         "token",
@@ -356,6 +397,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "live_email": "enabled",
                         "organization_id": live_profile.scope.organization_id,
                         "environment_id": live_profile.scope.environment_id,
+                    }
+                )
+            )
+        elif args.command == "enable-schedules":
+            with installation_lock(directory):
+                schedule_profile = enable_schedules(directory)
+            print(
+                json.dumps(
+                    {
+                        "profile": "local-demo",
+                        "schedules": "enabled",
+                        "organization_id": schedule_profile.scope.organization_id,
+                        "environment_id": schedule_profile.scope.environment_id,
                     }
                 )
             )

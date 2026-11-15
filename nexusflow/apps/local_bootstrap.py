@@ -247,9 +247,11 @@ def _backend(
     tasks_enabled: bool = False,
     debug_enabled: bool = False,
     mock_fixtures_enabled: bool = False,
+    schedules_enabled: bool = False,
 ) -> Iterator[ApiBackend]:
     from nexusflow.apps.local_debug import load_debug_profile
     from nexusflow.apps.local_mocks import load_mock_fixture_profile
+    from nexusflow.apps.local_schedules import load_schedule_profile
     from nexusflow.apps.local_tasks import LocalTaskAssignments, LocalTaskFields, load_task_profile
     from nexusflow.modules.connectors.email_connection_repository import (
         SQLiteEmailConnectionRepository,
@@ -258,10 +260,12 @@ def _backend(
     from nexusflow.modules.connectors.repository import SQLiteConnectionRepository
     from nexusflow.modules.designer_debugger.repository import SQLiteDebugSessionRepository
     from nexusflow.modules.designer_debugger.temporal import TemporalDebugRuntime
+    from nexusflow.modules.durable_runtime.schedules import SQLiteScheduleRepository
 
     profile = load_task_profile(directory, settings) if tasks_enabled else None
     debug_profile = load_debug_profile(directory, settings) if debug_enabled else None
     mock_profile = load_mock_fixture_profile(directory, settings) if mock_fixtures_enabled else None
+    schedule_profile = load_schedule_profile(directory, settings) if schedules_enabled else None
     if debug_profile is not None and not isinstance(runtime, TemporalRuntimeGateway):
         raise ValueError("Local debugger requires the owned Temporal runtime")
     with ExitStack() as stack:
@@ -281,6 +285,10 @@ def _backend(
         stack.callback(connections.close)
         email_connections = SQLiteEmailConnectionRepository(directory / "email-connections.db")
         stack.callback(email_connections.close)
+        schedules = None
+        if schedule_profile is not None:
+            schedules = SQLiteScheduleRepository(directory / schedule_profile.schedules_database)
+            stack.callback(schedules.close)
         debug_sessions = None
         debug_runtime = None
         if debug_profile is not None:
@@ -329,6 +337,7 @@ def _backend(
             mock_fixtures=mock_fixtures,
             mock_fixture_dev_scopes=(mock_profile.scope,) if mock_profile else (),
             browser_auth=browser_auth,
+            schedules=schedules,
         )
 
 
@@ -342,6 +351,7 @@ def open_backend(directory: Path, runtime: RuntimeGateway) -> Iterator[ApiBacken
         tasks_enabled=True,
         debug_enabled=True,
         mock_fixtures_enabled=True,
+        schedules_enabled=True,
     ) as backend:
         yield backend
 

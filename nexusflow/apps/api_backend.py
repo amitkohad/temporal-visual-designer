@@ -29,6 +29,12 @@ from nexusflow.modules.designer_debugger.repository import SQLiteDebugSessionRep
 from nexusflow.modules.designer_debugger.service import DebugSessionService
 from nexusflow.modules.designer_debugger.types import DebugError, DebugRuntime
 from nexusflow.modules.designer_forms.validation import AuthoringValidator
+from nexusflow.modules.durable_runtime.schedule_types import ScheduleError
+from nexusflow.modules.durable_runtime.schedules import (
+    ScheduleAdmin,
+    SQLiteScheduleRepository,
+    UtcClock,
+)
 from nexusflow.modules.durable_runtime.starts import AsyncStartDispatcher, SQLiteStartRepository
 from nexusflow.modules.durable_runtime.temporal_starts import (
     SQLiteDispatchJournal,
@@ -138,6 +144,14 @@ class RequestTaskAuthorization:
         )
 
 
+class _ScheduleStartAuth:
+    def __init__(self, authorization: RequestAuthorization) -> None:
+        self.authorization = authorization
+
+    def authorize(self, scope: Scope, project_id: str) -> None:
+        self.authorization.authorize(scope, "run.start", project_id)
+
+
 @dataclass(frozen=True)
 class ApiBackend:
     identity: IdentityService
@@ -160,9 +174,17 @@ class ApiBackend:
     mock_fixture_dev_scopes: tuple[Scope, ...] = ()
     email_connections: EmailConnectionRepository | None = None
     browser_auth: BrowserAuthPublicConfig | None = None
+    schedules: SQLiteScheduleRepository | None = None
 
     def public_browser_auth(self) -> BrowserAuthPublicConfig:
         return self.browser_auth if self.browser_auth is not None else disabled_browser_auth()
+
+    def schedule_admin(self, authorization: RequestAuthorization, scope: Scope) -> ScheduleAdmin:
+        if self.schedules is None:
+            raise ScheduleError("unavailable", "Schedule provider is not configured")
+        return ScheduleAdmin(
+            self.schedules, _ScheduleStartAuth(authorization), self.starts, UtcClock()
+        )
 
     def email_connection_service(
         self, authorization: RequestAuthorization, scope: Scope

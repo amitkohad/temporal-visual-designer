@@ -10,6 +10,7 @@ Program gate: NF-T003 and later implementation authorization are required before
   - [x] **RT-T01g** Freeze explicitly registered task completion destinations, exact-run update and permanent receipt contracts (ADR 0021).
   - [x] **RT-T01h** Freeze opt-in task-managed approval compilation/activity contracts and compatibility of existing manual plans (ADR 0022).
   - [ ] **RT-T01b** Freeze remaining control flow, checkpoint, event, webhook, schedule and full compatibility contracts.
+    - [x] **RT-T01i** Freeze schedule-start subset: IANA timezone, five-field cron, `allow`/`skip` overlap, occurrence idempotency and typed errors (ADR 0069; `durable_runtime/schedule_types.py`).
 - [ ] **RT-T02 [P]** Implement deterministic interpreter in `nexusflow/modules/05-durable-runtime/core/`. Prerequisite RT-T01. Maps RT-FR-02–04/06, RT-A1/A5/A7. Own no adapters/tests.
 - [ ] **RT-T03 [P]** Implement Temporal bridge, start adapters, deduplication, version binding, checkpoint and projections in `nexusflow/modules/05-durable-runtime/adapters/`. Prerequisite RT-T01; use frozen core fake until RT-T02 integration. Maps RT-FR-01/03–07, RT-A2–A6.
   - [x] **RT-T03a** Implement isolated SQLite start intent reservation, scoped input deduplication/conflicts, preflight and immutable release/configuration binding with retry recovery through required ports.
@@ -25,6 +26,7 @@ Program gate: NF-T003 and later implementation authorization are required before
   - [x] **RT-T03l** Compose the existing durable sequential debug gates through opt-in exact-run session/query/control adapters, preserving old start fingerprints and workflow commands ([evidence](../../implementation-designer-debug-sessions.md)).
   - [x] **RT-T03m** Compose the exact-run debugger adapter with the existing owned local worker/client/journal and verify full paused-launcher restart without changing normal start/workflow semantics ([evidence](../../implementation-local-debugger.md)).
   - [ ] **RT-T03b** Implement actual Temporal/identity/activation adapters, automatic recovery orchestration, webhook/form/schedule starts, checkpoints and projections.
+    - [x] **RT-T03n** Implement schedule-start adapter subset: SQLite create/list/disable, due-fire into durable starts with `source=schedule`, allow/skip overlap, restart-safe occurrence keys, `enable-schedules` + signed HTTP ([evidence](../../implementation-schedule-starts.md)).
 - [ ] **RT-T04 [P]** Author independent contract/acceptance/replay fixtures in `nexusflow/modules/05-durable-runtime/tests/`. Prerequisite RT-T01. Maps RT-A1–A7; include negative authorization and recovery, fake ports and virtual time. Own no provider code.
   - [x] **RT-T04a** Verify isolated start reliability with real SQLite, independent provider fakes, concurrency, conflicting input, lost acknowledgements, restart, reauthorization and scope isolation (`tests/runtime/test_starts.py`).
   - [x] **RT-T04c** Verify dispatch security/recovery/cancellation and concurrent journal claims with SDK fakes; verify actual Temporal completed-run lost-ack recovery and mismatched-plan rejection, retaining existing replay/restart suite.

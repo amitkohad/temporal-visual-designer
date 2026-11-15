@@ -24,6 +24,7 @@ from nexusflow.apps.api_boundary import ApiBoundary, error_response
 from nexusflow.apps.api_models import (
     ActivityImport,
     CreateProject,
+    CreateSchedule,
     CreateTemplateProject,
     ExecutionAccepted,
     ProjectActivation,
@@ -38,6 +39,7 @@ from nexusflow.apps.api_models import (
     ReassignTask,
     RestoreProject,
     SaveProject,
+    ScheduleView,
     StartWorkflow,
     SubmitTaskForm,
     TaskFormSubmission,
@@ -88,6 +90,11 @@ from nexusflow.modules.designer_forms.templates import (
     build_template,
     get_template,
     list_templates,
+)
+from nexusflow.modules.durable_runtime.schedule_types import (
+    ScheduleDefinition,
+    ScheduleError,
+    ScheduleRecord,
 )
 from nexusflow.modules.durable_runtime.starts import AsyncStartService, StartError, StartRequest
 from nexusflow.modules.durable_runtime.types import CommandReceipt, Snapshot
@@ -239,6 +246,7 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
         VersioningError,
         ActivationError,
         StartError,
+        ScheduleError,
         TaskError,
         FormError,
         DebugError,
@@ -1181,6 +1189,57 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
         return await backend.debug_service(context.authorization, context.scope).control(
             context.scope, project_id, session_id, payload
         )
+
+    def schedule_view(record: ScheduleRecord) -> ScheduleView:
+        definition = record.definition
+        return ScheduleView(
+            schedule_id=definition.schedule_id,
+            project_id=definition.project_id,
+            workflow_id=definition.workflow_id,
+            cron=definition.cron,
+            timezone=definition.timezone,
+            overlap_policy=definition.overlap_policy,
+            enabled=definition.enabled,
+            created_at=record.created_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            disabled_at=(
+                None
+                if record.disabled_at is None
+                else record.disabled_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+            ),
+        )
+
+    @app.post(prefix + "/projects/{project_id}/schedules", status_code=201)
+    async def create_schedule(
+        project_id: Identifier, payload: CreateSchedule, context: SessionDependency
+    ) -> ScheduleView:
+        admin = backend.schedule_admin(context.authorization, context.scope)
+        record = admin.create(
+            ScheduleDefinition(
+                schedule_id=payload.schedule_id,
+                scope=context.scope,
+                project_id=project_id,
+                workflow_id=payload.workflow_id,
+                cron=payload.cron,
+                timezone=payload.timezone,
+                overlap_policy=payload.overlap_policy,
+                input_json=json.dumps(payload.input, allow_nan=False),
+            )
+        )
+        return schedule_view(record)
+
+    @app.get(prefix + "/projects/{project_id}/schedules")
+    async def list_schedules(
+        project_id: Identifier, context: SessionDependency
+    ) -> list[ScheduleView]:
+        admin = backend.schedule_admin(context.authorization, context.scope)
+        return [schedule_view(item) for item in admin.list_schedules(context.scope, project_id)]
+
+    @app.post(prefix + "/projects/{project_id}/schedules/{schedule_id}/disable")
+    async def disable_schedule(
+        project_id: Identifier, schedule_id: Identifier, context: SessionDependency
+    ) -> ScheduleView:
+        admin = backend.schedule_admin(context.authorization, context.scope)
+        return schedule_view(admin.disable(context.scope, project_id, schedule_id))
 
     @app.post(prefix + "/projects/{project_id}/executions", status_code=202)
     async def start(
