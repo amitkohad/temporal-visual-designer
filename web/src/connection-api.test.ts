@@ -2,11 +2,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createConnectionClient,
   createConnectionWrite,
+  createEmailConnectionWrite,
   mergePickOptions,
+  pickOptionsFromEmailRevisions,
   pickOptionsFromFixtures,
   pickOptionsFromRevisions,
+  validateEmailConnectionWrite,
   validateHttpsOrigin,
   validateMockFixtureWrite,
+  validateRecipientDomain,
+  validateSenderEmail,
+  validateSmtpHost,
 } from "./connection-api";
 import { ProjectApiError } from "./project-api";
 
@@ -53,6 +59,37 @@ describe("connection helpers", () => {
     ).not.toBeNull();
   });
 
+  it("validates email SMTP host, sender, and recipient domain shapes", () => {
+    expect(validateSmtpHost("MAIL.Example.Test")).toBeNull();
+    expect(validateSmtpHost("127.0.0.1")).not.toBeNull();
+    expect(validateSmtpHost("mail.example.com:465")).not.toBeNull();
+    expect(validateSenderEmail("Onboard@EXAMPLE.TEST")).toBeNull();
+    expect(validateSenderEmail("not-an-email")).not.toBeNull();
+    expect(validateRecipientDomain("partner.test")).toBeNull();
+    expect(validateRecipientDomain("*.example.test")).not.toBeNull();
+    const write = createEmailConnectionWrite(
+      "SMTP.Private.example.test",
+      "Onboard@EXAMPLE.TEST",
+      ["other.test", "EXAMPLE.TEST", "other.test"],
+      { port: 465, secretReference: "opaque-private-reference" },
+    );
+    expect(write).toMatchObject({
+      connector_type: "email",
+      transport: "smtp_tls",
+      smtp_host: "smtp.private.example.test",
+      sender: "Onboard@example.test",
+      allowed_recipient_domains: ["example.test", "other.test"],
+      secret_reference: "opaque-private-reference",
+    });
+    expect(validateEmailConnectionWrite(write)).toBeNull();
+    expect(
+      validateEmailConnectionWrite({
+        ...write,
+        allowed_recipient_domains: [],
+      }),
+    ).not.toBeNull();
+  });
+
   it("builds pick options without leaking private fixture bodies", () => {
     const options = mergePickOptions(
       pickOptionsFromRevisions([
@@ -76,9 +113,24 @@ describe("connection helpers", () => {
           stored_bytes: 12,
         },
       ]),
+      pickOptionsFromEmailRevisions([
+        {
+          connection_id: "hr-mail",
+          connection_revision: "v1",
+          revision: 1,
+          connector_type: "email",
+          connector_version: "1.0.0",
+          transport: "smtp_tls",
+          definition_digest: digest,
+          has_secret_reference: true,
+          actor_id: "local",
+          created_at: "2026-11-15T00:00:00Z",
+        },
+      ]),
     );
-    expect(options).toHaveLength(1);
+    expect(options).toHaveLength(2);
     expect(JSON.stringify(options)).not.toContain("password");
+    expect(JSON.stringify(options)).not.toContain("smtp.private");
     expect(createConnectionWrite("https://api.example.com", []).base_origin).toBe(
       "https://api.example.com",
     );
@@ -175,6 +227,85 @@ describe("createConnectionClient", () => {
           next_before_revision: null,
         });
       }
+      if (
+        path.endsWith("/email-connections/hr-mail/revisions/v1") &&
+        method === "PUT"
+      ) {
+        const body = JSON.parse(String(init?.body)) as {
+          smtp_host: string;
+          sender: string;
+          transport: string;
+        };
+        expect(body.transport).toBe("smtp_tls");
+        expect(body.smtp_host).toBe("smtp.private.example.test");
+        expect(body.sender).toBe("Onboard@example.test");
+        return response(
+          {
+            scope: {
+              organization_id: "local-demo",
+              environment_id: "dev",
+            },
+            connection_id: "hr-mail",
+            connection_revision: "v1",
+            revision: 1,
+            connector_type: "email",
+            connector_version: "1.0.0",
+            transport: "smtp_tls",
+            definition_digest: digest,
+            has_secret_reference: true,
+            actor_id: "local",
+            created_at: "2026-11-15T00:00:00Z",
+          },
+          201,
+        );
+      }
+      if (
+        path.endsWith("/email-connections/hr-mail/revisions?limit=25") &&
+        method === "GET"
+      ) {
+        return response({
+          items: [
+            {
+              scope: {
+                organization_id: "local-demo",
+                environment_id: "dev",
+              },
+              connection_id: "hr-mail",
+              connection_revision: "v1",
+              revision: 1,
+              connector_type: "email",
+              connector_version: "1.0.0",
+              transport: "smtp_tls",
+              definition_digest: digest,
+              has_secret_reference: true,
+              actor_id: "local",
+              created_at: "2026-11-15T00:00:00Z",
+            },
+          ],
+          next_before_revision: null,
+        });
+      }
+      if (
+        path.endsWith("/email-connections/hr-mail/revisions/v1") &&
+        method === "GET"
+      ) {
+        return response({
+          scope: {
+            organization_id: "local-demo",
+            environment_id: "dev",
+          },
+          connection_id: "hr-mail",
+          connection_revision: "v1",
+          revision: 1,
+          connector_type: "email",
+          connector_version: "1.0.0",
+          transport: "smtp_tls",
+          definition_digest: digest,
+          has_secret_reference: true,
+          actor_id: "local",
+          created_at: "2026-11-15T00:00:00Z",
+        });
+      }
       throw new Error(`unexpected ${method} ${path}`);
     });
 
@@ -201,6 +332,22 @@ describe("createConnectionClient", () => {
     expect(listed.items).toHaveLength(1);
     const revisions = await client.listConnectionRevisions("hr");
     expect(revisions.items[0]?.connection_revision).toBe("v1");
+
+    const emailWrite = createEmailConnectionWrite(
+      "SMTP.Private.example.test",
+      "Onboard@EXAMPLE.TEST",
+      ["EXAMPLE.TEST"],
+      { secretReference: "opaque-private-reference" },
+    );
+    const emailSaved = await client.putEmailConnection("hr-mail", "v1", emailWrite);
+    expect(emailSaved.connector_type).toBe("email");
+    expect(emailSaved.transport).toBe("smtp_tls");
+    expect(JSON.stringify(emailSaved)).not.toContain("smtp.private");
+    expect(JSON.stringify(emailSaved)).not.toContain("Onboard@");
+    const emailRevisions = await client.listEmailConnectionRevisions("hr-mail");
+    expect(emailRevisions.items[0]?.connection_revision).toBe("v1");
+    const emailGet = await client.getEmailConnection("hr-mail", "v1");
+    expect(emailGet.has_secret_reference).toBe(true);
   });
 
   it("maps forbidden administration without echoing provider bodies", async () => {

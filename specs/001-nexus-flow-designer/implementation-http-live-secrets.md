@@ -31,7 +31,8 @@ Focused suites:
 
 ## Remaining scope
 
-Email secrets, additional auth schemes, Designer activity palette binding,
-durable live-effect recovery, default-on launcher, built-in executable
+Additional HTTP auth schemes, Designer activity palette binding, durable
+live-effect recovery, default-on launcher, built-in executable
 publication/capability registration, F04-T007 custom Python isolation, and full
-F08-A01–A05 browser/production acceptance remain open.
+F08-A01–A05 browser/production acceptance remain open. Email SMTP secrets and
+live send are covered separately in [implementation-email-smtp.md](implementation-email-smtp.md).

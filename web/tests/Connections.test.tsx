@@ -39,11 +39,26 @@ const fixtureMeta = {
   stored_bytes: 24,
 };
 
+const emailMeta = {
+  scope: { organization_id: "local-demo", environment_id: "dev" },
+  connection_id: "hr-mail",
+  connection_revision: "v1",
+  revision: 1,
+  connector_type: "email",
+  connector_version: "1.0.0",
+  transport: "smtp_tls",
+  definition_digest: digest,
+  has_secret_reference: false,
+  actor_id: "local",
+  created_at: "2026-11-15T00:00:00Z",
+};
+
 describe("Connections", () => {
   it("registers an HTTP connection and saves a Dev mock fixture", async () => {
     const user = userEvent.setup();
     let putConnectionBody: unknown = null;
     let putFixtureBody: unknown = null;
+    let putEmailBody: unknown = null;
     const fetcher = vi.fn<typeof fetch>(async (url, init) => {
       const path = String(url);
       const method = init?.method ?? "GET";
@@ -65,11 +80,27 @@ describe("Connections", () => {
         });
       }
       if (
+        path.endsWith("/email-connections/hr-mail/revisions?limit=25") &&
+        method === "GET"
+      ) {
+        return response({
+          items: putEmailBody ? [emailMeta] : [],
+          next_before_revision: null,
+        });
+      }
+      if (
         path.endsWith("/connections/hr-api/revisions/v1") &&
         method === "PUT"
       ) {
         putConnectionBody = JSON.parse(String(init?.body));
         return response(connectionMeta, 201);
+      }
+      if (
+        path.endsWith("/email-connections/hr-mail/revisions/v1") &&
+        method === "PUT"
+      ) {
+        putEmailBody = JSON.parse(String(init?.body));
+        return response(emailMeta, 201);
       }
       if (
         path.endsWith("/connections/hr-api/revisions/v1/mock-fixture") &&
@@ -83,6 +114,12 @@ describe("Connections", () => {
         method === "GET"
       ) {
         return response(connectionMeta);
+      }
+      if (
+        path.endsWith("/email-connections/hr-mail/revisions/v1") &&
+        method === "GET"
+      ) {
+        return response(emailMeta);
       }
       if (
         path.endsWith("/connections/hr-api/revisions/v1/mock-fixture") &&
@@ -111,6 +148,9 @@ describe("Connections", () => {
       ).toBeVisible(),
     );
     expect(
+      screen.getByRole("heading", { name: "Register email SMTP connection" }),
+    ).toBeVisible();
+    expect(
       screen.getAllByText(/not live SMTP/i).length,
     ).toBeGreaterThan(0);
 
@@ -135,6 +175,24 @@ describe("Connections", () => {
       screen.getByText((text) => text.includes(digest)),
     ).toBeVisible();
 
+    await user.clear(screen.getByLabelText("SMTP host"));
+    await user.type(screen.getByLabelText("SMTP host"), "smtp.example.test");
+    await user.clear(screen.getByLabelText("Sender"));
+    await user.type(screen.getByLabelText("Sender"), "noreply@example.test");
+    await user.click(
+      screen.getByRole("button", { name: "Save email connection revision" }),
+    );
+    await waitFor(() => expect(putEmailBody).not.toBeNull());
+    expect(putEmailBody).toMatchObject({
+      connector_type: "email",
+      transport: "smtp_tls",
+      smtp_host: "smtp.example.test",
+      sender: "noreply@example.test",
+    });
+    await waitFor(() =>
+      expect(screen.getByText(/Saved email SMTP connection/)).toBeVisible(),
+    );
+
     await user.click(
       screen.getByRole("button", { name: "Save Dev mock fixture" }),
     );
@@ -148,9 +206,12 @@ describe("Connections", () => {
     await waitFor(() =>
       expect(screen.getByText(/Saved Dev HTTP mock/)).toBeVisible(),
     );
-    const fixtureList = screen.getByRole("list");
+    const fixturePanel = screen.getByRole("heading", {
+      name: "Dev mock fixtures",
+    }).parentElement;
+    expect(fixturePanel).not.toBeNull();
     expect(
-      within(fixtureList).getByRole("button", {
+      within(fixturePanel as HTMLElement).getByRole("button", {
         name: /hr-api \/ v1/,
       }),
     ).toBeVisible();

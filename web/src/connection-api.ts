@@ -71,6 +71,35 @@ export interface ConnectionPickOption {
   fixture_digest?: string;
 }
 
+export interface EmailConnectionMetadata {
+  connection_id: string;
+  connection_revision: string;
+  revision: number;
+  connector_type: "email";
+  connector_version: "1.0.0";
+  transport: "smtp_tls";
+  definition_digest: string;
+  has_secret_reference: boolean;
+  actor_id: string;
+  created_at: string;
+}
+
+export interface EmailConnectionPage {
+  items: EmailConnectionMetadata[];
+  next_before_revision: number | null;
+}
+
+export interface EmailConnectionWrite {
+  connector_type: "email";
+  connector_version: "1.0.0";
+  transport: "smtp_tls";
+  smtp_host: string;
+  port: number;
+  sender: string;
+  allowed_recipient_domains: string[];
+  secret_reference?: string | null;
+}
+
 export interface ConnectionClient {
   putConnection(
     connectionId: string,
@@ -86,6 +115,20 @@ export interface ConnectionClient {
     limit?: number,
     beforeRevision?: number | null,
   ): Promise<ConnectionPage>;
+  putEmailConnection(
+    connectionId: string,
+    revision: string,
+    body: EmailConnectionWrite,
+  ): Promise<EmailConnectionMetadata>;
+  getEmailConnection(
+    connectionId: string,
+    revision: string,
+  ): Promise<EmailConnectionMetadata>;
+  listEmailConnectionRevisions(
+    connectionId: string,
+    limit?: number,
+    beforeRevision?: number | null,
+  ): Promise<EmailConnectionPage>;
   putMockFixture(
     connectionId: string,
     revision: string,
@@ -165,6 +208,130 @@ function parseConnectionMetadata(
     actor_id: value.actor_id,
     created_at: value.created_at,
   };
+}
+
+function parseEmailConnectionMetadata(
+  value: unknown,
+  organizationId: string,
+  environmentId: string,
+): EmailConnectionMetadata {
+  if (
+    !isObject(value) ||
+    !isIdentifier(value.connection_id) ||
+    !isIdentifier(value.connection_revision) ||
+    !positive(value.revision) ||
+    value.connector_type !== "email" ||
+    value.connector_version !== "1.0.0" ||
+    value.transport !== "smtp_tls" ||
+    !isDigest(value.definition_digest) ||
+    typeof value.has_secret_reference !== "boolean" ||
+    !isIdentifier(value.actor_id) ||
+    typeof value.created_at !== "string" ||
+    value.created_at.length < 1 ||
+    value.created_at.length > 64
+  )
+    throw new Error();
+  parseScope(value.scope, organizationId, environmentId);
+  return {
+    connection_id: value.connection_id,
+    connection_revision: value.connection_revision,
+    revision: value.revision,
+    connector_type: "email",
+    connector_version: "1.0.0",
+    transport: "smtp_tls",
+    definition_digest: value.definition_digest,
+    has_secret_reference: value.has_secret_reference,
+    actor_id: value.actor_id,
+    created_at: value.created_at,
+  };
+}
+
+const DNS_LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+const EMAIL_LOCAL = /^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*$/;
+
+/** Validate a qualified ASCII DNS hostname (no IP, no port, no lookup). */
+export function validateSmtpHost(value: string): string | null {
+  if (typeof value !== "string" || value.trim().length < 1 || value.trim().length > 253)
+    return "Enter a DNS-style SMTP hostname.";
+  const host = value.trim().toLowerCase();
+  if (
+    !host.includes(".") ||
+    host.endsWith(".") ||
+    host.includes(":") ||
+    host.includes("/") ||
+    /^\d{1,3}(\.\d{1,3}){3}$/.test(host) ||
+    !/[a-z]/.test(host)
+  )
+    return "SMTP host must be a qualified DNS name (no IP literals or ports).";
+  const labels = host.split(".");
+  if (labels.some((label) => !DNS_LABEL.test(label)))
+    return "SMTP host labels must be DNS-safe ASCII.";
+  return null;
+}
+
+/** Loose ASCII mailbox subset; does not claim full RFC compliance. */
+export function validateSenderEmail(value: string): string | null {
+  if (typeof value !== "string" || value.length < 3 || value.length > 254)
+    return "Enter a sender mailbox (local@domain).";
+  const trimmed = value.trim();
+  const at = trimmed.lastIndexOf("@");
+  if (at < 1) return "Sender must look like local@domain.";
+  const local = trimmed.slice(0, at);
+  const domain = trimmed.slice(at + 1);
+  if (local.length > 64 || !EMAIL_LOCAL.test(local))
+    return "Sender local-part uses an unsupported character set.";
+  if (validateSmtpHost(domain))
+    return "Sender domain must be a qualified DNS name.";
+  return null;
+}
+
+/** Exact recipient domain label (no wildcards). */
+export function validateRecipientDomain(value: string): string | null {
+  return validateSmtpHost(value)
+    ? "Recipient domains must be exact qualified DNS names (no wildcards)."
+    : null;
+}
+
+export function validateEmailConnectionWrite(
+  body: EmailConnectionWrite,
+): string | null {
+  if (
+    body.connector_type !== "email" ||
+    body.connector_version !== "1.0.0" ||
+    body.transport !== "smtp_tls"
+  )
+    return "Email connections use connector email/1.0.0 over smtp_tls.";
+  const hostIssue = validateSmtpHost(body.smtp_host);
+  if (hostIssue) return hostIssue;
+  if (
+    !Number.isSafeInteger(body.port) ||
+    body.port < 1 ||
+    body.port > 65535
+  )
+    return "Port must be an integer from 1 to 65535.";
+  const senderIssue = validateSenderEmail(body.sender);
+  if (senderIssue) return senderIssue;
+  if (
+    !Array.isArray(body.allowed_recipient_domains) ||
+    body.allowed_recipient_domains.length < 1 ||
+    body.allowed_recipient_domains.length > 50
+  )
+    return "Provide 1–50 allowed recipient domains.";
+  const seen = new Set<string>();
+  for (const domain of body.allowed_recipient_domains) {
+    const issue = validateRecipientDomain(domain);
+    if (issue) return issue;
+    const key = domain.trim().toLowerCase();
+    if (seen.has(key)) return "Recipient domains must be unique.";
+    seen.add(key);
+  }
+  if (
+    body.secret_reference != null &&
+    body.secret_reference !== "" &&
+    !isIdentifier(body.secret_reference)
+  )
+    return "Secret reference must be an opaque identifier label.";
+  return null;
 }
 
 function parseFixtureMetadata(
@@ -329,6 +496,16 @@ export function pickOptionsFromRevisions(
     connection_id: item.connection_id,
     connection_revision: item.connection_revision,
     label: `${item.connection_id} / ${item.connection_revision} · rev ${item.revision}`,
+  }));
+}
+
+export function pickOptionsFromEmailRevisions(
+  items: EmailConnectionMetadata[],
+): ConnectionPickOption[] {
+  return items.map((item) => ({
+    connection_id: item.connection_id,
+    connection_revision: item.connection_revision,
+    label: `${item.connection_id} / ${item.connection_revision} · email rev ${item.revision}`,
   }));
 }
 
@@ -506,6 +683,88 @@ export function createConnectionClient(
         throw new ProjectApiError("invalid_response");
       }
     },
+    async putEmailConnection(connectionId, revision, body) {
+      if (!isIdentifier(connectionId) || !isIdentifier(revision))
+        throw new ProjectApiError("invalid_request");
+      if (validateEmailConnectionWrite(body))
+        throw new ProjectApiError("invalid_request");
+      const payload: JsonObject = {
+        connector_type: "email",
+        connector_version: "1.0.0",
+        transport: "smtp_tls",
+        smtp_host: body.smtp_host,
+        port: body.port,
+        sender: body.sender,
+        allowed_recipient_domains: body.allowed_recipient_domains,
+      };
+      if (body.secret_reference != null && body.secret_reference !== "") {
+        if (!isIdentifier(body.secret_reference))
+          throw new ProjectApiError("invalid_request");
+        payload.secret_reference = body.secret_reference;
+      }
+      const value = await request(
+        `/email-connections/${connectionId}/revisions/${revision}`,
+        "PUT",
+        JSON.stringify(payload),
+      );
+      try {
+        return parseEmailConnectionMetadata(value, organizationId, environmentId);
+      } catch {
+        throw new ProjectApiError("invalid_response");
+      }
+    },
+    async getEmailConnection(connectionId, revision) {
+      if (!isIdentifier(connectionId) || !isIdentifier(revision))
+        throw new ProjectApiError("invalid_request");
+      const value = await request(
+        `/email-connections/${connectionId}/revisions/${revision}`,
+      );
+      try {
+        return parseEmailConnectionMetadata(value, organizationId, environmentId);
+      } catch {
+        throw new ProjectApiError("invalid_response");
+      }
+    },
+    async listEmailConnectionRevisions(
+      connectionId,
+      limit = 25,
+      beforeRevision = null,
+    ) {
+      if (
+        !isIdentifier(connectionId) ||
+        !Number.isSafeInteger(limit) ||
+        limit < 1 ||
+        limit > 50 ||
+        (beforeRevision != null && !positive(beforeRevision))
+      )
+        throw new ProjectApiError("invalid_request");
+      const query =
+        `?limit=${limit}` +
+        (beforeRevision == null ? "" : `&before_revision=${beforeRevision}`);
+      const value = await request(
+        `/email-connections/${connectionId}/revisions${query}`,
+      );
+      try {
+        if (
+          !isObject(value) ||
+          !Array.isArray(value.items) ||
+          value.items.length > 50 ||
+          !(
+            value.next_before_revision === null ||
+            positive(value.next_before_revision)
+          )
+        )
+          throw new Error();
+        return {
+          items: value.items.map((item) =>
+            parseEmailConnectionMetadata(item, organizationId, environmentId),
+          ),
+          next_before_revision: value.next_before_revision,
+        };
+      } catch {
+        throw new ProjectApiError("invalid_response");
+      }
+    },
     async putMockFixture(connectionId, revision, body) {
       if (!isIdentifier(connectionId) || !isIdentifier(revision))
         throw new ProjectApiError("invalid_request");
@@ -602,6 +861,38 @@ export function createConnectionWrite(
     allowed_origins: origins,
     ...(secretReference && secretReference.trim()
       ? { secret_reference: secretReference.trim() }
+      : {}),
+  };
+}
+
+export function createEmailConnectionWrite(
+  smtpHost: string,
+  sender: string,
+  allowedRecipientDomains: string[],
+  options?: { port?: number; secretReference?: string },
+): EmailConnectionWrite {
+  const domains = [
+    ...new Set(
+      allowedRecipientDomains
+        .map((item) => item.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ].sort();
+  const at = sender.trim().lastIndexOf("@");
+  const normalizedSender =
+    at > 0
+      ? `${sender.trim().slice(0, at)}@${sender.trim().slice(at + 1).toLowerCase()}`
+      : sender.trim();
+  return {
+    connector_type: "email",
+    connector_version: "1.0.0",
+    transport: "smtp_tls",
+    smtp_host: smtpHost.trim().toLowerCase(),
+    port: options?.port ?? 465,
+    sender: normalizedSender,
+    allowed_recipient_domains: domains,
+    ...(options?.secretReference && options.secretReference.trim()
+      ? { secret_reference: options.secretReference.trim() }
       : {}),
   };
 }
