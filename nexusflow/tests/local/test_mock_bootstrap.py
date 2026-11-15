@@ -50,7 +50,18 @@ def test_enabled_signed_put_get_list_persist_after_owned_store_close(tmp_path, m
         assert "private-fixture" not in response.text
         assert client.get(PATH).json() == metadata
         assert client.get(BASE + "/mock-fixtures").json()["items"] == [metadata]
-        assert backend.connections is None
+        assert backend.connections is not None
+        connection = client.put(
+            BASE + "/connections/hr/revisions/v1",
+            json={
+                "connector_type": "http",
+                "connector_version": "1.0.0",
+                "base_origin": "https://api.example.com",
+                "allowed_origins": ["https://api.example.com"],
+            },
+        )
+        assert connection.status_code == 201, connection.text
+        assert "api.example.com" not in connection.text
     with pytest.raises(HTTPMockStorageError) as caught:
         store.list_metadata(SCOPE)
     assert caught.value.code == "unavailable"

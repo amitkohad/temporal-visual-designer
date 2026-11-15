@@ -4,6 +4,7 @@ import Projects, { type DesignerPublishGate } from "./Projects";
 import ReleaseControls from "./ReleaseControls";
 import Tasks from "./Tasks";
 import FormBuilder from "./FormBuilder";
+import Connections from "./Connections";
 import {
   emptyPublishGate,
   releaseTargetsFromGate,
@@ -93,6 +94,12 @@ export default function App() {
           connection={session ?? undefined}
         />
       )}
+      {view === "connections" && (
+        <Connections
+          onClose={() => setView(session ? "projects" : "sample")}
+          connection={session ?? undefined}
+        />
+      )}
     </>
   );
 }
@@ -108,6 +115,7 @@ function DevLoopNav({
     { id: "sample", label: "Sample" },
     { id: "projects", label: "Projects" },
     { id: "forms", label: "Forms" },
+    { id: "connections", label: "Connections" },
     { id: "release", label: "Release" },
     { id: "tasks", label: "Tasks" },
   ];
@@ -309,6 +317,16 @@ function SampleWorkspace({
             }
           >
             Forms
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              dirty
+                ? setPendingLeave("connections")
+                : onNavigate("connections")
+            }
+          >
+            Connections
           </button>
           <button
             type="button"

@@ -17,10 +17,14 @@ reassignment; it is broader than fixture administration alone. UAT/Prod and
 worker permissions are not granted. Keep this installation synthetic and local.
 
 Use the existing `token` command to authenticate the
-[JSON fixture APIs](http-mock-admin.md) and
-[paginated discovery API](http-mock-listing.md). New signed requests enforce the
-current stored grant, including revocation. No fixture content or token is
-printed by enablement. Store only synthetic request/response data.
+[JSON fixture APIs](http-mock-admin.md),
+[paginated discovery API](http-mock-listing.md), and
+[HTTP connection registry](http-connections.md). The local host opens
+`connections.db` for metadata revisions; fixture storage remains separate.
+New signed requests enforce the current stored grant, including revocation. No
+fixture content or token is printed by enablement. Store only synthetic
+request/response data. The React Designer **Connections** surface authors these
+APIs in the browser; mocks remain Dev fixtures, not live SMTP/HTTP.
 
 The APIs preserve immutable scoped revisions and digest pins across a full host
 restart. Re-running enablement for a valid profile is idempotent; it does not

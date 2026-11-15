@@ -42,7 +42,10 @@ resolution occurs. Use reference labels rather than credential values; existence
 and authorization of those labels will be checked by future execution adapters.
 
 Hosts must inject a `SQLiteConnectionRepository` through `ApiBackend.connections`
-and own its lifecycle. Preserve the whole database for recovery. The default
-local launcher does not enable a registry or add administrator grants. This
-increment does not make an HTTP activity executable or include connection
-definitions in exported projects. See [ADR 0049](decisions/0049-http-connection-registry.md).
+and own its lifecycle. Preserve the whole database for recovery. The synthetic
+local launcher opens `connections.db` for Dev metadata administration; use
+[`enable-mock-fixtures`](local-mock-fixtures.md) for the administrator grant that
+includes `connection.manage`. This increment does not make an HTTP activity
+executable or include connection definitions in exported projects. See
+[ADR 0049](decisions/0049-http-connection-registry.md). The React Designer
+**Connections** surface authors these APIs for Dev; live transport remains open.
