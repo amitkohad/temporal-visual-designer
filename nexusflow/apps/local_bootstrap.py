@@ -248,11 +248,15 @@ def _backend(
     debug_enabled: bool = False,
     mock_fixtures_enabled: bool = False,
     schedules_enabled: bool = False,
+    webhooks_enabled: bool = False,
+    form_starts_enabled: bool = False,
 ) -> Iterator[ApiBackend]:
     from nexusflow.apps.local_debug import load_debug_profile
+    from nexusflow.apps.local_form_starts import load_form_start_profile
     from nexusflow.apps.local_mocks import load_mock_fixture_profile
     from nexusflow.apps.local_schedules import load_schedule_profile
     from nexusflow.apps.local_tasks import LocalTaskAssignments, LocalTaskFields, load_task_profile
+    from nexusflow.apps.local_webhooks import load_webhook_profile
     from nexusflow.modules.connectors.email_connection_repository import (
         SQLiteEmailConnectionRepository,
     )
@@ -260,12 +264,18 @@ def _backend(
     from nexusflow.modules.connectors.repository import SQLiteConnectionRepository
     from nexusflow.modules.designer_debugger.repository import SQLiteDebugSessionRepository
     from nexusflow.modules.designer_debugger.temporal import TemporalDebugRuntime
+    from nexusflow.modules.durable_runtime.form_starts import SQLiteFormStartRepository
     from nexusflow.modules.durable_runtime.schedules import SQLiteScheduleRepository
+    from nexusflow.modules.durable_runtime.webhooks import SQLiteWebhookRepository
 
     profile = load_task_profile(directory, settings) if tasks_enabled else None
     debug_profile = load_debug_profile(directory, settings) if debug_enabled else None
     mock_profile = load_mock_fixture_profile(directory, settings) if mock_fixtures_enabled else None
     schedule_profile = load_schedule_profile(directory, settings) if schedules_enabled else None
+    webhook_profile = load_webhook_profile(directory, settings) if webhooks_enabled else None
+    form_start_profile = (
+        load_form_start_profile(directory, settings) if form_starts_enabled else None
+    )
     if debug_profile is not None and not isinstance(runtime, TemporalRuntimeGateway):
         raise ValueError("Local debugger requires the owned Temporal runtime")
     with ExitStack() as stack:
@@ -289,6 +299,16 @@ def _backend(
         if schedule_profile is not None:
             schedules = SQLiteScheduleRepository(directory / schedule_profile.schedules_database)
             stack.callback(schedules.close)
+        webhooks = None
+        if webhook_profile is not None:
+            webhooks = SQLiteWebhookRepository(directory / webhook_profile.webhooks_database)
+            stack.callback(webhooks.close)
+        form_starts = None
+        if form_start_profile is not None:
+            form_starts = SQLiteFormStartRepository(
+                directory / form_start_profile.form_starts_database
+            )
+            stack.callback(form_starts.close)
         debug_sessions = None
         debug_runtime = None
         if debug_profile is not None:
@@ -338,6 +358,8 @@ def _backend(
             mock_fixture_dev_scopes=(mock_profile.scope,) if mock_profile else (),
             browser_auth=browser_auth,
             schedules=schedules,
+            webhooks=webhooks,
+            form_starts=form_starts,
         )
 
 
@@ -352,6 +374,8 @@ def open_backend(directory: Path, runtime: RuntimeGateway) -> Iterator[ApiBacken
         debug_enabled=True,
         mock_fixtures_enabled=True,
         schedules_enabled=True,
+        webhooks_enabled=True,
+        form_starts_enabled=True,
     ) as backend:
         yield backend
 

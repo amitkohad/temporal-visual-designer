@@ -5,7 +5,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Annotated, Literal
 
-from fastapi import Depends, FastAPI, Query, Request
+from fastapi import Depends, FastAPI, Header, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -23,10 +23,14 @@ from nexusflow.apps.api_backend import (
 from nexusflow.apps.api_boundary import ApiBoundary, error_response
 from nexusflow.apps.api_models import (
     ActivityImport,
+    CreateFormStart,
     CreateProject,
     CreateSchedule,
     CreateTemplateProject,
+    CreateWebhook,
+    DeliverWebhook,
     ExecutionAccepted,
+    FormStartView,
     ProjectActivation,
     ProjectChange,
     ProjectComparison,
@@ -41,10 +45,12 @@ from nexusflow.apps.api_models import (
     SaveProject,
     ScheduleView,
     StartWorkflow,
+    SubmitFormStart,
     SubmitTaskForm,
     TaskFormSubmission,
     TransitionActivity,
     ValidateProject,
+    WebhookView,
 )
 from nexusflow.contracts.models import ActivityRef, Digest, Identifier, Scope
 from nexusflow.contracts.validation import ValidationIssue
@@ -91,6 +97,8 @@ from nexusflow.modules.designer_forms.templates import (
     get_template,
     list_templates,
 )
+from nexusflow.modules.durable_runtime.form_start_types import FormStartError
+from nexusflow.modules.durable_runtime.form_starts import FormStartRecord
 from nexusflow.modules.durable_runtime.schedule_types import (
     ScheduleDefinition,
     ScheduleError,
@@ -98,6 +106,8 @@ from nexusflow.modules.durable_runtime.schedule_types import (
 )
 from nexusflow.modules.durable_runtime.starts import AsyncStartService, StartError, StartRequest
 from nexusflow.modules.durable_runtime.types import CommandReceipt, Snapshot
+from nexusflow.modules.durable_runtime.webhook_types import WebhookError
+from nexusflow.modules.durable_runtime.webhooks import WebhookRecord
 from nexusflow.modules.human_tasks.types import (
     DecisionRequest,
     DelegationRequest,
@@ -247,6 +257,8 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
         ActivationError,
         StartError,
         ScheduleError,
+        WebhookError,
+        FormStartError,
         TaskError,
         FormError,
         DebugError,
@@ -1240,6 +1252,148 @@ def create_app(backend: ApiBackend, *, maximum_body_bytes: int = 6_000_000) -> F
     ) -> ScheduleView:
         admin = backend.schedule_admin(context.authorization, context.scope)
         return schedule_view(admin.disable(context.scope, project_id, schedule_id))
+
+    def webhook_view(record: WebhookRecord) -> WebhookView:
+        definition = record.definition
+        return WebhookView(
+            webhook_id=definition.webhook_id,
+            project_id=definition.project_id,
+            workflow_id=definition.workflow_id,
+            replay_window_seconds=definition.replay_window_seconds,
+            enabled=definition.enabled,
+            created_at=record.created_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            disabled_at=(
+                None
+                if record.disabled_at is None
+                else record.disabled_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+            ),
+        )
+
+    @app.post(prefix + "/projects/{project_id}/webhooks", status_code=201)
+    async def create_webhook(
+        project_id: Identifier, payload: CreateWebhook, context: SessionDependency
+    ) -> WebhookView:
+        admin = backend.webhook_admin(context.authorization, context.scope)
+        record = admin.create(
+            scope=context.scope,
+            project_id=project_id,
+            webhook_id=payload.webhook_id,
+            workflow_id=payload.workflow_id,
+            secret=payload.secret,
+            replay_window_seconds=payload.replay_window_seconds,
+        )
+        return webhook_view(record)
+
+    @app.get(prefix + "/projects/{project_id}/webhooks")
+    async def list_webhooks(
+        project_id: Identifier, context: SessionDependency
+    ) -> list[WebhookView]:
+        admin = backend.webhook_admin(context.authorization, context.scope)
+        return [webhook_view(item) for item in admin.list_webhooks(context.scope, project_id)]
+
+    @app.post(prefix + "/projects/{project_id}/webhooks/{webhook_id}/disable")
+    async def disable_webhook(
+        project_id: Identifier, webhook_id: Identifier, context: SessionDependency
+    ) -> WebhookView:
+        admin = backend.webhook_admin(context.authorization, context.scope)
+        return webhook_view(admin.disable(context.scope, project_id, webhook_id))
+
+    @app.post(prefix + "/webhooks/{webhook_id}/deliver", status_code=202)
+    async def deliver_webhook(
+        organization_id: Identifier,
+        environment_id: Literal["dev", "uat", "prod"],
+        webhook_id: Identifier,
+        payload: DeliverWebhook,
+        x_nexusflow_webhook_secret: Annotated[str, Header()],
+        x_nexusflow_timestamp: Annotated[str, Header()],
+        x_nexusflow_delivery_id: Annotated[Identifier, Header()],
+    ) -> ExecutionAccepted:
+        scope = Scope(organization_id=organization_id, environment_id=environment_id)
+        placement = backend.webhook_placement(scope)
+        service = backend.webhook_delivery(scope, placement)
+        receipt = await service.deliver(
+            scope,
+            webhook_id,
+            secret=x_nexusflow_webhook_secret,
+            timestamp=x_nexusflow_timestamp,
+            delivery_id=x_nexusflow_delivery_id,
+            input_json=json.dumps(payload.input, allow_nan=False),
+        )
+        return ExecutionAccepted(
+            execution_id=receipt.execution_id,
+            release_id=receipt.plan.binding.release_id,
+            configuration_revision=receipt.plan.binding.configuration_revision,
+        )
+
+    def form_start_view(record: FormStartRecord) -> FormStartView:
+        definition = record.definition
+        return FormStartView(
+            form_start_id=definition.form_start_id,
+            project_id=definition.project_id,
+            workflow_id=definition.workflow_id,
+            enabled=definition.enabled,
+            created_at=record.created_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            disabled_at=(
+                None
+                if record.disabled_at is None
+                else record.disabled_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+            ),
+        )
+
+    @app.post(prefix + "/projects/{project_id}/form-starts", status_code=201)
+    async def create_form_start(
+        project_id: Identifier, payload: CreateFormStart, context: SessionDependency
+    ) -> FormStartView:
+        admin = backend.form_start_admin(context.authorization, context.scope)
+        record = admin.create(
+            scope=context.scope,
+            project_id=project_id,
+            form_start_id=payload.form_start_id,
+            workflow_id=payload.workflow_id,
+            form_definition_json=json.dumps(payload.form_definition, allow_nan=False),
+        )
+        return form_start_view(record)
+
+    @app.get(prefix + "/projects/{project_id}/form-starts")
+    async def list_form_starts(
+        project_id: Identifier, context: SessionDependency
+    ) -> list[FormStartView]:
+        admin = backend.form_start_admin(context.authorization, context.scope)
+        return [form_start_view(item) for item in admin.list_form_starts(context.scope, project_id)]
+
+    @app.post(prefix + "/projects/{project_id}/form-starts/{form_start_id}/disable")
+    async def disable_form_start(
+        project_id: Identifier, form_start_id: Identifier, context: SessionDependency
+    ) -> FormStartView:
+        admin = backend.form_start_admin(context.authorization, context.scope)
+        return form_start_view(admin.disable(context.scope, project_id, form_start_id))
+
+    @app.post(prefix + "/projects/{project_id}/form-starts/{form_start_id}/submit", status_code=202)
+    async def submit_form_start(
+        project_id: Identifier,
+        form_start_id: Identifier,
+        payload: SubmitFormStart,
+        context: SessionDependency,
+    ) -> ExecutionAccepted:
+        placement = backend.identity.placement(
+            context.authorization.token,
+            context.scope,
+            request_id=context.authorization.request_id,
+            correlation_id=context.authorization.request_id,
+        )
+        service = backend.form_start_submit(context.authorization, context.scope, placement)
+        receipt = await service.submit(
+            context.scope,
+            project_id,
+            form_start_id,
+            idempotency_key=payload.idempotency_key,
+            values=payload.values,
+        )
+        return ExecutionAccepted(
+            execution_id=receipt.execution_id,
+            release_id=receipt.plan.binding.release_id,
+            configuration_revision=receipt.plan.binding.configuration_revision,
+        )
 
     @app.post(prefix + "/projects/{project_id}/executions", status_code=202)
     async def start(

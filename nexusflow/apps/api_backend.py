@@ -7,11 +7,12 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Protocol
 
+from pydantic import TypeAdapter
 from temporalio.client import Client
 
 from nexusflow.apps.catalog_adapters import ScopedCatalog
 from nexusflow.apps.entra_pilot import BrowserAuthPublicConfig, disabled_browser_auth
-from nexusflow.contracts.models import Scope
+from nexusflow.contracts.models import Identifier, Scope
 from nexusflow.modules.activity_catalog.catalog import CatalogService
 from nexusflow.modules.activity_catalog.catalog_types import CatalogRepository, RuntimeCapabilities
 from nexusflow.modules.activity_catalog.service import IntakeService
@@ -29,18 +30,36 @@ from nexusflow.modules.designer_debugger.repository import SQLiteDebugSessionRep
 from nexusflow.modules.designer_debugger.service import DebugSessionService
 from nexusflow.modules.designer_debugger.types import DebugError, DebugRuntime
 from nexusflow.modules.designer_forms.validation import AuthoringValidator
+from nexusflow.modules.durable_runtime.form_start_types import FormStartError
+from nexusflow.modules.durable_runtime.form_starts import (
+    AsyncFormStartService,
+    FormStartAdmin,
+    SQLiteFormStartRepository,
+)
+from nexusflow.modules.durable_runtime.form_starts import UtcClock as FormStartUtcClock
 from nexusflow.modules.durable_runtime.schedule_types import ScheduleError
 from nexusflow.modules.durable_runtime.schedules import (
     ScheduleAdmin,
     SQLiteScheduleRepository,
     UtcClock,
 )
-from nexusflow.modules.durable_runtime.starts import AsyncStartDispatcher, SQLiteStartRepository
+from nexusflow.modules.durable_runtime.starts import (
+    AsyncStartDispatcher,
+    AsyncStartService,
+    SQLiteStartRepository,
+)
 from nexusflow.modules.durable_runtime.temporal_starts import (
     SQLiteDispatchJournal,
     TemporalStartDispatcher,
 )
 from nexusflow.modules.durable_runtime.types import ExecutionPlan, Snapshot
+from nexusflow.modules.durable_runtime.webhook_types import WebhookError
+from nexusflow.modules.durable_runtime.webhooks import (
+    AsyncWebhookService,
+    SQLiteWebhookRepository,
+    WebhookAdmin,
+)
+from nexusflow.modules.durable_runtime.webhooks import UtcClock as WebhookUtcClock
 from nexusflow.modules.durable_runtime.workflow import ProofWorkflow
 from nexusflow.modules.human_tasks.form_types import TaskFieldPolicy
 from nexusflow.modules.human_tasks.forms import TaskFormService
@@ -60,7 +79,7 @@ from nexusflow.modules.package_promotion.package_imports import (
 from nexusflow.modules.package_promotion.packages import ProjectPackageService
 from nexusflow.modules.package_promotion.readiness import ProofActivationReadiness
 from nexusflow.modules.package_promotion.repository import SQLiteActivationRepository
-from nexusflow.modules.package_promotion.service import ActivationService
+from nexusflow.modules.package_promotion.service import ActivatedReleaseResolver, ActivationService
 from nexusflow.modules.package_promotion.types import ActivationError, ConfigurationCompatibility
 from nexusflow.modules.project_versioning.service import ProjectService
 from nexusflow.modules.project_versioning.types import ProjectRepository
@@ -152,6 +171,18 @@ class _ScheduleStartAuth:
         self.authorization.authorize(scope, "run.start", project_id)
 
 
+class _WebhookIngressStartAuth:
+    """Host-side start auth used after webhook secret + replay checks succeed."""
+
+    def __init__(self, scope: Scope) -> None:
+        self.scope = scope
+
+    def authorize(self, scope: Scope, project_id: str) -> None:
+        if scope != self.scope:
+            raise PermissionError("Webhook deliver scope mismatch")
+        TypeAdapter(Identifier).validate_python(project_id)
+
+
 @dataclass(frozen=True)
 class ApiBackend:
     identity: IdentityService
@@ -175,6 +206,8 @@ class ApiBackend:
     email_connections: EmailConnectionRepository | None = None
     browser_auth: BrowserAuthPublicConfig | None = None
     schedules: SQLiteScheduleRepository | None = None
+    webhooks: SQLiteWebhookRepository | None = None
+    form_starts: SQLiteFormStartRepository | None = None
 
     def public_browser_auth(self) -> BrowserAuthPublicConfig:
         return self.browser_auth if self.browser_auth is not None else disabled_browser_auth()
@@ -184,6 +217,69 @@ class ApiBackend:
             raise ScheduleError("unavailable", "Schedule provider is not configured")
         return ScheduleAdmin(
             self.schedules, _ScheduleStartAuth(authorization), self.starts, UtcClock()
+        )
+
+    def webhook_admin(self, authorization: RequestAuthorization, scope: Scope) -> WebhookAdmin:
+        if self.webhooks is None:
+            raise WebhookError("unavailable", "Webhook provider is not configured")
+        return WebhookAdmin(
+            self.webhooks, _ScheduleStartAuth(authorization), self.starts, WebhookUtcClock()
+        )
+
+    def webhook_delivery(self, scope: Scope, placement: Environment) -> AsyncWebhookService:
+        if self.webhooks is None:
+            raise WebhookError("unavailable", "Webhook provider is not configured")
+        auth = _WebhookIngressStartAuth(scope)
+        return AsyncWebhookService(
+            self.webhooks,
+            auth,
+            AsyncStartService(
+                self.starts,
+                auth,
+                ActivatedReleaseResolver(self.activations),
+                PlacedStartDispatcher(self.runtime, placement),
+            ),
+            self.starts,
+            WebhookUtcClock(),
+        )
+
+    def webhook_placement(self, scope: Scope) -> Environment:
+        """Resolve Dev placement for secret-authenticated ingress (no session token)."""
+        if self.webhooks is None:
+            raise WebhookError("unavailable", "Webhook provider is not configured")
+        matches = [
+            item
+            for item in self.identity.repository.environments(scope.organization_id)
+            if item.scope == scope
+        ]
+        if len(matches) != 1:
+            raise WebhookError("unavailable", "Webhook runtime placement is unavailable")
+        return matches[0]
+
+    def form_start_admin(self, authorization: RequestAuthorization, scope: Scope) -> FormStartAdmin:
+        if self.form_starts is None:
+            raise FormStartError("unavailable", "Form start provider is not configured")
+        return FormStartAdmin(
+            self.form_starts, _ScheduleStartAuth(authorization), self.starts, FormStartUtcClock()
+        )
+
+    def form_start_submit(
+        self, authorization: RequestAuthorization, scope: Scope, placement: Environment
+    ) -> AsyncFormStartService:
+        if self.form_starts is None:
+            raise FormStartError("unavailable", "Form start provider is not configured")
+        auth = _ScheduleStartAuth(authorization)
+        return AsyncFormStartService(
+            self.form_starts,
+            auth,
+            AsyncStartService(
+                self.starts,
+                auth,
+                ActivatedReleaseResolver(self.activations),
+                PlacedStartDispatcher(self.runtime, placement),
+            ),
+            self.starts,
+            FormStartUtcClock(),
         )
 
     def email_connection_service(

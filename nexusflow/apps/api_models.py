@@ -111,6 +111,47 @@ class ScheduleView(Contract):
     disabled_at: str | None = None
 
 
+class CreateWebhook(JsonRequest):
+    webhook_id: Identifier
+    workflow_id: Identifier
+    secret: Annotated[str, Field(min_length=1, max_length=256)]
+    replay_window_seconds: Annotated[int, Field(ge=1, le=3600)] = 300
+
+
+class WebhookView(Contract):
+    webhook_id: Identifier
+    project_id: Identifier
+    workflow_id: Identifier
+    replay_window_seconds: int
+    enabled: bool
+    created_at: str
+    disabled_at: str | None = None
+
+
+class DeliverWebhook(JsonRequest):
+    input: dict[str, JsonValue] = Field(default_factory=dict)
+
+
+class CreateFormStart(JsonRequest):
+    form_start_id: Identifier
+    workflow_id: Identifier
+    form_definition: dict[str, JsonValue]
+
+
+class FormStartView(Contract):
+    form_start_id: Identifier
+    project_id: Identifier
+    workflow_id: Identifier
+    enabled: bool
+    created_at: str
+    disabled_at: str | None = None
+
+
+class SubmitFormStart(JsonRequest):
+    idempotency_key: Identifier
+    values: dict[str, JsonValue] = Field(default_factory=dict)
+
+
 class ProjectRevision(Contract):
     project_id: Identifier
     revision: int
