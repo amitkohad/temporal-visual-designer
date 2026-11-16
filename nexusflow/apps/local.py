@@ -19,6 +19,7 @@ from nexusflow.apps.live_http_worker import open_live_http_activities
 from nexusflow.apps.local_bootstrap import initialize, issue_token, load_settings, open_backend
 from nexusflow.apps.local_debug import enable_debugger, load_debug_profile
 from nexusflow.apps.local_email_secrets import LocalEmailSecretStore
+from nexusflow.apps.local_form_starts import enable_form_starts, load_form_start_profile
 from nexusflow.apps.local_live_email import enable_live_email, load_live_email_profile
 from nexusflow.apps.local_live_http import enable_live_http, load_live_http_profile
 from nexusflow.apps.local_mocks import enable_mock_fixtures, load_mock_fixture_profile
@@ -32,6 +33,7 @@ from nexusflow.apps.local_ui import (
     require_ui_directory,
     resolve_ui_directory,
 )
+from nexusflow.apps.local_webhooks import enable_webhooks, load_webhook_profile
 from nexusflow.modules.connectors.proof_dispatch import CombinedProofDispatch
 from nexusflow.modules.identity_environments.repository import SQLiteIdentityRepository
 
@@ -106,6 +108,8 @@ async def serve_local(
         load_debug_profile(directory, settings)
         mock_profile = load_mock_fixture_profile(directory, settings)
         schedule_profile = load_schedule_profile(directory, settings)
+        webhook_profile = load_webhook_profile(directory, settings)
+        form_start_profile = load_form_start_profile(directory, settings)
         live_http_profile = load_live_http_profile(directory, settings)
         live_email_profile = load_live_email_profile(directory, settings)
         identity = SQLiteIdentityRepository(directory / "identity.db")
@@ -217,6 +221,10 @@ async def serve_local(
                         }
                         if schedule_profile is not None:
                             startup["schedules"] = "enabled"
+                        if webhook_profile is not None:
+                            startup["webhooks"] = "enabled"
+                        if form_start_profile is not None:
+                            startup["form_starts"] = "enabled"
                         if ui_root is not None:
                             startup["ui"] = "same-origin"
                             startup["ui_directory"] = str(ui_root)
@@ -287,6 +295,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "enable-live-http",
         "enable-live-email",
         "enable-schedules",
+        "enable-webhooks",
+        "enable-form-starts",
         "put-secret",
         "put-smtp-secret",
         "token",
@@ -410,6 +420,32 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "schedules": "enabled",
                         "organization_id": schedule_profile.scope.organization_id,
                         "environment_id": schedule_profile.scope.environment_id,
+                    }
+                )
+            )
+        elif args.command == "enable-webhooks":
+            with installation_lock(directory):
+                webhook_profile = enable_webhooks(directory)
+            print(
+                json.dumps(
+                    {
+                        "profile": "local-demo",
+                        "webhooks": "enabled",
+                        "organization_id": webhook_profile.scope.organization_id,
+                        "environment_id": webhook_profile.scope.environment_id,
+                    }
+                )
+            )
+        elif args.command == "enable-form-starts":
+            with installation_lock(directory):
+                form_start_profile = enable_form_starts(directory)
+            print(
+                json.dumps(
+                    {
+                        "profile": "local-demo",
+                        "form_starts": "enabled",
+                        "organization_id": form_start_profile.scope.organization_id,
+                        "environment_id": form_start_profile.scope.environment_id,
                     }
                 )
             )

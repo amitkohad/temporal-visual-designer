@@ -147,13 +147,21 @@ def test_wrong_scope_release_rejected_before_persistence(setup):
 
 
 @pytest.mark.parametrize(
-    "changes", [{"source": "webhook"}, {"idempotency_key": ""}, {"workflow_id": "bad/id"}]
+    "changes", [{"source": "unknown"}, {"idempotency_key": ""}, {"workflow_id": "bad/id"}]
 )
 def test_unsupported_source_and_identifiers_rejected(setup, changes):
     service, request, _ = setup
     with pytest.raises(StartError):
         service.start(replace(request, **changes))
     assert service.releases.calls == service.dispatcher.calls == 0
+
+
+@pytest.mark.parametrize("source", ["form", "webhook"])
+def test_form_and_webhook_sources_are_accepted(setup, source):
+    service, request, _ = setup
+    receipt = service.start(replace(request, source=source, idempotency_key=f"{source}-key"))
+    assert receipt.dispatched
+    assert service.dispatcher.calls == 1
 
 
 def test_concurrent_connections_reserve_one_execution(setup):
