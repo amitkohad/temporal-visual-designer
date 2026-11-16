@@ -7,6 +7,7 @@ import FormBuilder from "./FormBuilder";
 import Connections from "./Connections";
 import AdminCatalog from "./AdminCatalog";
 import Promote from "./Promote";
+import ProdSupport from "./ProdSupport";
 import DebuggerPanel from "./DebuggerPanel";
 import {
   emptyPublishGate,
@@ -111,6 +112,12 @@ export default function App() {
           connection={session ?? undefined}
         />
       )}
+      {view === "prod" && (
+        <ProdSupport
+          onClose={() => setView(session ? "projects" : "sample")}
+          connection={session ?? undefined}
+        />
+      )}
       {view === "debugger" && (
         <DebuggerPanel
           onClose={() => setView(session ? "projects" : "sample")}
@@ -138,6 +145,7 @@ function DevLoopNav({
     { id: "connections", label: "Connections" },
     { id: "admin", label: "Admin" },
     { id: "promote", label: "Promote" },
+    { id: "prod", label: "Prod" },
     { id: "debugger", label: "Debugger" },
     { id: "release", label: "Release" },
     { id: "tasks", label: "Tasks" },
@@ -364,6 +372,14 @@ function SampleWorkspace({
             }
           >
             Promote
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              dirty ? setPendingLeave("prod") : onNavigate("prod")
+            }
+          >
+            Prod
           </button>
           <button
             type="button"

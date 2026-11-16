@@ -18,6 +18,11 @@ export interface ProjectRelease {
   checksum: string;
 }
 
+export interface DeploymentEvidence {
+  change_request_number?: string | null;
+  notes?: string | null;
+}
+
 export interface ProjectActivation {
   revision: number;
   release_id: string | null;
@@ -29,6 +34,7 @@ export interface ProjectActivation {
   checksum?: string | null;
   actor_id?: string | null;
   created_at?: string | null;
+  evidence?: DeploymentEvidence | null;
 }
 
 export interface ExecutionAccepted {
@@ -61,6 +67,8 @@ export interface ActivateParams {
   expectedRevision: number;
   runtimeVersion?: string;
   action?: "activate" | "rollback";
+  /** Optional immutable text evidence recorded with the successful operation. */
+  evidence?: DeploymentEvidence | null;
 }
 
 export interface StartParams {
@@ -184,6 +192,39 @@ function parseRelease(value: unknown, projectId: string): ProjectRelease {
   };
 }
 
+function parseEvidence(value: unknown): DeploymentEvidence | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (!isObject(value)) throw new Error();
+  const change = value.change_request_number;
+  const notes = value.notes;
+  if (
+    !(
+      change === undefined ||
+      change === null ||
+      (typeof change === "string" &&
+        change.trim().length >= 1 &&
+        change.length <= 128)
+    )
+  )
+    throw new Error();
+  if (
+    !(
+      notes === undefined ||
+      notes === null ||
+      (typeof notes === "string" &&
+        notes.trim().length >= 1 &&
+        notes.length <= 2000)
+    )
+  )
+    throw new Error();
+  const evidence: DeploymentEvidence = {};
+  if ("change_request_number" in value)
+    evidence.change_request_number = change as string | null | undefined;
+  if ("notes" in value) evidence.notes = notes as string | null | undefined;
+  return evidence;
+}
+
 function parseActivation(value: unknown): ProjectActivation {
   if (!isObject(value) || !nonNegative(value.revision)) throw new Error();
   if (value.release_id !== null && !isIdentifier(value.release_id))
@@ -210,7 +251,8 @@ function parseActivation(value: unknown): ProjectActivation {
     !TIMESTAMP.test(value.created_at)
   )
     throw new Error();
-  return {
+  const evidence = parseEvidence(value.evidence);
+  const activation: ProjectActivation = {
     revision: value.revision,
     release_id: value.release_id,
     project_id: value.project_id,
@@ -222,6 +264,42 @@ function parseActivation(value: unknown): ProjectActivation {
     actor_id: value.actor_id,
     created_at: value.created_at,
   };
+  if (evidence !== undefined) activation.evidence = evidence;
+  return activation;
+}
+
+function normalizeEvidence(
+  evidence: DeploymentEvidence | null | undefined,
+): DeploymentEvidence | undefined {
+  if (evidence === undefined) return undefined;
+  if (evidence === null) return {};
+  const change = evidence.change_request_number;
+  const notes = evidence.notes;
+  if (
+    !(
+      change === undefined ||
+      change === null ||
+      (typeof change === "string" &&
+        change.trim().length >= 1 &&
+        change.length <= 128)
+    )
+  )
+    throw new ProjectApiError("invalid_request");
+  if (
+    !(
+      notes === undefined ||
+      notes === null ||
+      (typeof notes === "string" &&
+        notes.trim().length >= 1 &&
+        notes.length <= 2000)
+    )
+  )
+    throw new ProjectApiError("invalid_request");
+  const next: DeploymentEvidence = {};
+  if ("change_request_number" in evidence)
+    next.change_request_number = change ?? null;
+  if ("notes" in evidence) next.notes = notes ?? null;
+  return next;
 }
 
 function parseAccepted(value: unknown): ExecutionAccepted {
@@ -394,6 +472,14 @@ export function createReleaseClient(
     async activate(projectId, params) {
       const runtimeVersion = params.runtimeVersion ?? "proof.v1";
       const action = params.action ?? "activate";
+      let evidence: DeploymentEvidence | undefined;
+      try {
+        evidence = normalizeEvidence(params.evidence);
+      } catch (error) {
+        throw error instanceof ProjectApiError
+          ? error
+          : new ProjectApiError("invalid_request");
+      }
       if (
         !isIdentifier(projectId) ||
         !isIdentifier(params.releaseId) ||
@@ -405,18 +491,20 @@ export function createReleaseClient(
         (action !== "activate" && action !== "rollback")
       )
         throw new ProjectApiError("invalid_request");
+      const body: Record<string, unknown> = {
+        project_id: projectId,
+        release_id: params.releaseId,
+        configuration_revision: params.configurationRevision,
+        operation_id: params.operationId,
+        expected_revision: params.expectedRevision,
+        runtime_version: runtimeVersion,
+        action,
+      };
+      if (evidence !== undefined) body.evidence = evidence;
       const value = await request(
         `/${projectId}/activation`,
         "POST",
-        JSON.stringify({
-          project_id: projectId,
-          release_id: params.releaseId,
-          configuration_revision: params.configurationRevision,
-          operation_id: params.operationId,
-          expected_revision: params.expectedRevision,
-          runtime_version: runtimeVersion,
-          action,
-        }),
+        JSON.stringify(body),
       );
       try {
         const activation = parseActivation(value);

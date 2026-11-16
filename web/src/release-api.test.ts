@@ -124,6 +124,43 @@ describe("release API critical path", () => {
     expect(JSON.stringify(calls.map(([url]) => url))).not.toContain("private");
   });
 
+  it("posts optional activation evidence when supplied", async () => {
+    const withEvidence = {
+      ...activation,
+      evidence: {
+        change_request_number: "CHG-9",
+        notes: "Recorded offline",
+      },
+    };
+    const fetch = fetcher(withEvidence);
+    const client = createReleaseClient(connection, fetch);
+    expect(
+      await client.activate("hr", {
+        releaseId: "rel-1",
+        configurationRevision: "local-v1",
+        operationId: "act-1",
+        expectedRevision: 0,
+        evidence: {
+          change_request_number: "CHG-9",
+          notes: "Recorded offline",
+        },
+      }),
+    ).toEqual(withEvidence);
+    expect(JSON.parse(String(fetch.mock.calls[0][1]?.body))).toEqual({
+      project_id: "hr",
+      release_id: "rel-1",
+      configuration_revision: "local-v1",
+      operation_id: "act-1",
+      expected_revision: 0,
+      runtime_version: "proof.v1",
+      action: "activate",
+      evidence: {
+        change_request_number: "CHG-9",
+        notes: "Recorded offline",
+      },
+    });
+  });
+
   it("reuses caller idempotency keys and maps HTTP failures privately", async () => {
     const fetch = fetcher({ code: "conflict" }, 409);
     await expect(
