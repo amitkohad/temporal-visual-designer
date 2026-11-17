@@ -93,13 +93,17 @@ class LocalConfigurations:
     def __init__(
         self, settings: LocalSettings, *, extra_organization_ids: tuple[str, ...] = ()
     ) -> None:
+        # Empty local-v1 configuration is valid for Dev/UAT/Prod on the installation
+        # organization so package promote can materialize and activate without a
+        # separate destination-configuration provider. Extra Entra pilot orgs stay Dev-only.
         scopes = [
-            Scope(organization_id=settings.organization_id, environment_id="dev"),
-            *(
-                Scope(organization_id=organization_id, environment_id="dev")
-                for organization_id in extra_organization_ids
-            ),
+            Scope(organization_id=settings.organization_id, environment_id=environment)
+            for environment in ("dev", "uat", "prod")
         ]
+        scopes.extend(
+            Scope(organization_id=organization_id, environment_id="dev")
+            for organization_id in extra_organization_ids
+        )
         self.scopes = frozenset(scopes)
         # Preserve the historical single-scope attribute for existing callers/tests.
         self.scope = Scope(organization_id=settings.organization_id, environment_id="dev")

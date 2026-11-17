@@ -127,8 +127,15 @@ def test_local_configuration_validates_actual_empty_object_schema(tmp_path):
     config = LocalConfigurations(initialize(tmp_path))
     assert config.supports(SCOPE, "welcome", "local-v1", {"type": "object"})
     assert not config.supports(SCOPE, "welcome", "changed", {})
+    for environment in ("uat", "prod"):
+        assert config.supports(
+            SCOPE.model_copy(update={"environment_id": environment}),
+            "welcome",
+            "local-v1",
+            {},
+        )
     assert not config.supports(
-        SCOPE.model_copy(update={"environment_id": "prod"}), "welcome", "local-v1", {}
+        SCOPE.model_copy(update={"organization_id": "other"}), "welcome", "local-v1", {}
     )
     assert not config.supports(SCOPE, "welcome", "local-v1", {"required": ["secret"]})
     assert not config.supports(SCOPE, "welcome", "local-v1", {"$ref": "https://example.com/schema"})
