@@ -5,7 +5,9 @@ Program gate: NF-T003 and later implementation authorization are required before
 `[P]` tasks own disjoint subtrees after contract freeze. All tasks are future implementation.
 
 - [ ] F10-T01 Freeze `nexusflow/modules/10-operations-portability/contracts/` against `specs/001-nexus-flow-designer/contracts.md`; prerequisites: runtime/identity/release review; acceptance: F10-A01–A05 mapped, no provisioning APIs.
+  - [x] **F10-T01a** Freeze PlacementResolver / AdmissionPolicy / ReadinessReport / DrainStatus (+ related errors) under `nexusflow/modules/operations_portability/` (ADR 0072); map F10-A01–A05; no provisioning APIs ([evidence](../../implementation-operations-portability.md)). Remaining for F10-T01: numbered ownership-path packaging/`contracts/` tree alignment if required by later integration.
 - [ ] F10-T02 [P] Build routing, admission, lifecycle, diagnostics in `nexusflow/modules/10-operations-portability/backend/`; prerequisites: F10-T01; acceptance: F10-A01/A02/A03/A05 with fakes.
+  - Partial fake-port slice shipped with F10-T01a (`OperationsPortabilityService`); full F10-T02 diagnostics/backend ownership path remains open.
 - [ ] F10-T03 [P] Build provider conformance bindings in `nexusflow/modules/10-operations-portability/adapters/`; prerequisites: F10-T01 and dependency review; acceptance: F10-A04, no infrastructure files.
 - [ ] F10-T04 [P] Build suites and sizing worksheet in `nexusflow/modules/10-operations-portability/tests/`; prerequisites: F10-T01; acceptance: F10-A01–A05, unresolved targets explicit.
 - [ ] F10-T05 Assemble provider ports in `nexusflow/modules/10-operations-portability/integration/`; prerequisites: F10-T02/F10-T03/F10-T04 and runtime/identity/registry/task providers; acceptance: F10-A01–A05 with disposable runtime.
