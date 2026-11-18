@@ -66,12 +66,29 @@ class EntraPilotSettings(Contract):
             normalized.append(item.lower())
         return tuple(normalized)
 
-    @field_validator("api_audience", "delegated_scope", "redirect_uri")
+    @field_validator("api_audience", "delegated_scope")
     @classmethod
     def nonempty(cls, value: str) -> str:
         if not value.strip() or len(value) > 512:
             raise ValueError("Field is required")
         return value.strip()
+
+    @field_validator("redirect_uri")
+    @classmethod
+    def loopback_redirect(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed or len(trimmed) > 512:
+            raise ValueError("Field is required")
+        # Dev pilot only: SPA redirect must stay on loopback (matches browser parser).
+        lowered = trimmed.lower()
+        if not (
+            lowered.startswith("http://127.0.0.1")
+            or lowered.startswith("http://localhost")
+            or lowered.startswith("https://127.0.0.1")
+            or lowered.startswith("https://localhost")
+        ):
+            raise ValueError("Redirect URI must be a loopback Hosted Dev origin")
+        return trimmed if trimmed.endswith("/") else f"{trimmed}/"
 
     @field_validator("graph_client_id", "graph_client_secret")
     @classmethod
@@ -172,6 +189,15 @@ def load_entra_pilot_settings(
         data["author_object_ids"] = tuple(
             part.strip() for part in authors.split(",") if part.strip()
         )
+    # Same-app pilots often omit API client id; default azp allowlist to the SPA.
+    spa = data.get("spa_client_id")
+    api_client = data.get("allowed_user_client_id")
+    if (
+        (not isinstance(api_client, str) or not api_client.strip())
+        and isinstance(spa, str)
+        and spa.strip()
+    ):
+        data["allowed_user_client_id"] = spa.strip()
     # Presence gate: require the core fields; otherwise treat as disabled.
     required = (
         "organization_id",
@@ -182,8 +208,6 @@ def load_entra_pilot_settings(
     )
     if not all(isinstance(data.get(name), str) and str(data[name]).strip() for name in required):
         return None
-    if "allowed_user_client_id" not in data and "spa_client_id" in data:
-        data["allowed_user_client_id"] = data["spa_client_id"]
     return EntraPilotSettings.model_validate(data)
 
 

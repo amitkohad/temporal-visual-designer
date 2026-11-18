@@ -72,8 +72,9 @@ screenshots, or checked-in scripts. Issue a fresh token with `--lifetime-seconds
 
 When `NEXUSFLOW_ENTRA_*` (or `NEXUSFLOW_ENTRA_CONFIG`) is set before `serve`, the
 API exposes `GET /api/v1/auth/browser` and Connect shows **Sign in with Microsoft**.
-Local-demo token paste remains available. Full enablement, app registration, and
-honest live-tenant remaining work: [entra-pilot.md](entra-pilot.md).
+Local-demo token paste remains available. App registration, example config,
+`nexusflow-entra-smoke`, and honest live-tenant remaining work:
+[entra-pilot.md](entra-pilot.md).
 
 ## Click-through (Sample → Projects → Forms → Release → Tasks)
 

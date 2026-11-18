@@ -216,6 +216,34 @@ def test_load_entra_settings_from_environ():
     assert "client_secret" not in json.dumps(public)
 
 
+def test_load_entra_settings_defaults_api_client_to_spa():
+    settings = load_entra_pilot_settings(
+        environ={
+            "NEXUSFLOW_ENTRA_ORGANIZATION_ID": "pilot-org",
+            "NEXUSFLOW_ENTRA_TENANT_ID": TENANT,
+            "NEXUSFLOW_ENTRA_SPA_CLIENT_ID": SPA,
+            "NEXUSFLOW_ENTRA_API_AUDIENCE": AUDIENCE,
+            "NEXUSFLOW_ENTRA_AUTHOR_OBJECT_IDS": OBJECT,
+        }
+    )
+    assert settings is not None
+    assert settings.allowed_user_client_id == SPA
+
+
+def test_entra_settings_reject_non_loopback_redirect():
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        EntraPilotSettings(
+            organization_id="pilot-org",
+            directory_tenant_id=TENANT,
+            spa_client_id=SPA,
+            api_audience=AUDIENCE,
+            allowed_user_client_id=SPA,
+            redirect_uri="https://example.com/callback",
+        )
+
+
 def test_apply_entra_bootstrap_idempotent(tmp_path):
     settings = EntraPilotSettings(
         organization_id="pilot-org",
@@ -421,3 +449,120 @@ def test_wrong_audience_still_unauthenticated():
                 headers={"kid": kid},
             )
         )
+
+
+def test_entra_token_lists_projects_critical_path(tmp_path):
+    """Recorded Entra session → signed Dev projects list (not live-tenant acceptance)."""
+    from fastapi.testclient import TestClient
+
+    from nexusflow.apps.entra_smoke import public_browser_summary, run_smoke
+    from nexusflow.apps.local_bootstrap import LocalCapabilities, LocalConfigurations, LocalSettings
+    from nexusflow.modules.activity_catalog.catalog_repository import SQLiteCatalogRepository
+    from nexusflow.modules.activity_catalog.repository import SQLiteIntakeRepository
+    from nexusflow.modules.durable_runtime.starts import SQLiteStartRepository
+    from nexusflow.modules.package_promotion.repository import SQLiteActivationRepository
+    from nexusflow.modules.project_versioning.repository import SQLiteProjectRepository
+
+    private, jwks, kid = _entra_keys()
+    http = RecordedHttp({f"https://login.microsoftonline.com/{TENANT}/discovery/v2.0/keys": jwks})
+    settings = EntraPilotSettings(
+        organization_id="pilot-org",
+        directory_tenant_id=TENANT,
+        spa_client_id=SPA,
+        api_audience=AUDIENCE,
+        allowed_user_client_id=SPA,
+        author_object_ids=(OBJECT,),
+    )
+    identity = SQLiteIdentityRepository(tmp_path / "identity.db")
+    projects = SQLiteProjectRepository(tmp_path / "projects.db")
+    catalog = SQLiteCatalogRepository(tmp_path / "catalog.db")
+    intake = SQLiteIntakeRepository(tmp_path / "intake.db")
+    activations = SQLiteActivationRepository(tmp_path / "activations.db")
+    starts = SQLiteStartRepository(tmp_path / "starts.db")
+
+    class Runtime:
+        async def dispatcher(self, placement):
+            raise RuntimeError
+
+        async def snapshot(self, placement, execution_id):
+            raise RuntimeError
+
+    try:
+        apply_entra_pilot_bootstrap(identity, settings)
+        keys = CompositeSigningKeys(
+            {
+                "11111111-1111-4111-8111-111111111111": LocalKeys(),
+                TENANT: MicrosoftJwksSigningKeys(http),
+            }
+        )
+        local = LocalSettings(installation_id="11111111-1111-4111-8111-111111111111")
+        backend = ApiBackend(
+            IdentityService(identity, keys),
+            projects,
+            catalog,
+            intake,
+            activations,
+            starts,
+            LocalCapabilities(),
+            LocalConfigurations(local),
+            Runtime(),
+            browser_auth=browser_auth_from_settings(settings),
+        )
+        client = TestClient(create_app(backend))
+        browser = client.get("/api/v1/auth/browser").json()
+        assert public_browser_summary(browser)["enabled"] is True
+        assert "secret" not in json.dumps(browser).lower()
+        token = _token(private, kid)
+        listed = client.get(
+            "/api/v1/organizations/pilot-org/environments/dev/projects",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert listed.status_code == 200, listed.text
+        assert listed.json() == []
+
+        def fake_get(url: str, *, headers: dict[str, str] | None = None) -> object:
+            path = url[url.find("/api/") :]
+            response = client.get(path, headers=headers or {})
+            assert response.status_code == 200, response.text
+            return response.json()
+
+        monkey = pytest.MonkeyPatch()
+        monkey.setattr("nexusflow.apps.entra_smoke._get_json", fake_get)
+        try:
+            assert (
+                run_smoke(
+                    base_url="http://127.0.0.1:8000",
+                    token=token,
+                    check_browser_only=False,
+                )
+                == 0
+            )
+            assert (
+                run_smoke(
+                    base_url="http://127.0.0.1:8000",
+                    token=None,
+                    check_browser_only=True,
+                )
+                == 0
+            )
+        finally:
+            monkey.undo()
+    finally:
+        identity.close()
+        projects.close()
+        catalog.close()
+        intake.close()
+        activations.close()
+        starts.close()
+
+
+def test_entra_smoke_skips_when_browser_auth_disabled(monkeypatch):
+    from nexusflow.apps.entra_smoke import run_smoke
+
+    monkeypatch.setattr(
+        "nexusflow.apps.entra_smoke._get_json",
+        lambda url, *, headers=None: {"enabled": False},
+    )
+    assert (
+        run_smoke(base_url="http://127.0.0.1:8000", token=None, check_browser_only=True) == 2
+    )
