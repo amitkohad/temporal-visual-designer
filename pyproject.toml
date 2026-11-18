@@ -24,6 +24,7 @@ exclude = ["nexusflow/tests"]
 [project.scripts]
 nexusflow-local = "nexusflow.apps.local:main"
 nexusflow-check = "nexusflow.apps.cli:main"
+nexusflow-entra-smoke = "nexusflow.apps.entra_smoke:main"
 nexusflow-export-schemas = "nexusflow.contracts.export:main"
 nexusflow-project-schema = "nexusflow.modules.project_versioning.export:main"
 nexusflow-binding-schema = "nexusflow.modules.designer_forms.export:main"
