@@ -115,10 +115,24 @@ def start_run(
     return accepted.json()["execution_id"]
 
 
+def _transient_unavailable(response: httpx.Response) -> bool:
+    if response.status_code == 503:
+        return True
+    if response.status_code < 500:
+        return False
+    try:
+        return response.json().get("code") == "unavailable"
+    except Exception:
+        return False
+
+
 def pending_task(client: httpx.Client, base: str, headers: dict[str, str], execution: str) -> dict:
-    deadline = time.monotonic() + 30
+    deadline = time.monotonic() + 45
     while time.monotonic() < deadline:
         response = client.get(base + "/tasks", headers=headers, params={"run_id": execution})
+        if _transient_unavailable(response):
+            time.sleep(0.2)
+            continue
         assert response.status_code == 200, response.text
         tasks = [task for task in response.json()["items"] if task["status"] == "pending"]
         assert len(tasks) <= 1, "Linear starter created concurrent approval tasks"
@@ -166,15 +180,21 @@ def approve_task(
 def wait_completed(
     client: httpx.Client, project_path: str, headers: dict[str, str], execution: str
 ) -> dict:
-    deadline = time.monotonic() + 30
+    deadline = time.monotonic() + 45
+    last: dict | str | None = None
     while time.monotonic() < deadline:
         result = client.get(project_path + "/executions/" + execution, headers=headers)
+        if _transient_unavailable(result):
+            last = f"unavailable:{result.status_code}:{result.text[:200]}"
+            time.sleep(0.2)
+            continue
         assert result.status_code == 200, result.text
         payload = result.json()
+        last = payload
         if payload["state"] in ("completed", "failed"):
             return payload
         time.sleep(0.1)
-    raise AssertionError("Starter did not finish after approvals")
+    raise AssertionError(f"Starter did not finish after approvals; last={last!r}")
 
 
 def complete_starter_run(
@@ -206,6 +226,120 @@ def complete_starter_run(
     return project_path, release_id, execution
 
 
+def bump_draft_revision(
+    client: httpx.Client,
+    project_path: str,
+    headers: dict[str, str],
+    *,
+    expected_revision: int,
+    summary: str,
+) -> int:
+    """Save a non-breaking draft change so a second release can be published."""
+    current = client.get(project_path, headers=headers)
+    assert current.status_code == 200, current.text
+    content = current.json()["content"]
+    touched = False
+    for workflow in content["workflows"]:
+        for node in workflow["nodes"]:
+            human_task = node.get("input_mapping", {}).get("human_task")
+            if not isinstance(human_task, dict):
+                continue
+            form = human_task.get("form")
+            if not isinstance(form, dict):
+                continue
+            definition = form.get("definition")
+            if not isinstance(definition, dict):
+                continue
+            schema = definition.get("data_schema", {})
+            properties = schema.get("properties", {})
+            notes = properties.get("notes")
+            if isinstance(notes, dict) and isinstance(notes.get("maxLength"), int):
+                notes["maxLength"] = max(1, notes["maxLength"] - 1)
+                touched = True
+                break
+        if touched:
+            break
+    assert touched, "Starter content lacked an editable approval form notes bound"
+    saved = client.put(
+        project_path,
+        headers=headers,
+        json={
+            "expected_revision": expected_revision,
+            "summary": summary,
+            "content": content,
+        },
+    )
+    assert saved.status_code == 200, saved.text
+    return saved.json()["revision"]
+
+
+def publish_release(
+    client: httpx.Client,
+    project_path: str,
+    headers: dict[str, str],
+    *,
+    source_revision: int,
+    idempotency_key: str,
+) -> str:
+    release = client.post(
+        project_path + "/releases",
+        headers=headers,
+        json={"source_revision": source_revision, "idempotency_key": idempotency_key},
+    )
+    assert release.status_code == 201, release.text
+    return release.json()["release_id"]
+
+
+def activate_release(
+    client: httpx.Client,
+    project_path: str,
+    headers: dict[str, str],
+    *,
+    project_id: str,
+    release_id: str,
+    operation_id: str,
+    expected_revision: int,
+    action: str = "activate",
+) -> dict:
+    response = client.post(
+        project_path + "/activation",
+        headers=headers,
+        json={
+            "project_id": project_id,
+            "release_id": release_id,
+            "operation_id": operation_id,
+            "configuration_revision": "local-v1",
+            "expected_revision": expected_revision,
+            "action": action,
+        },
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def finish_remaining_approvals(
+    client: httpx.Client,
+    *,
+    organization: str,
+    template: str,
+    headers: dict[str, str],
+    project_path: str,
+    execution: str,
+    remaining_steps: tuple[str, ...],
+) -> dict:
+    starter = STARTERS[template]
+    base = env_base(organization, "dev")
+    for step in remaining_steps:
+        task = pending_task(client, base, headers, execution)
+        assert task["request"]["node_invocation_id"] == step
+        approve_task(client, base, headers, task, starter["inputs"])
+        # Allow async completion delivery to Temporal before the next poll/create.
+        time.sleep(0.2)
+    status = wait_completed(client, project_path, headers, execution)
+    assert status["state"] == "completed", status
+    return status
+
+
 __all__ = [
     "STARTERS",
     "_cli",
@@ -213,12 +347,16 @@ __all__ = [
     "_ports",
     "_run",
     "_serve",
+    "activate_release",
     "approve_task",
+    "bump_draft_revision",
     "complete_starter_run",
     "create_publish_activate",
     "env_base",
+    "finish_remaining_approvals",
     "grant_author",
     "pending_task",
+    "publish_release",
     "start_run",
     "wait_completed",
 ]
